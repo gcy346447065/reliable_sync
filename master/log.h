@@ -33,9 +33,10 @@
         #define log_debug(...)
     #endif
 
+//it will return true for all time
 #define log_init() \
     do { \
-        openlog("MASTER", 0, LOG_LOCAL1); \ //it will return true for all time
+        openlog("MASTER", 0, LOG_LOCAL1); \
     } while (0)
 
 #define log_free() \

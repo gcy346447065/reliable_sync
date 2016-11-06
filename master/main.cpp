@@ -6,7 +6,7 @@
 
 
 
-#include <sys/epoll.h>
+#include <sys/epoll.h> //for epoll
 #include <stdlib.h> //for malloc
 #include <stdint.h> //for unit64_t
 #include <unistd.h> //for read
@@ -69,7 +69,6 @@ int main(int argc, char *argv[])
         log_error("sync timer start error(%d)!", iSyncTimerFd);
         return -1;
     }
-
     memset(&stEvent, 0, sizeof(struct epoll_event));
     stEvent.data.fd = iSyncTimerFd;
     stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
@@ -87,7 +86,7 @@ int main(int argc, char *argv[])
         log_error("eventfd error(%d)!", iEventFd);
         return -1;
     }
-
+    log_debug("iEventFd(%d)", iEventFd);
     memset(&stEvent, 0, sizeof(struct epoll_event));
     stEvent.data.fd = iEventFd;
     stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
@@ -154,7 +153,7 @@ int main(int argc, char *argv[])
                     return -1;
                 }
 
-                if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when thread find no keep alive ack
+                if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when sync thread find no keep alive ack
                 {
                     log_info("Get slave restart event flag.");
 
@@ -163,7 +162,7 @@ int main(int argc, char *argv[])
                     /* read timerfd to loop again */
                 }
 
-                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG)
+                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main thread, tested: when get STDIN_FILENO keys in
                 {
                     log_info("Get master new config event flag.");
 
@@ -175,28 +174,41 @@ int main(int argc, char *argv[])
                 log_info("Get STDIN_FILENO fd.");
 
                 /* read STDIN_FILENO */
-                char acStdinBuf[1024];
-                iRet = read(STDIN_FILENO, acStdinBuf, 1024);
+                char acStdinBuf[128], acCutBuf[128], acRealtimeBuf[1024];
+                memset(acStdinBuf, 0, 128);
+                memset(acCutBuf, 0, 128);
+                memset(acRealtimeBuf, 0, 1024);
+
+                iRet = read(STDIN_FILENO, acStdinBuf, 128);
                 if(iRet < 0)
                 {
                     log_error("read STDIN_FILENO error(%s)!", strerror(errno));
                     return -1;
                 }
+                memcpy(acCutBuf, acStdinBuf, iRet-1); //-1 for '\n'
 
                 char *pcRestBuf = NULL;
-                if(pcRestBuf = strstr(acStdinBuf, "new config "))
+                if(pcRestBuf = strstr(acCutBuf, "new config "))
                 {
-                    log_info("Get new config: %s.", pcRestBuf);
+                    pcRestBuf += 11; //strlen("new config ")
+                    log_info("Get new config, filename: \"%s\".", pcRestBuf);
 
                     int iOpenFd = open(pcRestBuf, O_RDONLY);
                     if(iOpenFd > 0)
                     {
-                        memset(acStdinBuf, 0, 1024);
-                        iRet = read(iOpenFd, acStdinBuf, 1024);
-                        if(iRet > 0)
+                        log_info("open new config file ok.");
+
+                        log_debug("iRet(%d), iEventFd(%d), ", iRet, iEventFd);
+                        iRet = event_setEventFlags(iEventFd, EVENT_FLAG_MASTER_NEWCFG);
+                        if(iRet == 0)
                         {
-                            log_info("read realtime file ok.");
+                            log_info("event_setEventFlags EVENT_FLAG_MASTER_NEWCFG ok.");
                         }
+                        log_debug("iRet(%d)", iRet);
+                    }
+                    else
+                    {
+                        log_error("open new config file error(%s)!", strerror(errno));
                     }
                 }
             }

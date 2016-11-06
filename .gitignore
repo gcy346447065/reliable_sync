@@ -5,3 +5,5 @@
 !/slave/*.cpp
 !/slave/*.h
 
+/master/build
+/slave/build

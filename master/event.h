@@ -4,9 +4,9 @@
 #include <stdint.h> //for unit64_t
 
 /* event flags for eventfd */
-#define EVENT_FLAG_NONE (0)
-#define EVENT_FLAG_SLAVE_RESTART (1)
-#define EVENT_FLAG_MASTER_NEWCFG (1<<1)
+#define EVENT_FLAG_NONE 0x00
+#define EVENT_FLAG_SLAVE_RESTART 0x01
+#define EVENT_FLAG_MASTER_NEWCFG 0x02
 
 
 int event_init(unsigned int iInitVal);

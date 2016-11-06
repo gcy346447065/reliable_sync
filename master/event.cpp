@@ -7,7 +7,7 @@
 
 int event_init(unsigned int iInitVal)
 {
-    int iEventFd = eventfd(iInitVal, 0); //iInitVal(0) for event flag init value, 0 for flag
+    int iEventFd = eventfd(iInitVal, EFD_NONBLOCK); //iInitVal(0) for event flag init value, EFD_NONBLOCK for reading zero no block
     if(iEventFd < 0)
     {
         log_error("eventfd error(%d)!", iEventFd);
@@ -20,7 +20,11 @@ int event_init(unsigned int iInitVal)
 int event_getEventFlags(int iEventFd, uint64_t *puiEventRead)
 {
     int iRet = read(iEventFd, puiEventRead, sizeof(uint64_t));
-    if(iRet != sizeof(uint64_t))
+    if(iRet == EAGAIN) //EAGAIN for puiEventRead zero
+    {
+        *puiEventRead = 0;
+    }
+    else if(iRet != sizeof(uint64_t))
     {
         log_error("read iEventFd error(%s)!", strerror(errno));
         return -1;
@@ -38,7 +42,7 @@ int event_setEventFlags(int iEventFd, uint64_t uiEventFlag)
         log_error("event_getEventFlags error(%d)!", iRet);
         return -1;
     }
-
+    
     uint64_t uiEventWrite = uiEventRead | uiEventFlag;
     iRet = write(iEventFd, &uiEventWrite, sizeof(uint64_t));
     if(iRet != sizeof(uint64_t))
@@ -47,6 +51,7 @@ int event_setEventFlags(int iEventFd, uint64_t uiEventFlag)
         return -2;
     }
 
+    log_debug("ok");
     return 0;
 }
 
