@@ -1,11 +1,5 @@
 
-#include <pthread.h>
-#include <netinet/in.h>
-
-#include <signal.h>
-
-
-
+#include <pthread.h> //for pthread
 #include <sys/epoll.h> //for epoll
 #include <stdlib.h> //for malloc
 #include <stdint.h> //for unit64_t
@@ -17,41 +11,18 @@
 #include "log.h"
 #include "timer.h"
 #include "event.h"
+#include "socket.h"
 
 bool g_bSendSynAckFlag = false;
 int g_iSocketStatus = SERVER_SOCKET_WAIT_SYN;
 int g_iBackupStatus = BACKUP_NULL;
 
-void *master_service(void *arg);
-
-int getNewConfig()
-{
-    return 1;
-}
-
-int getSlaveRestart()
-{
-    return 1;
-}
-
-int getSyncTimer()
-{
-    return 1;
-}
+void *master_sync(void *arg);
 
 int main(int argc, char *argv[])
 {
     /* log init */
     log_init();
-
-    /* pthread create */
-    pthread_t SyncThreadId;
-    int iRet = pthread_create(&SyncThreadId, NULL, master_service, NULL);
-    if(iRet != 0)
-    {
-        log_error("pthread create error(%d)!", iRet);
-        return -1;
-    }
 
     /* epoll create */
     int iEpollFd = epoll_create(MAX_EPOLL_NUM);
@@ -63,10 +34,16 @@ int main(int argc, char *argv[])
     struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
 
     /* add sync timerfd to epoll */
-    int iSyncTimerFd = timer_start(1000 * 60 * 1); //planned: 10 min, tested: 1 min
+    int iSyncTimerFd = timer_create();
     if(iSyncTimerFd < 0)
     {
-        log_error("sync timer start error(%d)!", iSyncTimerFd);
+        log_error("sync timer create error(%d)!", iSyncTimerFd);
+        return -1;
+    }
+    iRet = timer_start(iSyncTimerFd, 1000 * 60 * 1); //planned: 10 min, tested: 1 min
+    if(iRet < 0)
+    {
+        log_error("sync timer start error(%d)!", iRet);
         return -1;
     }
     memset(&stEvent, 0, sizeof(struct epoll_event));
@@ -79,7 +56,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    /* add eventfd to epoll */
+    /* add eventfd to epoll, send eventfd to sync thread */
     int iEventFd = event_init(0); //0 for event flag init value
     if(iEventFd < 0)
     {
@@ -105,6 +82,15 @@ int main(int argc, char *argv[])
     if(iRet < 0)
     {
         log_error("epoll add STDIN_FILENO error(%d)!", iRet);
+        return -1;
+    }
+
+    /* pthread create */
+    pthread_t SyncThreadId;
+    int iRet = pthread_create(&SyncThreadId, NULL, master_sync, NULL);
+    if(iRet != 0)
+    {
+        log_error("pthread create error(%d)!", iRet);
         return -1;
     }
 
@@ -139,7 +125,7 @@ int main(int argc, char *argv[])
                     log_error("read iSyncTimerFd error(%s)!", strerror(errno));
                     return -1;
                 }
-            }
+            }//if
             else if(stEvents[i].data.fd == iEventFd && stEvents[i].events & EPOLLIN)
             {
                 log_info("Get eventfd.");
@@ -168,7 +154,7 @@ int main(int argc, char *argv[])
 
                     /* realtime SendToSync */
                 }
-            }
+            }//else if
             else if(stEvents[i].data.fd == STDIN_FILENO && stEvents[i].events & EPOLLIN)
             {
                 log_info("Get STDIN_FILENO fd.");
@@ -197,38 +183,24 @@ int main(int argc, char *argv[])
                     if(iOpenFd > 0)
                     {
                         log_info("open new config file ok.");
-
-                        log_debug("iRet(%d), iEventFd(%d), ", iRet, iEventFd);
                         iRet = event_setEventFlags(iEventFd, EVENT_FLAG_MASTER_NEWCFG);
                         if(iRet == 0)
                         {
                             log_info("event_setEventFlags EVENT_FLAG_MASTER_NEWCFG ok.");
                         }
-                        log_debug("iRet(%d)", iRet);
                     }
                     else
                     {
                         log_error("open new config file error(%s)!", strerror(errno));
                     }
                 }
-            }
-        }
-
-
-        #if 0
-        /* realtime SendToSync when find new config */
-        if(getNewConfig(&pRealtimeBuf, &iRealtimeBufLen))
-        {
-            SendToSync(pRealtimeBuf, iRealtimeBufLen, 0, NULL, SEND_REALTIME_WAITED);
-        }
-
-        /* batch SendToSync when find slave restart or regularly */
-        if(getSlaveRestart() || getSyncTimer())
-        {
-            SendToSync(pBatchBuf, pBatchBuf, 0, NULL, SEND_BATCH);
-        }
-        #endif
-    }
+                else
+                {
+                    log_error("Unknown command!");
+                }
+            }//else if
+        }//for
+    }//while
 
     /* free all */
     log_info("Main Task Ending.");
@@ -238,9 +210,69 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void *master_service(void *arg)
+void *master_sync(void *arg)
 {
-    //TO DO
+    log_info("Master SYNC Beginning.");
+
+    /* socket init */
+    int iRet = socket_init();
+    if(iRet < 0)
+    {
+        log_error("socket init error(%d)!", iRet);
+        return (void *)-1;
+    }
+    int iSockFd = iRet;
+    log_debug("Server iSockFd=%d.", iSockFd);
+
+    /* epoll create */
+    int iEpollFd = epoll_create(MAX_EPOLL_NUM);
+    if(iEpollFd < 0)
+    {
+        log_error("epoll create error(%d)!", iEpollFd);
+        return -1;
+    }
+    struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
+
+    /* add iSockFd to epoll */
+    memset(&stEvent, 0, sizeof(struct epoll_event));
+    stEvent.data.fd = iSockFd;
+    stEvent.events = EPOLLIN | EPOLLET; //epoll for recvfrom, edge triggered
+    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iSockFd, &stEvent);
+    if(iRet < 0)
+    {
+        log_error("epoll add iSockFd error(%d)!", iRet);
+        return -1;
+    }
+
+    /* timer create, start the specified timer when needs */
+
+    while(1)
+    {
+        /* epoll wail */
+        int iEpollNum = epoll_wait(iEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
+        for(int i = 0; i < iEpollNum; i++)
+        {
+            if(stEvents[i].data.fd == iSockFd && stEvents[i].events & EPOLLIN)
+            {
+                log_debug("epoll event iSockFd.");
+
+                /* wait for socket msg */
+                memset(acBuffer, 0, BUFFER_SIZE);
+                int iRecvLen = recvfrom(iSockFd, acBuffer, BUFFER_SIZE, 0, (struct sockaddr *)&stRecvAddr, (socklen_t *)&iRecvAddrLen);
+                if(iRecvLen > 0)
+                {
+                    //TO DO: the stRecvAddr of the first msg is NULL
+                    log_debug("Get socket msg: %d, %s.", stRecvAddr.sin_port, acBuffer);
+                }
+
+                /*if(sendto(iSockFd, "SYN ACK", 7, 0, (struct sockaddr *)&stRecvAddr, iRecvAddrLen) < 0)
+                {
+                    log_debug("Send SYN ACK to client failed!");
+                    g_bSendSynAckFlag = false;
+                }*/
+            }
+        }
+    }
 }
 
 #if 0

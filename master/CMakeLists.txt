@@ -5,6 +5,7 @@ SET(SRC_LIST
 	main.cpp
     timer.cpp
     event.cpp
+    socket.cpp
 	)
 ADD_EXECUTABLE(syncmaster ${SRC_LIST})
 TARGET_LINK_LIBRARIES(syncmaster pthread)
