@@ -20,17 +20,23 @@ int event_init(unsigned int iInitVal)
 int event_getEventFlags(int iEventFd, uint64_t *puiEventRead)
 {
     int iRet = read(iEventFd, puiEventRead, sizeof(uint64_t));
-    if(iRet == EAGAIN) //EAGAIN for puiEventRead zero
+    if(iRet == EAGAIN) 
     {
         *puiEventRead = 0;
     }
     else if(iRet != sizeof(uint64_t))
     {
-        log_error("read iEventFd error(%s)!", strerror(errno));
-        return -1;
+        if(errno == EAGAIN) //EAGAIN for puiEventRead zero
+        {
+            *puiEventRead = 0;
+            return 0;
+        }
+        else
+        {
+            log_error("read iEventFd error(%d,%s)!", errno, strerror(errno)); 
+            return -1;
+        }
     }
-
-    return 0;
 }
 
 int event_setEventFlags(int iEventFd, uint64_t uiEventFlag)

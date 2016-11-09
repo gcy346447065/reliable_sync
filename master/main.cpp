@@ -1,4 +1,5 @@
-
+#include <netinet/in.h> //for sockaddr_in
+#include <sys/socket.h> //for recvfrom
 #include <pthread.h> //for pthread
 #include <sys/epoll.h> //for epoll
 #include <stdlib.h> //for malloc
@@ -16,6 +17,11 @@
 bool g_bSendSynAckFlag = false;
 int g_iSocketStatus = SERVER_SOCKET_WAIT_SYN;
 int g_iBackupStatus = BACKUP_NULL;
+
+struct sync_struct
+{
+    int iEventFd;
+};
 
 void *master_sync(void *arg);
 
@@ -40,7 +46,7 @@ int main(int argc, char *argv[])
         log_error("sync timer create error(%d)!", iSyncTimerFd);
         return -1;
     }
-    iRet = timer_start(iSyncTimerFd, 1000 * 60 * 1); //planned: 10 min, tested: 1 min
+    int iRet = timer_start(iSyncTimerFd, 1000 * 60 * 1); //planned: 10 min, tested: 1 min
     if(iRet < 0)
     {
         log_error("sync timer start error(%d)!", iRet);
@@ -87,7 +93,9 @@ int main(int argc, char *argv[])
 
     /* pthread create */
     pthread_t SyncThreadId;
-    int iRet = pthread_create(&SyncThreadId, NULL, master_sync, NULL);
+    struct sync_struct stSyncStruct;
+    stSyncStruct.iEventFd = iEventFd; //send iEventFd to sync thread
+    iRet = pthread_create(&SyncThreadId, NULL, master_sync, (void *)&stSyncStruct);
     if(iRet != 0)
     {
         log_error("pthread create error(%d)!", iRet);
@@ -214,6 +222,11 @@ void *master_sync(void *arg)
 {
     log_info("Master SYNC Beginning.");
 
+    /* parse synv struct from main thread */
+    struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
+    int iEventFd = pstSyncStruct->iEventFd;
+    log_debug("iEventFd = %d", iEventFd);
+
     /* socket init */
     int iRet = socket_init();
     if(iRet < 0)
@@ -229,9 +242,20 @@ void *master_sync(void *arg)
     if(iEpollFd < 0)
     {
         log_error("epoll create error(%d)!", iEpollFd);
-        return -1;
+        return (void *)-1;
     }
     struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
+
+    /* add iEventFd to epoll */
+    memset(&stEvent, 0, sizeof(struct epoll_event));
+    stEvent.data.fd = iEventFd;
+    stEvent.events = EPOLLIN | EPOLLET; //epoll for recvfrom, edge triggered
+    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iEventFd, &stEvent);
+    if(iRet < 0)
+    {
+        log_error("epoll add iEventFd error(%d)!", iRet);
+        return (void *)-1;
+    }
 
     /* add iSockFd to epoll */
     memset(&stEvent, 0, sizeof(struct epoll_event));
@@ -241,10 +265,22 @@ void *master_sync(void *arg)
     if(iRet < 0)
     {
         log_error("epoll add iSockFd error(%d)!", iRet);
-        return -1;
+        return (void *)-1;
     }
 
     /* timer create, start the specified timer when needs */
+
+
+    /* memset buffer and struct */
+    char acBuffer[BUFFER_SIZE];
+    memset(acBuffer, 0, BUFFER_SIZE);
+
+    char acReadBuffer[BUFFER_SIZE];
+    memset(acReadBuffer, 0, BUFFER_SIZE);
+
+    struct sockaddr_in stRecvAddr;
+    memset(&stRecvAddr, 0, sizeof(stRecvAddr));
+    int iRecvAddrLen = 0;
 
     while(1)
     {
@@ -270,9 +306,38 @@ void *master_sync(void *arg)
                     log_debug("Send SYN ACK to client failed!");
                     g_bSendSynAckFlag = false;
                 }*/
-            }
-        }
-    }
+            }//if
+            else if(stEvents[i].data.fd == iEventFd && stEvents[i].events & EPOLLIN)
+            {
+                log_info("Get eventfd.");
+
+                /* get events from iEventFd */
+                uint64_t uiEventsFlag;
+                iRet = event_getEventFlags(iEventFd, &uiEventsFlag);
+                if(iRet < 0)
+                {
+                    log_error("event_getEventFlags error(%d)!", iRet);
+                    return (void *)-1;
+                }
+
+                if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when sync thread find no keep alive ack
+                {
+                    log_info("Get slave restart event flag.");
+
+                    /* batch SendToSync */
+
+                    /* read timerfd to loop again */
+                }
+
+                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main thread, tested: when get STDIN_FILENO keys in
+                {
+                    log_info("Get master new config event flag.");
+
+                    /* realtime SendToSync */
+                }
+            }//else if
+        }//for
+    }//while
 }
 
 #if 0
