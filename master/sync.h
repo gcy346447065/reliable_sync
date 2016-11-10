@@ -8,6 +8,13 @@ enum SEND_METHOD_TO_SYNC
     SEND_REALTIME_INSTANT
 };
 
+struct sync_struct
+{
+    int iSyncEventFd;
+};
+
+void *master_sync(void *arg);
+
 int SendToSync(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod);
 int RecvFromSync(void *pBuf, int iBufLen);
 

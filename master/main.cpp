@@ -13,17 +13,11 @@
 #include "timer.h"
 #include "event.h"
 #include "socket.h"
+#include "sync.h"
 
 bool g_bSendSynAckFlag = false;
 int g_iSocketStatus = SERVER_SOCKET_WAIT_SYN;
 int g_iBackupStatus = BACKUP_NULL;
-
-struct sync_struct
-{
-    int iEventFd;
-};
-
-void *master_sync(void *arg);
 
 int main(int argc, char *argv[])
 {
@@ -39,44 +33,44 @@ int main(int argc, char *argv[])
     }
     struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
 
-    /* add sync timerfd to epoll */
-    int iSyncTimerFd = timer_create();
-    if(iSyncTimerFd < 0)
+    /* add batch sync timerfd to epoll */
+    int iBatchTimerFd = timer_create();
+    if(iBatchTimerFd < 0)
     {
-        log_error("sync timer create error(%d)!", iSyncTimerFd);
+        log_error("sync timer create error(%d)!", iBatchTimerFd);
         return -1;
     }
-    int iRet = timer_start(iSyncTimerFd, 1000 * 60 * 1); //planned: 10 min, tested: 1 min
+    int iRet = timer_start(iBatchTimerFd, 1000 * 60 * 1); //planned: 10 min, tested: 1 min
     if(iRet < 0)
     {
         log_error("sync timer start error(%d)!", iRet);
         return -1;
     }
     memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iSyncTimerFd;
+    stEvent.data.fd = iBatchTimerFd;
     stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iSyncTimerFd, &stEvent);
+    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iBatchTimerFd, &stEvent);
     if(iRet < 0)
     {
-        log_error("epoll add iSyncTimerFd error(%d)!", iRet);
+        log_error("epoll add iBatchTimerFd error(%d)!", iRet);
         return -1;
     }
 
-    /* add eventfd to epoll, send eventfd to sync thread */
-    int iEventFd = event_init(0); //0 for event flag init value
-    if(iEventFd < 0)
+    /* add main eventfd to epoll */
+    int iMainEventFd = event_init(0); //0 for event flag init value
+    if(iMainEventFd < 0)
     {
-        log_error("eventfd error(%d)!", iEventFd);
+        log_error("iMainEventFd error(%d)!", iMainEventFd);
         return -1;
     }
-    log_debug("iEventFd(%d)", iEventFd);
+    log_debug("iMainEventFd(%d)", iMainEventFd);
     memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iEventFd;
+    stEvent.data.fd = iMainEventFd;
     stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iEventFd, &stEvent);
+    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iMainEventFd, &stEvent);
     if(iRet < 0)
     {
-        log_error("epoll add iEventFd error(%d)!", iRet);
+        log_error("epoll add iMainEventFd error(%d)!", iRet);
         return -1;
     }
 
@@ -91,10 +85,17 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    /* pthread create */
+    /* sync pthread create, send iSyncEventFd to sync thread */
     pthread_t SyncThreadId;
     struct sync_struct stSyncStruct;
-    stSyncStruct.iEventFd = iEventFd; //send iEventFd to sync thread
+    int iSyncEventFd = event_init(0); //0 for event flag init value
+    if(iSyncEventFd < 0)
+    {
+        log_error("iSyncEventFd error(%d)!", iSyncEventFd);
+        return -1;
+    }
+    log_debug("iSyncEventFd(%d)", iSyncEventFd);
+    stSyncStruct.iSyncEventFd = iSyncEventFd;
     iRet = pthread_create(&SyncThreadId, NULL, master_sync, (void *)&stSyncStruct);
     if(iRet != 0)
     {
@@ -107,8 +108,9 @@ int main(int argc, char *argv[])
 
     char *pcRealtimeBuf = NULL;
     int iRealtimeBufLen = 0;
-    char *pcBatchBuf;//TO DO
+    char *pcBatchBuf; //TO DO
     int iBatchBufLen;
+    int iNewCfgFd; //opened when reading STDIN, realtime SendToSync when get new config event
     while(1)
     {
         /* main task */
@@ -119,7 +121,7 @@ int main(int argc, char *argv[])
         {
             /* realtime SendToSync when master find new config */
             /* batch SendToSync when find slave restart or get timer */
-            if(stEvents[i].data.fd == iSyncTimerFd && stEvents[i].events & EPOLLIN)
+            if(stEvents[i].data.fd == iBatchTimerFd && stEvents[i].events & EPOLLIN)
             {
                 log_info("Get sync timer fd.");
 
@@ -127,24 +129,47 @@ int main(int argc, char *argv[])
 
                 /* read timerfd to loop again */
                 uint64_t uiSyncTimerRead;
-                iRet = read(iSyncTimerFd, &uiSyncTimerRead, sizeof(uint64_t));
+                iRet = read(iBatchTimerFd, &uiSyncTimerRead, sizeof(uint64_t));
                 if(iRet != sizeof(uint64_t))
                 {
-                    log_error("read iSyncTimerFd error(%s)!", strerror(errno));
+                    log_error("read iBatchTimerFd error(%s)!", strerror(errno));
                     return -1;
                 }
             }//if
-            else if(stEvents[i].data.fd == iEventFd && stEvents[i].events & EPOLLIN)
+            else if(stEvents[i].data.fd == iMainEventFd && stEvents[i].events & EPOLLIN)
             {
                 log_info("Get eventfd.");
 
-                /* get events from iEventFd */
+                /* get events from iMainEventFd */
                 uint64_t uiEventsFlag;
-                iRet = event_getEventFlags(iEventFd, &uiEventsFlag);
+                iRet = event_getEventFlags(iMainEventFd, &uiEventsFlag);
                 if(iRet < 0)
                 {
                     log_error("event_getEventFlags error(%d)!", iRet);
                     return -1;
+                }
+
+                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main mask, tested: when get STDIN_FILENO keys in
+                {
+                    log_info("Get master new config event flag.");
+
+                    /* realtime SendToSync */
+                    char *pcNewCfgBuf = malloc(1024);
+                    memset(pcNewCfgBuf, 0, 1024);
+                    iRet = read(iNewCfgFd, pcNewCfgBuf, 1024)
+                    if(iRet < 0)
+                    {
+                        log_error("read iNewCfgFd error(%d)!", iRet);
+                        return -1;
+                    }
+                    int iBufLen = iRet;
+
+                    iRet = SendToSync(pcNewCfgBuf, iBufLen, 1024, NULL, SEND_REALTIME_INSTANT);
+                    if(iRet < 0)
+                    {
+                        log_error("SendToSync error(%d)!", iRet);
+                        return -1;
+                    }
                 }
 
                 if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when sync thread find no keep alive ack
@@ -156,12 +181,7 @@ int main(int argc, char *argv[])
                     /* read timerfd to loop again */
                 }
 
-                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main thread, tested: when get STDIN_FILENO keys in
-                {
-                    log_info("Get master new config event flag.");
-
-                    /* realtime SendToSync */
-                }
+                
             }//else if
             else if(stEvents[i].data.fd == STDIN_FILENO && stEvents[i].events & EPOLLIN)
             {
@@ -187,11 +207,11 @@ int main(int argc, char *argv[])
                     pcRestBuf += 11; //strlen("new config ")
                     log_info("Get new config, filename: \"%s\".", pcRestBuf);
 
-                    int iOpenFd = open(pcRestBuf, O_RDONLY);
-                    if(iOpenFd > 0)
+                    iNewCfgFd = open(pcRestBuf, O_RDONLY);
+                    if(iNewCfgFd > 0)
                     {
                         log_info("open new config file ok.");
-                        iRet = event_setEventFlags(iEventFd, EVENT_FLAG_MASTER_NEWCFG);
+                        iRet = event_setEventFlags(iSyncEventFd, EVENT_FLAG_MASTER_NEWCFG);
                         if(iRet == 0)
                         {
                             log_info("event_setEventFlags EVENT_FLAG_MASTER_NEWCFG ok.");
@@ -214,130 +234,9 @@ int main(int argc, char *argv[])
     log_info("Main Task Ending.");
     log_free();
     close(iEpollFd);
-    close(iSyncTimerFd);
+    close(iBatchTimerFd);
+    close(iMainEventFd);
     return 0;
-}
-
-void *master_sync(void *arg)
-{
-    log_info("Master SYNC Beginning.");
-
-    /* parse synv struct from main thread */
-    struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
-    int iEventFd = pstSyncStruct->iEventFd;
-    log_debug("iEventFd = %d", iEventFd);
-
-    /* socket init */
-    int iRet = socket_init();
-    if(iRet < 0)
-    {
-        log_error("socket init error(%d)!", iRet);
-        return (void *)-1;
-    }
-    int iSockFd = iRet;
-    log_debug("Server iSockFd=%d.", iSockFd);
-
-    /* epoll create */
-    int iEpollFd = epoll_create(MAX_EPOLL_NUM);
-    if(iEpollFd < 0)
-    {
-        log_error("epoll create error(%d)!", iEpollFd);
-        return (void *)-1;
-    }
-    struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
-
-    /* add iEventFd to epoll */
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iEventFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for recvfrom, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iEventFd, &stEvent);
-    if(iRet < 0)
-    {
-        log_error("epoll add iEventFd error(%d)!", iRet);
-        return (void *)-1;
-    }
-
-    /* add iSockFd to epoll */
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iSockFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for recvfrom, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iSockFd, &stEvent);
-    if(iRet < 0)
-    {
-        log_error("epoll add iSockFd error(%d)!", iRet);
-        return (void *)-1;
-    }
-
-    /* timer create, start the specified timer when needs */
-
-
-    /* memset buffer and struct */
-    char acBuffer[BUFFER_SIZE];
-    memset(acBuffer, 0, BUFFER_SIZE);
-
-    char acReadBuffer[BUFFER_SIZE];
-    memset(acReadBuffer, 0, BUFFER_SIZE);
-
-    struct sockaddr_in stRecvAddr;
-    memset(&stRecvAddr, 0, sizeof(stRecvAddr));
-    int iRecvAddrLen = 0;
-
-    while(1)
-    {
-        /* epoll wail */
-        int iEpollNum = epoll_wait(iEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
-        for(int i = 0; i < iEpollNum; i++)
-        {
-            if(stEvents[i].data.fd == iSockFd && stEvents[i].events & EPOLLIN)
-            {
-                log_debug("epoll event iSockFd.");
-
-                /* wait for socket msg */
-                memset(acBuffer, 0, BUFFER_SIZE);
-                int iRecvLen = recvfrom(iSockFd, acBuffer, BUFFER_SIZE, 0, (struct sockaddr *)&stRecvAddr, (socklen_t *)&iRecvAddrLen);
-                if(iRecvLen > 0)
-                {
-                    //TO DO: the stRecvAddr of the first msg is NULL
-                    log_debug("Get socket msg: %d, %s.", stRecvAddr.sin_port, acBuffer);
-                }
-
-                /*if(sendto(iSockFd, "SYN ACK", 7, 0, (struct sockaddr *)&stRecvAddr, iRecvAddrLen) < 0)
-                {
-                    log_debug("Send SYN ACK to client failed!");
-                    g_bSendSynAckFlag = false;
-                }*/
-            }//if
-            else if(stEvents[i].data.fd == iEventFd && stEvents[i].events & EPOLLIN)
-            {
-                log_info("Get eventfd.");
-
-                /* get events from iEventFd */
-                uint64_t uiEventsFlag;
-                iRet = event_getEventFlags(iEventFd, &uiEventsFlag);
-                if(iRet < 0)
-                {
-                    log_error("event_getEventFlags error(%d)!", iRet);
-                    return (void *)-1;
-                }
-
-                if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when sync thread find no keep alive ack
-                {
-                    log_info("Get slave restart event flag.");
-
-                    /* batch SendToSync */
-
-                    /* read timerfd to loop again */
-                }
-
-                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main thread, tested: when get STDIN_FILENO keys in
-                {
-                    log_info("Get master new config event flag.");
-
-                    /* realtime SendToSync */
-                }
-            }//else if
-        }//for
-    }//while
 }
 
 #if 0

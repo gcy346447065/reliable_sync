@@ -7,7 +7,7 @@
 #define EVENT_FLAG_NONE 0x00
 #define EVENT_FLAG_SLAVE_RESTART 0x01
 #define EVENT_FLAG_MASTER_NEWCFG 0x02
-
+#define EVENT_FLAG_SEND_TO_SYNC  0x04 //
 
 int event_init(unsigned int iInitVal);
 
