@@ -15,6 +15,10 @@
 #include "socket.h"
 #include "sync.h"
 
+
+int SendToSync(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod);
+int RecvFromSync(void *pBuf, int iBufLen);
+
 bool g_bSendSynAckFlag = false;
 int g_iSocketStatus = SERVER_SOCKET_WAIT_SYN;
 int g_iBackupStatus = BACKUP_NULL;
@@ -236,6 +240,42 @@ int main(int argc, char *argv[])
     close(iEpollFd);
     close(iBatchTimerFd);
     close(iMainEventFd);
+    return 0;
+}
+
+
+int SendToSync(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
+{
+    if(pBuf == NULL || iBufLen == 0)
+    {
+        log_error("SendToSync pBuf or iBufLen error!");
+        return -1;
+    }
+    //iMaxPkgLen, pDestAddr unused
+
+    switch(iSendMethod)
+    {
+        case SEND_BATCH:
+            log_info("SEND_BATCH.");
+            break;
+
+        case SEND_REALTIME_WAITED:
+            log_info("SEND_REALTIME_WAITED.");
+            break;
+
+        case SEND_REALTIME_INSTANT:
+            log_info("SEND_REALTIME_INSTANT.");
+            break;
+            
+        default:
+            log_info("iSendMethod:%d.", iSendMethod);
+            break;
+    }
+    return 0;
+}
+
+int RecvFromSync(void *pBuf, int iBufLen)
+{
     return 0;
 }
 

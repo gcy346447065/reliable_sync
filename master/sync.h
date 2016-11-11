@@ -15,8 +15,7 @@ struct sync_struct
 
 void *master_sync(void *arg);
 
-int SendToSync(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod);
-int RecvFromSync(void *pBuf, int iBufLen);
+
 
 
 #endif //_SYNC_H_

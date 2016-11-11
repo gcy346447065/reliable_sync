@@ -135,29 +135,6 @@ void *master_sync(void *arg)
     return (void *)0;
 }
 
-int SendToSync(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
-{
-    switch(iSendMethod)
-    {
-        case SEND_BATCH:
-            break;
-
-        case SEND_REALTIME_WAITED:
-            break;
-
-        case SEND_REALTIME_INSTANT:
-            break;
-            
-        default:
-            break;
-    }
-    return 0;
-}
-
-int RecvFromSync(void *pBuf, int iBufLen)
-{
-    return 0;
-}
 
 int SetBackupFlag(int iType, const void *pAddr, int iLength)
 {
