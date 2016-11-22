@@ -3,15 +3,18 @@
 
 enum SEND_METHOD_TO_SYNC
 {
-    SEND_BATCH,
-    SEND_REALTIME_WAITED,
-    SEND_REALTIME_INSTANT
+    SEND_SET_SYNC_TIMER,
+    SEND_NEWCFG_WAITED,
+    SEND_NEWCFG_INSTANT
 };
+
+
 
 struct sync_struct
 {
-    int iSyncEventFd;
+    int iMainEventFd;
 };
+
 
 void *master_sync(void *arg);
 

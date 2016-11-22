@@ -1,5 +1,6 @@
 #include <netinet/in.h> //for sockaddr_in
 #include <sys/socket.h> //for recvfrom
+#include <arpa/inet.h> //for inet_addr
 #include <pthread.h> //for pthread
 #include <sys/epoll.h> //for epoll
 #include <stdlib.h> //for malloc
@@ -16,12 +17,44 @@
 #include "sync.h"
 
 
-int SendToSync(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod);
-int RecvFromSync(void *pBuf, int iBufLen);
+int SendToSync(int iMainToSyncSockFd, void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
+{
+    if(pBuf == NULL || iBufLen == 0)
+    {
+        log_error("SendToSync pBuf or iBufLen error!");
+        return -1;
+    }
+    //TO DO: iMaxPkgLen, pDestAddr unused
 
-bool g_bSendSynAckFlag = false;
-int g_iSocketStatus = SERVER_SOCKET_WAIT_SYN;
-int g_iBackupStatus = BACKUP_NULL;
+    switch(iSendMethod)
+    {
+        case SEND_NEWCFG_WAITED:
+            log_info("SEND_REALTIME_WAITED.");
+            break;
+
+        case SEND_NEWCFG_INSTANT:
+            log_info("SEND_REALTIME_INSTANT.");
+
+            if(write(iMainToSyncSockFd, "hehe", 4) < 0)
+            {
+                log_error("Send hehe to server error!");
+            }
+
+            break;
+            
+        default:
+            log_info("iSendMethod:%d.", iSendMethod);
+            break;
+    }
+
+    log_info("SendToSync ok.");
+    return 0;
+}
+
+int RecvFromSync(void *pBuf, int iBufLen)
+{
+    return 0;
+}
 
 int main(int argc, char *argv[])
 {
@@ -29,36 +62,13 @@ int main(int argc, char *argv[])
     log_init();
 
     /* epoll create */
-    int iEpollFd = epoll_create(MAX_EPOLL_NUM);
-    if(iEpollFd < 0)
+    int iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
+    if(iMainEpollFd < 0)
     {
-        log_error("epoll create error(%d)!", iEpollFd);
+        log_error("epoll create error(%d)!", iMainEpollFd);
         return -1;
     }
     struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
-
-    /* add batch sync timerfd to epoll */
-    int iBatchTimerFd = timer_create();
-    if(iBatchTimerFd < 0)
-    {
-        log_error("sync timer create error(%d)!", iBatchTimerFd);
-        return -1;
-    }
-    int iRet = timer_start(iBatchTimerFd, 1000 * 60 * 1); //planned: 10 min, tested: 1 min
-    if(iRet < 0)
-    {
-        log_error("sync timer start error(%d)!", iRet);
-        return -1;
-    }
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iBatchTimerFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iBatchTimerFd, &stEvent);
-    if(iRet < 0)
-    {
-        log_error("epoll add iBatchTimerFd error(%d)!", iRet);
-        return -1;
-    }
 
     /* add main eventfd to epoll */
     int iMainEventFd = event_init(0); //0 for event flag init value
@@ -71,10 +81,51 @@ int main(int argc, char *argv[])
     memset(&stEvent, 0, sizeof(struct epoll_event));
     stEvent.data.fd = iMainEventFd;
     stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iMainEventFd, &stEvent);
+    int iRet = epoll_ctl(iMainEpollFd, EPOLL_CTL_ADD, iMainEventFd, &stEvent);
     if(iRet < 0)
     {
         log_error("epoll add iMainEventFd error(%d)!", iRet);
+        return -1;
+    }
+
+    /* set iMainToSyncSockFd bind and connect, add iMainToSyncSockFd to epoll */
+    int iMainToSyncSockFd = socket_init();
+    if(iMainToSyncSockFd < 0)
+    {
+        log_error("socket init error(%d)!", iMainToSyncSockFd);
+        return -1;
+    }
+    log_debug("iMainToSyncSockFd(%d).", iMainToSyncSockFd);
+
+    struct sockaddr_in stMasterMainAddr;
+    memset(&stMasterMainAddr, 0, sizeof(stMasterMainAddr)); 
+    stMasterMainAddr.sin_family = AF_INET; 
+    stMasterMainAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
+    stMasterMainAddr.sin_port = htons(MASTER_MAIN_PORT);
+    if(bind(iMainToSyncSockFd, (struct sockaddr*)&stMasterMainAddr, sizeof(stMasterMainAddr)) < 0)
+    {
+        log_error("socket init error(%d)!", stMasterMainAddr);
+        return -1;
+    }
+
+    struct sockaddr_in stMasterSyncAddr;
+    memset(&stMasterSyncAddr, 0, sizeof(stMasterSyncAddr)); 
+    stMasterSyncAddr.sin_family = AF_INET; 
+    stMasterSyncAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
+    stMasterSyncAddr.sin_port = htons(MASTER_SYNC_PORT);
+    if(connect(iMainToSyncSockFd, (struct sockaddr*)&stMasterSyncAddr, sizeof(stMasterSyncAddr)) < 0)
+    {
+        log_error("socket init error(%d)!", iMainToSyncSockFd);
+        return -1;
+    }
+
+    memset(&stEvent, 0, sizeof(struct epoll_event));
+    stEvent.data.fd = iMainToSyncSockFd;
+    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
+    iRet = epoll_ctl(iMainEpollFd, EPOLL_CTL_ADD, iMainToSyncSockFd, &stEvent);
+    if(iRet < 0)
+    {
+        log_error("epoll add iMainToSyncSockFd error(%d)!", iRet);
         return -1;
     }
 
@@ -82,24 +133,17 @@ int main(int argc, char *argv[])
     memset(&stEvent, 0, sizeof(struct epoll_event));
     stEvent.data.fd = STDIN_FILENO;
     stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, STDIN_FILENO, &stEvent);
+    iRet = epoll_ctl(iMainEpollFd, EPOLL_CTL_ADD, STDIN_FILENO, &stEvent);
     if(iRet < 0)
     {
         log_error("epoll add STDIN_FILENO error(%d)!", iRet);
         return -1;
     }
 
-    /* sync pthread create, send iSyncEventFd to sync thread */
+    /* sync pthread create, send iMainEventFd to sync thread */
     pthread_t SyncThreadId;
     struct sync_struct stSyncStruct;
-    int iSyncEventFd = event_init(0); //0 for event flag init value
-    if(iSyncEventFd < 0)
-    {
-        log_error("iSyncEventFd error(%d)!", iSyncEventFd);
-        return -1;
-    }
-    log_debug("iSyncEventFd(%d)", iSyncEventFd);
-    stSyncStruct.iSyncEventFd = iSyncEventFd;
+    stSyncStruct.iMainEventFd = iMainEventFd;
     iRet = pthread_create(&SyncThreadId, NULL, master_sync, (void *)&stSyncStruct);
     if(iRet != 0)
     {
@@ -120,82 +164,17 @@ int main(int argc, char *argv[])
         /* main task */
 
         /* epoll wail */
-        int iEpollNum = epoll_wait(iEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
+        int iEpollNum = epoll_wait(iMainEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
-            /* realtime SendToSync when master find new config */
-            /* batch SendToSync when find slave restart or get timer */
-            if(stEvents[i].data.fd == iBatchTimerFd && stEvents[i].events & EPOLLIN)
-            {
-                log_info("Get sync timer fd.");
-
-                /* batch SendToSync */
-
-                /* read timerfd to loop again */
-                uint64_t uiSyncTimerRead;
-                iRet = read(iBatchTimerFd, &uiSyncTimerRead, sizeof(uint64_t));
-                if(iRet != sizeof(uint64_t))
-                {
-                    log_error("read iBatchTimerFd error(%s)!", strerror(errno));
-                    return -1;
-                }
-            }//if
-            else if(stEvents[i].data.fd == iMainEventFd && stEvents[i].events & EPOLLIN)
-            {
-                log_info("Get eventfd.");
-
-                /* get events from iMainEventFd */
-                uint64_t uiEventsFlag;
-                iRet = event_getEventFlags(iMainEventFd, &uiEventsFlag);
-                if(iRet < 0)
-                {
-                    log_error("event_getEventFlags error(%d)!", iRet);
-                    return -1;
-                }
-
-                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main mask, tested: when get STDIN_FILENO keys in
-                {
-                    log_info("Get master new config event flag.");
-
-                    /* realtime SendToSync */
-                    char *pcNewCfgBuf = malloc(1024);
-                    memset(pcNewCfgBuf, 0, 1024);
-                    iRet = read(iNewCfgFd, pcNewCfgBuf, 1024)
-                    if(iRet < 0)
-                    {
-                        log_error("read iNewCfgFd error(%d)!", iRet);
-                        return -1;
-                    }
-                    int iBufLen = iRet;
-
-                    iRet = SendToSync(pcNewCfgBuf, iBufLen, 1024, NULL, SEND_REALTIME_INSTANT);
-                    if(iRet < 0)
-                    {
-                        log_error("SendToSync error(%d)!", iRet);
-                        return -1;
-                    }
-                }
-
-                if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when sync thread find no keep alive ack
-                {
-                    log_info("Get slave restart event flag.");
-
-                    /* batch SendToSync */
-
-                    /* read timerfd to loop again */
-                }
-
-                
-            }//else if
-            else if(stEvents[i].data.fd == STDIN_FILENO && stEvents[i].events & EPOLLIN)
+            if(stEvents[i].data.fd == STDIN_FILENO && stEvents[i].events & EPOLLIN)
             {
                 log_info("Get STDIN_FILENO fd.");
 
                 /* read STDIN_FILENO */
-                char acStdinBuf[128], acCutBuf[128], acRealtimeBuf[1024];
+                char acStdinBuf[128], acCutBuf[128];
                 memset(acStdinBuf, 0, 128);
                 memset(acCutBuf, 0, 128);
-                memset(acRealtimeBuf, 0, 1024);
 
                 iRet = read(STDIN_FILENO, acStdinBuf, 128);
                 if(iRet < 0)
@@ -215,7 +194,7 @@ int main(int argc, char *argv[])
                     if(iNewCfgFd > 0)
                     {
                         log_info("open new config file ok.");
-                        iRet = event_setEventFlags(iSyncEventFd, EVENT_FLAG_MASTER_NEWCFG);
+                        iRet = event_setEventFlags(iMainEventFd, EVENT_FLAG_MASTER_NEWCFG);
                         if(iRet == 0)
                         {
                             log_info("event_setEventFlags EVENT_FLAG_MASTER_NEWCFG ok.");
@@ -230,54 +209,74 @@ int main(int argc, char *argv[])
                 {
                     log_error("Unknown command!");
                 }
-            }//else if
+            }//if STDIN_FILENO
+            else if(stEvents[i].data.fd == iMainEventFd && stEvents[i].events & EPOLLIN)
+            {
+                log_info("Get eventfd.");
+
+                /* get events from iMainEventFd */
+                uint64_t uiEventsFlag;
+                iRet = event_getEventFlags(iMainEventFd, &uiEventsFlag);
+                if(iRet < 0)
+                {
+                    log_error("event_getEventFlags error(%d)!", iRet);
+                    return -1;
+                }
+
+                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main mask, tested: when get STDIN_FILENO keys in
+                {
+                    log_info("Get master new config event flag.");
+
+                    /* realtime SendToSync */
+                    char *pcNewCfgBuf = (char *)malloc(1024);
+                    memset(pcNewCfgBuf, 0, 1024);
+                    iRet = read(iNewCfgFd, pcNewCfgBuf, 1024);
+                    if(iRet < 0)
+                    {
+                        log_error("read iNewCfgFd error(%d)!", iRet);
+                        return -1;
+                    }
+                    int iBufLen = iRet;
+
+                    iRet = SendToSync(iMainToSyncSockFd, pcNewCfgBuf, iBufLen, 1024, NULL, SEND_NEWCFG_INSTANT);
+                    if(iRet < 0)
+                    {
+                        log_error("SendToSync error(%d)!", iRet);
+                    }
+                }
+
+                if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when sync thread find no keep alive ack
+                {
+                    log_info("Get slave restart event flag.");
+
+                    /* batch SendToSync */
+                }
+
+                if(uiEventsFlag & EVENT_FLAG_SYNC_TIMER) //set the flag when sync thread find no keep alive ack
+                {
+                    log_info("Get sync batch timer event flag.");
+
+                    /* batch SendToSync */
+                }
+            }//else if iMainEventFd
+            else if(stEvents[i].data.fd == iMainToSyncSockFd && stEvents[i].events & EPOLLIN)
+            {
+                //
+            }//else if iMainToSyncSockFd
+            
         }//for
     }//while
 
     /* free all */
     log_info("Main Task Ending.");
     log_free();
-    close(iEpollFd);
-    close(iBatchTimerFd);
+    close(iMainEpollFd);
     close(iMainEventFd);
     return 0;
 }
 
 
-int SendToSync(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
-{
-    if(pBuf == NULL || iBufLen == 0)
-    {
-        log_error("SendToSync pBuf or iBufLen error!");
-        return -1;
-    }
-    //iMaxPkgLen, pDestAddr unused
 
-    switch(iSendMethod)
-    {
-        case SEND_BATCH:
-            log_info("SEND_BATCH.");
-            break;
-
-        case SEND_REALTIME_WAITED:
-            log_info("SEND_REALTIME_WAITED.");
-            break;
-
-        case SEND_REALTIME_INSTANT:
-            log_info("SEND_REALTIME_INSTANT.");
-            break;
-            
-        default:
-            log_info("iSendMethod:%d.", iSendMethod);
-            break;
-    }
-    return 0;
-}
-
-int RecvFromSync(void *pBuf, int iBufLen)
-{
-    return 0;
-}
 
 #if 0
 void SetSendSynAckFlag(int iSig)

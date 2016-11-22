@@ -3,10 +3,22 @@
 
 #define MAX_EPOLL_NUM 1024
 
+#define MASTER_IP "192.168.11.114"
+#define MASTER_MAIN_PORT            8766
+#define MASTER_SYNC_PORT            8765
+#define MASTER_SYNC_FOR_SYNC_PORT   8764
 
-////////////////////////////
-#define SERVER_IP "192.168.11.114"
-#define SERVER_PORT 8765
+#define SLAVE_IP "192.168.11.114"
+#define SLAVE_MAIN_PORT             8763
+#define SLAVE_SYNC_PORT             8762
+#define SLAVE_SYNC_FOR_SYNC_PORT    8761
+
+
+
+
+
+
+//////////////////////////// unused
 #define BUFFER_SIZE 1024
 
 #define FILE_10M_ADDR "/home/guochengying/sync/syncServer/file_10M"
@@ -32,6 +44,6 @@ enum BACKUP_STATUS
     BACKUP_REALTIME_WAITING,
     BACKUP_REALTIME_INSTANT
 };
-
+//////////////////////////// unused
 
 #endif //_MACRO_H_

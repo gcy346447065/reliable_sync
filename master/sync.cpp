@@ -1,15 +1,17 @@
 #include <netinet/in.h> //for sockaddr_in
+#include <arpa/inet.h> //for inet_addr
 #include <sys/epoll.h> //for epoll
 #include <string.h> //for memset strstr
+#include <errno.h> //for errno
+#include <unistd.h> //for read
 #include "sync.h"
 #include "macro.h"
 #include "log.h"
 #include "socket.h"
 #include "event.h"
+#include "timer.h"
 
-int g_iBackupFlag = BACKUP_NULL;
-const void *g_pAddr = NULL;
-int g_iLength = 0;
+
 
 void *master_sync(void *arg)
 {
@@ -17,52 +19,140 @@ void *master_sync(void *arg)
 
     /* parse sync struct from main thread */
     struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
-    int iSyncEventFd = pstSyncStruct->iSyncEventFd;
-    log_debug("iSyncEventFd = %d", iSyncEventFd);
-
-    /* socket init */
-    int iRet = socket_init();
-    if(iRet < 0)
-    {
-        log_error("socket init error(%d)!", iRet);
-        return (void *)-1;
-    }
-    int iSockFd = iRet;
-    log_debug("Server iSockFd=%d.", iSockFd);
+    int iMainEventFd = pstSyncStruct->iMainEventFd;
+    log_debug("iMainEventFd = %d", iMainEventFd); //TO DO:set eventfd flag
 
     /* epoll create */
-    int iEpollFd = epoll_create(MAX_EPOLL_NUM);
-    if(iEpollFd < 0)
+    int iSyncEpollFd = epoll_create(MAX_EPOLL_NUM);
+    if(iSyncEpollFd < 0)
     {
-        log_error("epoll create error(%d)!", iEpollFd);
+        log_error("epoll create error(%d)!", iSyncEpollFd);
         return (void *)-1;
     }
     struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
 
-    /* add iSyncEventFd to epoll */
+    /* add sync eventfd to epoll */
+    int iSyncEventFd = event_init(0); //0 for event flag init value
+    if(iSyncEventFd < 0)
+    {
+        log_error("iSyncEventFd error(%d)!", iSyncEventFd);
+        return (void *)-1;
+    }
+    log_debug("iSyncEventFd(%d)", iSyncEventFd);
     memset(&stEvent, 0, sizeof(struct epoll_event));
     stEvent.data.fd = iSyncEventFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for recvfrom, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iSyncEventFd, &stEvent);
+    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
+    int iRet = epoll_ctl(iSyncEpollFd, EPOLL_CTL_ADD, iSyncEventFd, &stEvent);
     if(iRet < 0)
     {
         log_error("epoll add iSyncEventFd error(%d)!", iRet);
         return (void *)-1;
     }
 
-    /* add iSockFd to epoll */
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iSockFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for recvfrom, edge triggered
-    iRet = epoll_ctl(iEpollFd, EPOLL_CTL_ADD, iSockFd, &stEvent);
-    if(iRet < 0)
+    /* set iSyncToMainSockFd bind and connect, add iSyncToMainSockFd to epoll */
+    int iSyncToMainSockFd = socket_init();
+    if(iSyncToMainSockFd < 0)
     {
-        log_error("epoll add iSockFd error(%d)!", iRet);
+        log_error("socket init error(%d)!", iSyncToMainSockFd);
+        return (void *)-1;
+    }
+    log_debug("iSyncToMainSockFd(%d).", iSyncToMainSockFd);
+
+    struct sockaddr_in stMasterSyncAddr;
+    memset(&stMasterSyncAddr, 0, sizeof(stMasterSyncAddr)); 
+    stMasterSyncAddr.sin_family = AF_INET; 
+    stMasterSyncAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
+    stMasterSyncAddr.sin_port = htons(MASTER_SYNC_PORT);
+    if(bind(iSyncToMainSockFd, (struct sockaddr*)&stMasterSyncAddr, sizeof(stMasterSyncAddr)) < 0)
+    {
+        log_error("socket bind error(%d)!", errno);
         return (void *)-1;
     }
 
-    /* timer create, start the specified timer when needs */
+    struct sockaddr_in stMasterMainAddr;
+    memset(&stMasterMainAddr, 0, sizeof(stMasterMainAddr)); 
+    stMasterMainAddr.sin_family = AF_INET; 
+    stMasterMainAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
+    stMasterMainAddr.sin_port = htons(MASTER_MAIN_PORT);
+    if(connect(iSyncToMainSockFd, (struct sockaddr*)&stMasterMainAddr, sizeof(stMasterMainAddr)) < 0)
+    {
+        log_error("socket connect error(%d)!", errno);
+        return (void *)-1;
+    }
 
+    memset(&stEvent, 0, sizeof(struct epoll_event));
+    stEvent.data.fd = iSyncToMainSockFd;
+    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
+    iRet = epoll_ctl(iSyncEpollFd, EPOLL_CTL_ADD, iSyncToMainSockFd, &stEvent);
+    if(iRet < 0)
+    {
+        log_error("iSyncEpollFd add iSyncToMainSockFd error(%d)!", iRet);
+        return (void *)-1;
+    }
+
+    /* set iSyncToSyncSockFd bind and connect, add iSyncToSyncSockFd to epoll */
+    int iSyncToSyncSockFd = socket_init();
+    if(iSyncToSyncSockFd < 0)
+    {
+        log_error("socket init error(%d)!", iSyncToSyncSockFd);
+        return (void *)-1;
+    }
+    log_debug("iSyncToSyncSockFd(%d).", iSyncToSyncSockFd);
+
+    struct sockaddr_in stMasterSyncForSyncAddr;
+    memset(&stMasterSyncForSyncAddr, 0, sizeof(stMasterSyncForSyncAddr)); 
+    stMasterSyncForSyncAddr.sin_family = AF_INET;
+    stMasterSyncForSyncAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
+    stMasterSyncForSyncAddr.sin_port = htons(MASTER_SYNC_FOR_SYNC_PORT);
+    if(bind(iSyncToSyncSockFd, (struct sockaddr *)&stMasterSyncForSyncAddr, sizeof(stMasterSyncForSyncAddr)) < 0)
+    {
+        log_error("socket bind error(%d)!", errno);
+        return (void *)-1;
+    }
+
+    struct sockaddr_in stSlaveSyncForSyncAddr;
+    memset(&stSlaveSyncForSyncAddr, 0, sizeof(stSlaveSyncForSyncAddr)); 
+    stSlaveSyncForSyncAddr.sin_family = AF_INET;
+    stSlaveSyncForSyncAddr.sin_addr.s_addr = inet_addr(SLAVE_IP); 
+    stSlaveSyncForSyncAddr.sin_port = htons(SLAVE_SYNC_FOR_SYNC_PORT);
+    if(connect(iSyncToSyncSockFd, (struct sockaddr *)&stSlaveSyncForSyncAddr, sizeof(stSlaveSyncForSyncAddr)) < 0)
+    {
+        log_error("socket connect error(%d)!", errno);
+        return (void *)-1;
+    }
+
+    memset(&stEvent, 0, sizeof(struct epoll_event));
+    stEvent.data.fd = iSyncToSyncSockFd;
+    stEvent.events = EPOLLIN | EPOLLET; //epoll for recvfrom, edge triggered
+    iRet = epoll_ctl(iSyncEpollFd, EPOLL_CTL_ADD, iSyncToSyncSockFd, &stEvent);
+    if(iRet < 0)
+    {
+        log_error("iSyncEpollFd add iSyncToSyncSockFd error(%d)!", iRet);
+        return (void *)-1;
+    }
+
+    /* add sync timerfd to epoll */
+    int iSyncTimerFd = timer_create();
+    if(iSyncTimerFd < 0)
+    {
+        log_error("sync timer create error(%d)!", iSyncTimerFd);
+        return (void *)-1;
+    }
+    iRet = timer_start(iSyncTimerFd, 1000 * 60 * 1); //planned: 10 min, tested: 1 min
+    if(iRet < 0)
+    {
+        log_error("sync timer start error(%d)!", iRet);
+        return (void *)-1;
+    }
+    memset(&stEvent, 0, sizeof(struct epoll_event));
+    stEvent.data.fd = iSyncTimerFd;
+    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
+    iRet = epoll_ctl(iSyncEpollFd, EPOLL_CTL_ADD, iSyncTimerFd, &stEvent);
+    if(iRet < 0)
+    {
+        log_error("epoll add iSyncTimerFd error(%d)!", iRet);
+        return (void *)-1;
+    }
 
     /* memset buffer and struct */
     char acBuffer[BUFFER_SIZE];
@@ -78,28 +168,28 @@ void *master_sync(void *arg)
     while(1)
     {
         /* epoll wail */
-        int iEpollNum = epoll_wait(iEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
+        int iEpollNum = epoll_wait(iSyncEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
-            if(stEvents[i].data.fd == iSockFd && stEvents[i].events & EPOLLIN)
+            if(stEvents[i].data.fd == iSyncToMainSockFd && stEvents[i].events & EPOLLIN)
             {
-                log_debug("epoll event iSockFd.");
+                log_debug("epoll event iSyncToMainSockFd.");
 
                 /* wait for socket msg */
                 memset(acBuffer, 0, BUFFER_SIZE);
-                int iRecvLen = recvfrom(iSockFd, acBuffer, BUFFER_SIZE, 0, (struct sockaddr *)&stRecvAddr, (socklen_t *)&iRecvAddrLen);
-                if(iRecvLen > 0)
+                if(read(iSyncToMainSockFd, acBuffer, BUFFER_SIZE) > 0)
                 {
                     //TO DO: the stRecvAddr of the first msg is NULL
-                    log_debug("Get socket msg: %d, %s.", stRecvAddr.sin_port, acBuffer);
+                    log_debug("Get socket msg: %s.", acBuffer);
                 }
 
-                /*if(sendto(iSockFd, "SYN ACK", 7, 0, (struct sockaddr *)&stRecvAddr, iRecvAddrLen) < 0)
+                /*if(sendto(iSyncSockFd, "SYN ACK", 7, 0, (struct sockaddr *)&stRecvAddr, iRecvAddrLen) < 0)
                 {
                     log_debug("Send SYN ACK to client failed!");
                     g_bSendSynAckFlag = false;
                 }*/
             }//if
+            #if 0
             else if(stEvents[i].data.fd == iSyncEventFd && stEvents[i].events & EPOLLIN)
             {
                 log_info("Get eventfd.");
@@ -129,6 +219,7 @@ void *master_sync(void *arg)
                     /* realtime SendToSync */
                 }
             }//else if
+            #endif
         }//for
     }//while
 
@@ -136,63 +227,4 @@ void *master_sync(void *arg)
 }
 
 
-int SetBackupFlag(int iType, const void *pAddr, int iLength)
-{
-    g_iBackupFlag = iType;
-    g_pAddr = pAddr;
-    g_iLength = iLength;
-    
-    return 0;
-}
 
-int GetBackupFlag(int *piType, const void **ppAddr, int *piLength)
-{
-    *piType = g_iBackupFlag;
-    *ppAddr = g_pAddr;
-    *piLength = g_iLength;
-    
-    return 0;
-}
-
-int ResetBackupFlag(void)
-{
-    g_iBackupFlag = BACKUP_NULL;
-    g_pAddr = NULL;
-    g_iLength = 0;
-    
-    return 0;
-}
-
-int Send2SyncThread(int iType, const void *pAddr, int iLength)
-{
-    //TO DO: may use message queue to send from thread
-
-    return 0;
-}
-
-int batch_backup(const void *pAddr, int iLength)
-{
-    if(iLength > 0)
-    {
-        SetBackupFlag(BACKUP_BATCH, pAddr, iLength);
-    }
-    
-    return 0;
-}
-
-int realtime_backup(const void *pAddr, int iLength, bool bIsInstant)
-{
-    if(iLength > 0)
-    {
-        if(bIsInstant == false)
-        {
-            SetBackupFlag(BACKUP_REALTIME_WAITING, pAddr, iLength);
-        }
-        else
-        {
-            SetBackupFlag(BACKUP_REALTIME_INSTANT, pAddr, iLength);
-        }
-    }
-
-    return 0;
-}
