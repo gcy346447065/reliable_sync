@@ -1,4 +1,4 @@
 # reliable_sync
-for code and design docs test by lxd
+for code and design docs
 
-test by gcy
+test by lxd
