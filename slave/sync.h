@@ -1,7 +1,6 @@
 #ifndef _SYNC_H_
 #define _SYNC_H_
 
-#include "queue.h"
 
 enum SEND_METHOD_TO_SYNC
 {
@@ -14,11 +13,10 @@ struct sync_struct
 {
     int iMainEventFd;
     int iSyncEventFd;
-    stQueue *pstQueue;
 };
 
 
-void *master_sync(void *arg);
+void *slave_sync(void *arg);
 
 
 

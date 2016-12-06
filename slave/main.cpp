@@ -15,39 +15,13 @@
 #include "event.h"
 #include "socket.h"
 #include "sync.h"
-#include "queue.h"
 
 
 
-int SendToSync(stQueue *pstQueue, int iSyncEventFd, void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
+int RecvFromSync()
 {
-    if(pBuf == NULL || iBufLen == 0)
-    {
-        log_error("SendToSync pBuf or iBufLen error!");
-        return -1;
-    }
-    //TO DO: iMaxPkgLen, pDestAddr unused
 
-    switch(iSendMethod)
-    {
-        case SEND_NEWCFG_WAITED:
-            log_info("SEND_NEWCFG_WAITED.");
-            break;
-
-        case SEND_NEWCFG_INSTANT:
-            log_info("SEND_NEWCFG_INSTANT.");
-
-            queue_push(pstQueue, pBuf, iBufLen);
-            event_setEventFlags(iSyncEventFd, EVENT_FLAG_QUEUE_PUSH);
-
-            break;
-            
-        default:
-            log_info("iSendMethod:%d.", iSendMethod);
-            break;
-    }
-
-    log_info("SendToSync ok.");
+    log_info("RecvFromSync ok.");
     return 0;
 }
 
@@ -55,9 +29,6 @@ int main(int argc, char *argv[])
 {
     /* log init */
     log_init();
-
-    /* queue init */
-    stQueue *pstQueue = queue_init();
 
     /* epoll create */
     int iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
@@ -94,24 +65,12 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    /* add STDIN_FILENO to epoll for test(to trigger master find new config) */
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = STDIN_FILENO;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    iRet = epoll_ctl(iMainEpollFd, EPOLL_CTL_ADD, STDIN_FILENO, &stEvent);
-    if(iRet < 0)
-    {
-        log_error("epoll add STDIN_FILENO error(%d)!", iRet);
-        return -1;
-    }
-
     /* sync pthread create, send iMainEventFd to sync thread */
     pthread_t SyncThreadId;
     struct sync_struct stSyncStruct;
     stSyncStruct.iMainEventFd = iMainEventFd;
     stSyncStruct.iSyncEventFd = iSyncEventFd;
-    stSyncStruct.pstQueue = pstQueue;
-    iRet = pthread_create(&SyncThreadId, NULL, master_sync, (void *)&stSyncStruct);
+    iRet = pthread_create(&SyncThreadId, NULL, slave_sync, (void *)&stSyncStruct);
     if(iRet != 0)
     {
         log_error("pthread create error(%d)!", iRet);
@@ -121,11 +80,6 @@ int main(int argc, char *argv[])
     /* log for Beginning */
     log_info("Main Task Beginning.");
 
-    //char *pcRealtimeBuf = NULL;
-    //int iRealtimeBufLen = 0;
-    //char *pcBatchBuf; //TO DO
-    //int iBatchBufLen;
-    int iNewCfgFd; //opened when reading STDIN, realtime SendToSync when get new config event
     while(1)
     {
         /* main task */
@@ -134,49 +88,7 @@ int main(int argc, char *argv[])
         int iEpollNum = epoll_wait(iMainEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
-            if(stEvents[i].data.fd == STDIN_FILENO && stEvents[i].events & EPOLLIN)
-            {
-                log_info("Get STDIN_FILENO fd.");
-
-                /* read STDIN_FILENO */
-                char acStdinBuf[128];
-                memset(acStdinBuf, 0, 128);
-
-                iRet = read(STDIN_FILENO, acStdinBuf, 128);
-                if(iRet < 0)
-                {
-                    log_error("read STDIN_FILENO error(%s)!", strerror(errno));
-                    return -1;
-                }
-                acStdinBuf[iRet-1] = '\0'; //-1 for '\n'
-
-                char *pcfilename = NULL;
-                if(pcfilename = strstr(acStdinBuf, NEW_CFG_STR)) //":"
-                {
-                    pcfilename += NEW_CFG_STR_LEN; //strlen(":")
-                    log_info("Get new config, filename: \"%s\".", pcfilename);
-
-                    iNewCfgFd = open(pcfilename, O_RDONLY);
-                    if(iNewCfgFd > 0)
-                    {
-                        log_info("open new config file ok.");
-                        iRet = event_setEventFlags(iMainEventFd, EVENT_FLAG_MASTER_NEWCFG);
-                        if(iRet == 0)
-                        {
-                            log_info("set event flag EVENT_FLAG_MASTER_NEWCFG ok.");
-                        }
-                    }
-                    else
-                    {
-                        log_error("open new config file error(%s)!", strerror(errno));
-                    }
-                }
-                else
-                {
-                    log_error("Unknown command!");
-                }
-            }//if STDIN_FILENO
-            else if(stEvents[i].data.fd == iMainEventFd && stEvents[i].events & EPOLLIN)
+            if(stEvents[i].data.fd == iMainEventFd && stEvents[i].events & EPOLLIN)
             {
                 log_info("Get iMainEventFd.");
 
@@ -187,35 +99,6 @@ int main(int argc, char *argv[])
                 {
                     log_error("event_getEventFlags error(%d)!", iRet);
                     return -1;
-                }
-
-                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main mask, tested: when get STDIN_FILENO keys in
-                {
-                    log_info("Get master new config event flag.");
-
-                    /* realtime SendToSync */
-                    char *pcNewCfgBuf = (char *)malloc(MAX_NEW_CFG_LEN);
-                    memset(pcNewCfgBuf, 0, MAX_NEW_CFG_LEN);
-                    iRet = read(iNewCfgFd, pcNewCfgBuf, MAX_NEW_CFG_LEN);
-                    if(iRet < 0)
-                    {
-                        log_error("read iNewCfgFd error(%d)!", iRet);
-                        return -1;
-                    }
-                    int iBufLen = iRet;
-
-                    iRet = SendToSync(pstQueue, iSyncEventFd, pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
-                    if(iRet < 0)
-                    {
-                        log_error("SendToSync error(%d)!", iRet);
-                    }
-                }
-
-                if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when sync thread find no keep alive ack
-                {
-                    log_info("Get slave restart event flag.");
-
-                    /* batch SendToSync */
                 }
 
                 if(uiEventsFlag & EVENT_FLAG_SYNC_TIMER) //set the flag when sync thread find no keep alive ack

@@ -10,10 +10,9 @@
 #include "socket.h"
 #include "event.h"
 #include "timer.h"
-#include "queue.h"
 
 
-void *master_sync(void *arg)
+void *slave_sync(void *arg)
 {
     log_info("SYNC task Beginning.");
 
@@ -21,7 +20,6 @@ void *master_sync(void *arg)
     struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
     int iMainEventFd = pstSyncStruct->iMainEventFd;
     int iSyncEventFd = pstSyncStruct->iSyncEventFd;
-    stQueue *pstQueue = pstSyncStruct->pstQueue;
     log_debug("iMainEventFd(%d), iSyncEventFd(%d)", iMainEventFd, iSyncEventFd);
 
     /* epoll create */
@@ -53,23 +51,23 @@ void *master_sync(void *arg)
     }
     log_debug("iSyncToSyncSockFd(%d).", iSyncToSyncSockFd);
 
-    struct sockaddr_in stMasterSync2SyncAddr;
-    memset(&stMasterSync2SyncAddr, 0, sizeof(stMasterSync2SyncAddr)); 
-    stMasterSync2SyncAddr.sin_family = AF_INET;
-    stMasterSync2SyncAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
-    stMasterSync2SyncAddr.sin_port = htons(MASTER_SYNC_TO_SYNC_PORT);
-    if(bind(iSyncToSyncSockFd, (struct sockaddr *)&stMasterSync2SyncAddr, sizeof(stMasterSync2SyncAddr)) < 0)
-    {
-        log_error("socket bind error(%d)!", errno);
-        return (void *)-1;
-    }
-
     struct sockaddr_in stSlaveSync2SyncAddr;
     memset(&stSlaveSync2SyncAddr, 0, sizeof(stSlaveSync2SyncAddr)); 
     stSlaveSync2SyncAddr.sin_family = AF_INET;
     stSlaveSync2SyncAddr.sin_addr.s_addr = inet_addr(SLAVE_IP); 
     stSlaveSync2SyncAddr.sin_port = htons(SLAVE_SYNC_TO_SYNC_PORT);
-    if(connect(iSyncToSyncSockFd, (struct sockaddr *)&stSlaveSync2SyncAddr, sizeof(stSlaveSync2SyncAddr)) < 0)
+    if(bind(iSyncToSyncSockFd, (struct sockaddr *)&stSlaveSync2SyncAddr, sizeof(stSlaveSync2SyncAddr)) < 0)
+    {
+        log_error("socket bind error(%d)!", errno);
+        return (void *)-1;
+    }
+
+    struct sockaddr_in stMasterSync2SyncAddr;
+    memset(&stMasterSync2SyncAddr, 0, sizeof(stMasterSync2SyncAddr)); 
+    stMasterSync2SyncAddr.sin_family = AF_INET;
+    stMasterSync2SyncAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
+    stMasterSync2SyncAddr.sin_port = htons(MASTER_SYNC_TO_SYNC_PORT);
+    if(connect(iSyncToSyncSockFd, (struct sockaddr *)&stMasterSync2SyncAddr, sizeof(stMasterSync2SyncAddr)) < 0)
     {
         log_error("socket connect error(%d)!", errno);
         return (void *)-1;
@@ -82,29 +80,6 @@ void *master_sync(void *arg)
     if(iRet < 0)
     {
         log_error("iSyncEpollFd add iSyncToSyncSockFd error(%d)!", iRet);
-        return (void *)-1;
-    }
-
-    /* add sync timerfd to epoll */
-    int iSyncTimerFd = timer_create();
-    if(iSyncTimerFd < 0)
-    {
-        log_error("sync timer create error(%d)!", iSyncTimerFd);
-        return (void *)-1;
-    }
-    iRet = timer_start(iSyncTimerFd, 1000 * 60 * 1); //planned: 10 min, tested: 1 min
-    if(iRet < 0)
-    {
-        log_error("sync timer start error(%d)!", iRet);
-        return (void *)-1;
-    }
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iSyncTimerFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    iRet = epoll_ctl(iSyncEpollFd, EPOLL_CTL_ADD, iSyncTimerFd, &stEvent);
-    if(iRet < 0)
-    {
-        log_error("epoll add iSyncTimerFd error(%d)!", iRet);
         return (void *)-1;
     }
 
@@ -135,22 +110,6 @@ void *master_sync(void *arg)
                 if(uiEventsFlag & EVENT_FLAG_QUEUE_PUSH) //set the flag when sync thread find no keep alive ack
                 {
                     log_info("Get EVENT_FLAG_QUEUE_PUSH.");
-
-                    if(!queue_isEmpty(pstQueue))
-                    {
-                        /* handle pstQueue, send to slave */
-                        log_debug("queue_getSize(%d).", queue_getSize(pstQueue));
-                        log_debug("handle pstQueue(%d):%s", pstQueue->pFront->iDataLen, pstQueue->pFront->pData);
-
-                        if(write(iSyncToSyncSockFd, pstQueue->pFront->pData, pstQueue->pFront->iDataLen) < 0) //after connect, write = send
-                        {
-                            log_debug("Send to SLAVE SYNC failed!");
-                        }
-
-                        /* queue_pop pstQueue */
-                        queue_pop(pstQueue);
-                        log_debug("queue_getSize(%d).", queue_getSize(pstQueue));
-                    }
                 }
 
             }//if iSyncEventFd
@@ -160,16 +119,16 @@ void *master_sync(void *arg)
 
                 /* wait for socket msg */
                 memset(acBuffer, 0, MAX_BUFFER_SIZE);
-                if((iBufferSize = read(iSyncToSyncSockFd, acBuffer, MAX_BUFFER_SIZE)) > 0)
+                if((iBufferSize = read(iSyncToSyncSockFd, acBuffer, MAX_BUFFER_SIZE)) > 0) //after connect, read = recv
                 {
                     log_debug("Get socket msg from MASTER(%d):%s.", iBufferSize, acBuffer);
+
+                    if(write(iSyncToSyncSockFd, "ack", 3) < 0) //after connect, write = send
+                    {
+                        log_error("Send to SLAVE SYNC failed!");
+                    }
                 }
 
-                /*if(sendto(iSyncSockFd, "SYN ACK", 7, 0, (struct sockaddr *)&stRecvAddr, iRecvAddrLen) < 0)
-                {
-                    log_debug("Send SYN ACK to client failed!");
-                    g_bSendSynAckFlag = false;
-                }*/
             }//else if iSyncToSyncSockFd
         }//for
     }//while

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-PROJECT(syncmaster)
+PROJECT(syncslave)
 
 SET(SRC_LIST
     main.cpp
@@ -7,8 +7,7 @@ SET(SRC_LIST
     event.cpp
     socket.cpp
     sync.cpp
-    queue.cpp
     )
-ADD_EXECUTABLE(syncmaster ${SRC_LIST})
-TARGET_LINK_LIBRARIES(syncmaster pthread)
+ADD_EXECUTABLE(syncslave ${SRC_LIST})
+TARGET_LINK_LIBRARIES(syncslave pthread)
 

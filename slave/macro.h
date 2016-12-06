@@ -5,7 +5,7 @@
 #define NEW_CFG_STR_LEN strlen(NEW_CFG_STR)
 
 #define MAX_EPOLL_NUM 1024
-#define MAX_NEW_CFG_LEN 100
+#define NEW_CFG_LEN 100
 #define MAX_PKG_LEN 1024
 #define MAX_BUFFER_SIZE 1024
 
