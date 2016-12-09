@@ -4,6 +4,7 @@
 #include <string.h> //for memset strstr
 #include <errno.h> //for errno
 #include <unistd.h> //for read
+#include <stdlib.h> //for malloc
 #include "sync.h"
 #include "macro.h"
 #include "log.h"
@@ -11,7 +12,158 @@
 #include "event.h"
 #include "timer.h"
 #include "queue.h"
+#include "checksum.h"
+#include "protocol.h"
 
+typedef int (*MSG_PROC)(int iSockFd, const char *pcMsg);
+typedef struct
+{
+    char cmd;
+    MSG_PROC pfn;
+} MSG_PROC_MAP;
+
+static int sync_login(int iSockFd, const char *pcMsg)
+{
+    const MSG_LOGIN_REQ *req = (const MSG_LOGIN_REQ *)pcMsg;
+    if(!req)
+    {
+        log_error("msg handle empty");
+        return -1;
+    }
+    if(ntohs(req->header.length) < sizeof(MSG_LOGIN_REQ) - MSG_HEADER_LEN)
+    {
+        log_error("login message length not enough");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int sync_newCfg(int iSockFd, const char *pcMsg)
+{
+    const MSG_NEW_CFG_RSP *rsp = (const MSG_NEW_CFG_RSP *)pcMsg;
+    if(!rsp)
+    {
+        log_error("msg handle empty");
+        return -1;
+    }
+    if(ntohs(rsp->header.length) < sizeof(MSG_NEW_CFG_RSP) - MSG_HEADER_LEN)
+    {
+        log_error("login message length not enough");
+        return -1;
+    }
+
+    if(rsp->result == NEW_CFG_RESULT_SUCCEED)
+    {
+        log_info("NEW_CFG_RESULT_SUCCEED.");
+    }
+    else if(rsp->result == NEW_CFG_RESULT_FAILED)
+    {
+        log_info("NEW_CFG_RESULT_FAILED.");
+
+        //TO DO: resend
+    }
+
+    return 0;
+}
+
+static int sync_keepAlive(int iSockFd, const char *pcMsg)
+{
+    const MSG_KEEP_ALIVE_REQ *req = (const MSG_KEEP_ALIVE_REQ *)pcMsg;
+    if(!req)
+    {
+        log_error("msg handle empty");
+        return -1;
+    }
+    if(ntohs(req->header.length) < sizeof(MSG_KEEP_ALIVE_REQ) - MSG_HEADER_LEN)
+    {
+        log_error("login message length not enough");
+        return -1;
+    }
+
+    return 0;
+}
+
+static MSG_PROC_MAP g_msgProcs[] =
+{
+    {CMD_LOGIN,             sync_login},
+    {CMD_NEW_CFG,           sync_newCfg},
+    {CMD_KEEP_ALIVE,        sync_keepAlive}
+};
+
+int handle_one_msg(int iSockFd, const char *pcMsg)
+{
+    const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;
+
+    for(int i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
+    {
+        if(g_msgProcs[i].cmd == pcMsgHeader->cmd)
+        {
+            MSG_PROC pfn = g_msgProcs[i].pfn;
+            if(pfn)
+            {
+                return pfn(iSockFd, pcMsg);
+            }
+        }
+    }
+
+    return -1;
+}
+
+int handle_sync_msg(int iSockFd, const char *pcMsg, int iMsgLen)
+{
+    const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;
+
+    if(iMsgLen < MSG_HEADER_LEN)
+    {
+        log_error("sync message length not enough(%u<%u)", iMsgLen, MSG_HEADER_LEN);
+        return -1;
+    }
+
+    int iLeftLen = iMsgLen;
+    while(iLeftLen >= ntohs(pcMsgHeader->length) + MSG_HEADER_LEN)
+    {
+        const unsigned char *status = (const unsigned char *)(&(pcMsgHeader->signature));
+        if((status[0] != START_FLAG / 0x100) || (status[1] != START_FLAG % 0x100))
+        {
+            log_error("receive message header signature error:%x", (unsigned)ntohs(pcMsgHeader->signature));
+            return -1;
+        }
+        handle_one_msg(iSockFd, (const char *)pcMsgHeader);
+        iLeftLen = iLeftLen - MSG_HEADER_LEN - ntohs(pcMsgHeader->length);
+        pcMsgHeader = (const MSG_HEADER *)(pcMsg + iMsgLen - iLeftLen);
+    }
+
+    return 0;
+}
+
+static char g_seq = 0;
+static short g_newCfgNum = 0;
+
+int alloc_master_newCfgReq(void *pData, int iDataLen, void **ppMsg, int *piMsgLen)
+{
+    int iMsgLen = sizeof(MSG_NEW_CFG_REQ) + iDataLen;
+
+    MSG_NEW_CFG_REQ *req = (MSG_NEW_CFG_REQ *)malloc(iMsgLen);
+    if(!req)
+    {
+        return -1;
+    }
+
+    req->header.signature = htons(START_FLAG);
+    req->header.cmd = CMD_NEW_CFG;
+    req->header.seq = ++g_seq;
+    req->header.length = htons(iMsgLen - MSG_HEADER_LEN);
+
+    req->newCfgNum = htons(++g_newCfgNum);
+    req->checksum = htons(checksum((const char *)pData, iDataLen));
+    memcpy(req->data, pData, iDataLen);
+
+    log_hex(req, iMsgLen);
+    *ppMsg = req;
+    *piMsgLen = iMsgLen;
+    return 0;
+}
 
 void *master_sync(void *arg)
 {
@@ -113,6 +265,9 @@ void *master_sync(void *arg)
     char acBuffer[MAX_BUFFER_SIZE];
     memset(acBuffer, 0, MAX_BUFFER_SIZE);
 
+    void *pMsg;
+    int iMsgLen;
+
     while(1)
     {
         /* epoll wail */
@@ -140,9 +295,15 @@ void *master_sync(void *arg)
                     {
                         /* handle pstQueue, send to slave */
                         log_debug("queue_getSize(%d).", queue_getSize(pstQueue));
-                        log_debug("handle pstQueue(%d):%s", pstQueue->pFront->iDataLen, pstQueue->pFront->pData);
 
-                        if(write(iSyncToSyncSockFd, pstQueue->pFront->pData, pstQueue->pFront->iDataLen) < 0) //after connect, write = send
+                        iRet = alloc_master_newCfgReq(pstQueue->pFront->pData, pstQueue->pFront->iDataLen, &pMsg, &iMsgLen);
+                        if(iRet < 0)
+                        {
+                            log_error("alloc_master_newCfgReq error(%d)!", iRet);
+                            return (void *)-1;
+                        }
+
+                        if(write(iSyncToSyncSockFd, pMsg, iMsgLen) < 0) //after connect, write = send
                         {
                             log_debug("Send to SLAVE SYNC failed!");
                         }
@@ -152,7 +313,6 @@ void *master_sync(void *arg)
                         log_debug("queue_getSize(%d).", queue_getSize(pstQueue));
                     }
                 }
-
             }//if iSyncEventFd
             else if(stEvents[i].data.fd == iSyncToSyncSockFd && stEvents[i].events & EPOLLIN)
             {
@@ -162,14 +322,9 @@ void *master_sync(void *arg)
                 memset(acBuffer, 0, MAX_BUFFER_SIZE);
                 if((iBufferSize = read(iSyncToSyncSockFd, acBuffer, MAX_BUFFER_SIZE)) > 0)
                 {
-                    log_debug("Get socket msg from MASTER(%d):%s.", iBufferSize, acBuffer);
+                    log_hex(acBuffer, iBufferSize);
+                    handle_sync_msg(iSyncToSyncSockFd, acBuffer, iBufferSize);
                 }
-
-                /*if(sendto(iSyncSockFd, "SYN ACK", 7, 0, (struct sockaddr *)&stRecvAddr, iRecvAddrLen) < 0)
-                {
-                    log_debug("Send SYN ACK to client failed!");
-                    g_bSendSynAckFlag = false;
-                }*/
             }//else if iSyncToSyncSockFd
         }//for
     }//while

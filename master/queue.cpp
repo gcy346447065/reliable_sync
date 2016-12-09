@@ -1,4 +1,4 @@
-
+#include <stdlib.h> //for malloc
 #include "queue.h"
 
 stQueue *queue_init()

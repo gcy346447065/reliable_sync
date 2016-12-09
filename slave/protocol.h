@@ -8,9 +8,8 @@
 enum
 {
     CMD_LOGIN = 1,
-    CMD_MAIN_TO_SYNC = 2,
-    CMD_SYNC_TO_MAIN = 3,
-    CMD_SYNC_TO_SYNC = 4
+    CMD_NEW_CFG = 2,
+    CMD_KEEP_ALIVE = 3
 };
 
 #pragma pack(push, 1)
@@ -43,20 +42,43 @@ typedef struct
 }__attribute__((__packed__)) MSG_LOGIN_RSP;
 
 /*
- * message main to sync structure
+ * message new config structure
  */
 typedef struct
 {
     MSG_HEADER header;
-    char checkCRC;
+    short newCfgNum;
+    short checksum;
     char data[];
-}__attribute__((__packed__)) MSG_MAIN_TO_SYNC_REQ;
+}__attribute__((__packed__)) MSG_NEW_CFG_REQ;
+
+enum
+{
+    NEW_CFG_RESULT_SUCCEED = 0,
+    NEW_CFG_RESULT_FAILED = 1
+};
 
 typedef struct
 {
     MSG_HEADER header;
+    short newCfgNum;
     char result;
-}__attribute__((__packed__)) MSG_MAIN_TO_SYNC_RSP;
+}__attribute__((__packed__)) MSG_NEW_CFG_RSP;
+
+/*
+ * message keep alive structure
+ */
+typedef struct
+{
+    MSG_HEADER header;
+    char specifyNum;
+}__attribute__((__packed__)) MSG_KEEP_ALIVE_REQ;
+
+typedef struct
+{
+    MSG_HEADER header;
+    char specifyNum;
+}__attribute__((__packed__)) MSG_KEEP_ALIVE_RSP;
 
 #pragma pack(pop)
 

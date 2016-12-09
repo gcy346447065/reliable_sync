@@ -4,13 +4,184 @@
 #include <string.h> //for memset strstr
 #include <errno.h> //for errno
 #include <unistd.h> //for read
+#include <stdlib.h> //for malloc
 #include "sync.h"
 #include "macro.h"
 #include "log.h"
 #include "socket.h"
 #include "event.h"
 #include "timer.h"
+#include "checksum.h"
+#include "protocol.h"
 
+typedef int (*MSG_PROC)(int iSockFd, const char *pcMsg);
+typedef struct
+{
+    char cmd;
+    MSG_PROC pfn;
+} MSG_PROC_MAP;
+
+
+MSG_HEADER *alloc_slave_rspMsg(const MSG_HEADER *pMsg)
+{
+    int iMsgLen = 0;
+    switch(pMsg->cmd)
+    {
+        case CMD_LOGIN:
+            iMsgLen = sizeof(MSG_LOGIN_RSP);
+            break;
+
+        case CMD_NEW_CFG:
+            iMsgLen = sizeof(MSG_NEW_CFG_RSP);
+            break;
+
+        case CMD_KEEP_ALIVE:
+            iMsgLen = sizeof(MSG_KEEP_ALIVE_RSP);
+            break;
+
+        default:
+            return NULL;
+    }
+
+    MSG_HEADER *pMsgHeader = (MSG_HEADER *)malloc(iMsgLen);
+    pMsgHeader->signature = htons(START_FLAG);
+    pMsgHeader->cmd = pMsg->cmd;
+    pMsgHeader->seq = pMsg->seq;
+    pMsgHeader->length = htons(iMsgLen - MSG_HEADER_LEN);
+
+    return pMsgHeader;
+}
+
+static int sync_login(int iSockFd, const char *pcMsg)
+{
+    const MSG_LOGIN_REQ *req = (const MSG_LOGIN_REQ *)pcMsg;
+    if(!req)
+    {
+        log_error("msg handle empty");
+        return -1;
+    }
+    if(ntohs(req->header.length) < sizeof(MSG_LOGIN_REQ) - MSG_HEADER_LEN)
+    {
+        log_error("login message length not enough");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int sync_newCfg(int iSockFd, const char *pcMsg)
+{
+    const MSG_NEW_CFG_REQ *req = (const MSG_NEW_CFG_REQ *)pcMsg;
+    if(!req)
+    {
+        log_error("msg req empty");
+        return -1;
+    }
+    if(ntohs(req->header.length) < sizeof(MSG_NEW_CFG_REQ) - MSG_HEADER_LEN)
+    {
+        log_error("login message length not enough");
+        return -1;
+    }
+
+    log_info("req->newCfgNum(%d), req->checksum(%d).", ntohs(req->newCfgNum), ntohs(req->checksum));
+
+    MSG_NEW_CFG_RSP *rsp = (MSG_NEW_CFG_RSP *)alloc_slave_rspMsg((const MSG_HEADER *)pcMsg);
+    if(!rsp)
+    {
+        log_error("msg rsp empty");
+        return -1;
+    }
+
+    rsp->newCfgNum = req->newCfgNum;
+    short iSlaveChecksum = checksum((const char *)(req->data), ntohs(req->header.length) - sizeof(short)*2);
+    log_info("iSlaveChecksum(%d)", iSlaveChecksum);
+    if(iSlaveChecksum == ntohs(req->checksum))
+    {
+        rsp->result = NEW_CFG_RESULT_SUCCEED;
+    }
+    else
+    {
+        rsp->result = NEW_CFG_RESULT_FAILED;
+    }
+
+    if(write(iSockFd, rsp, sizeof(MSG_NEW_CFG_RSP)) < 0) //after connect, write = send
+    {
+        log_debug("Send to MASTER MSG_NEW_CFG_RSP failed!");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int sync_keepAlive(int iSockFd, const char *pcMsg)
+{
+    const MSG_KEEP_ALIVE_REQ *req = (const MSG_KEEP_ALIVE_REQ *)pcMsg;
+    if(!req)
+    {
+        log_error("msg handle empty");
+        return -1;
+    }
+    if(ntohs(req->header.length) < sizeof(MSG_KEEP_ALIVE_REQ) - MSG_HEADER_LEN)
+    {
+        log_error("login message length not enough");
+        return -1;
+    }
+
+    return 0;
+}
+
+static MSG_PROC_MAP g_msgProcs[] =
+{
+    {CMD_LOGIN,             sync_login},
+    {CMD_NEW_CFG,           sync_newCfg},
+    {CMD_KEEP_ALIVE,        sync_keepAlive}
+};
+
+int handle_one_msg(int iSockFd, const char *pcMsg)
+{
+    const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;
+
+    for(int i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
+    {
+        if(g_msgProcs[i].cmd == pcMsgHeader->cmd)
+        {
+            MSG_PROC pfn = g_msgProcs[i].pfn;
+            if(pfn)
+            {
+                return pfn(iSockFd, pcMsg);
+            }
+        }
+    }
+
+    return -1;
+}
+
+int handle_sync_msg(int iSockFd, const char *pcMsg, int iMsgLen)
+{
+    const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;
+
+    if(iMsgLen < MSG_HEADER_LEN)
+    {
+        log_error("sync message length not enough(%u<%u)", iMsgLen, MSG_HEADER_LEN);
+        return -1;
+    }
+
+    int iLeftLen = iMsgLen;
+    while(iLeftLen >= ntohs(pcMsgHeader->length) + MSG_HEADER_LEN)
+    {
+        const unsigned char *status = (const unsigned char *)(&(pcMsgHeader->signature));
+        if((status[0] != START_FLAG / 0x100) || (status[1] != START_FLAG % 0x100))
+        {
+            log_error("receive message header signature error:%x", (unsigned)ntohs(pcMsgHeader->signature));
+            return -1;
+        }
+        handle_one_msg(iSockFd, (const char *)pcMsgHeader);
+        iLeftLen = iLeftLen - MSG_HEADER_LEN - ntohs(pcMsgHeader->length);
+        pcMsgHeader = (const MSG_HEADER *)(pcMsg + iMsgLen - iLeftLen);
+    }
+
+    return 0;
+}
 
 void *slave_sync(void *arg)
 {
@@ -121,12 +292,9 @@ void *slave_sync(void *arg)
                 memset(acBuffer, 0, MAX_BUFFER_SIZE);
                 if((iBufferSize = read(iSyncToSyncSockFd, acBuffer, MAX_BUFFER_SIZE)) > 0) //after connect, read = recv
                 {
-                    log_debug("Get socket msg from MASTER(%d):%s.", iBufferSize, acBuffer);
+                    log_hex(acBuffer, iBufferSize);
 
-                    if(write(iSyncToSyncSockFd, "ack", 3) < 0) //after connect, write = send
-                    {
-                        log_error("Send to SLAVE SYNC failed!");
-                    }
+                    handle_sync_msg(iSyncToSyncSockFd, acBuffer, iBufferSize);
                 }
 
             }//else if iSyncToSyncSockFd
