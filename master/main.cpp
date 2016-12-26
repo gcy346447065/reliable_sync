@@ -5,6 +5,7 @@
 #include <sys/epoll.h> //for epoll
 #include <stdlib.h> //for malloc
 #include <stdint.h> //for unit64_t
+#include <stdio.h> //for sscanf sprintf
 #include <unistd.h> //for read
 #include <errno.h> //for errno
 #include <string.h> //for memset strstr
@@ -17,16 +18,21 @@
 #include "sync.h"
 #include "queue.h"
 
+enum SEND_METHOD_TO_QUEUE
+{
+    SEND_SET_SYNC_TIMER,
+    SEND_NEWCFG_WAITED,
+    SEND_NEWCFG_INSTANT
+};
 
-
-int SendToSync(stQueue *pstQueue, int iSyncEventFd, void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
+int send2Queue(stQueue *pstQueue, void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
 {
     if(pBuf == NULL || iBufLen == 0)
     {
         log_error("SendToSync pBuf or iBufLen error!");
         return -1;
     }
-    //TO DO: iMaxPkgLen, pDestAddr unused
+    //TODO: iMaxPkgLen, pDestAddr unused
 
     switch(iSendMethod)
     {
@@ -36,15 +42,12 @@ int SendToSync(stQueue *pstQueue, int iSyncEventFd, void *pBuf, int iBufLen, int
 
         case SEND_NEWCFG_INSTANT:
             log_info("SEND_NEWCFG_INSTANT.");
-
             queue_push(pstQueue, pBuf, iBufLen);
-            event_setEventFlags(iSyncEventFd, EVENT_FLAG_QUEUE_PUSH);
-
             break;
             
         default:
-            log_info("iSendMethod:%d.", iSendMethod);
-            break;
+            log_error("iSendMethod:%d.", iSendMethod);
+            return -1;
     }
 
     log_info("SendToSync ok.");
@@ -57,7 +60,18 @@ int main(int argc, char *argv[])
     log_init();
 
     /* queue init */
-    stQueue *pstQueue = queue_init();
+    stQueue *pstInstantQueue = queue_init();
+    if(pstInstantQueue == NULL )
+    {
+        log_error("queue_init error!");
+        return -1;
+    }
+    stQueue *pstWaitedQueue = queue_init();
+    if(pstWaitedQueue == NULL )
+    {
+        log_error("queue_init error!");
+        return -1;
+    }
 
     /* epoll create */
     int iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
@@ -110,7 +124,8 @@ int main(int argc, char *argv[])
     struct sync_struct stSyncStruct;
     stSyncStruct.iMainEventFd = iMainEventFd;
     stSyncStruct.iSyncEventFd = iSyncEventFd;
-    stSyncStruct.pstQueue = pstQueue;
+    stSyncStruct.pstInstantQueue = pstInstantQueue;
+    stSyncStruct.pstWaitedQueue = pstWaitedQueue;
     iRet = pthread_create(&SyncThreadId, NULL, master_sync, (void *)&stSyncStruct);
     if(iRet != 0)
     {
@@ -121,11 +136,8 @@ int main(int argc, char *argv[])
     /* log for Beginning */
     log_info("Main Task Beginning.");
 
-    //char *pcRealtimeBuf = NULL;
-    //int iRealtimeBufLen = 0;
-    //char *pcBatchBuf; //TO DO
-    //int iBatchBufLen;
     int iNewCfgFd; //opened when reading STDIN, realtime SendToSync when get new config event
+    int iFileBegin, iFileEnd;
     while(1)
     {
         /* main task */
@@ -150,25 +162,39 @@ int main(int argc, char *argv[])
                 }
                 acStdinBuf[iRet-1] = '\0'; //-1 for '\n'
 
-                char *pcfilename = NULL;
-                if(pcfilename = strstr(acStdinBuf, NEW_CFG_STR)) //":"
+                if(char *pcFilename = strstr(acStdinBuf, NEW_CFG_INSTANT_START_STR)) //"?"
                 {
-                    pcfilename += NEW_CFG_STR_LEN; //strlen(":")
-                    log_info("Get new config, filename: \"%s\".", pcfilename);
+                    pcFilename += NEW_CFG_INSTANT_START_STR_LEN; //strlen("?")
+                    log_info("Get new config, filename: \"%s\".", pcFilename);
 
-                    iNewCfgFd = open(pcfilename, O_RDONLY);
+                    iNewCfgFd = open(pcFilename, O_RDONLY);
                     if(iNewCfgFd > 0)
                     {
-                        log_info("open new config file ok.");
-                        iRet = event_setEventFlags(iMainEventFd, EVENT_FLAG_MASTER_NEWCFG);
+                        log_info("open INSTANT file ok.");
+                        iRet = event_setEventFlags(iMainEventFd, MASTER_EVENT_KEYIN_INSTANT);
                         if(iRet == 0)
                         {
-                            log_info("set event flag EVENT_FLAG_MASTER_NEWCFG ok.");
+                            log_info("set event flag MASTER_EVENT_KEYIN_INSTANT ok.");
                         }
                     }
                     else
                     {
                         log_error("open new config file error(%s)!", strerror(errno));
+                    }
+                }
+                else if(sscanf(acStdinBuf, "/file%d:file%d", iFileBegin, iFileEnd)) //"/file8:file10"
+                {
+                    char *pcFilenameBegin, *pcFilenameEnd;
+                    sprintf(pcFilenameBegin, "file%d", iFileBegin);
+                    sprintf(pcFilenameEnd, "file%d", iFileEnd);
+                    if(open(pcFilenameBegin, O_RDONLY) > 0 && open(pcFilenameEnd, O_RDONLY) > 0)
+                    {
+                        log_info("open WAITED files ok.");
+                        iRet = event_setEventFlags(iMainEventFd, MASTER_EVENT_KEYIN_WAITED);
+                        if(iRet == 0)
+                        {
+                            log_info("set event flag MASTER_EVENT_KEYIN_WAITED ok.");
+                        }
                     }
                 }
                 else
@@ -189,9 +215,9 @@ int main(int argc, char *argv[])
                     return -1;
                 }
 
-                if(uiEventsFlag & EVENT_FLAG_MASTER_NEWCFG) //planned: set by main mask, tested: when get STDIN_FILENO keys in
+                if(uiEventsFlag & MASTER_EVENT_KEYIN_INSTANT) //planned: set by main mask, tested: when get STDIN_FILENO keys in
                 {
-                    log_info("Get master new config event flag.");
+                    log_info("Get MASTER_EVENT_KEYIN_INSTANT.");
 
                     /* realtime SendToSync */
                     char *pcNewCfgBuf = (char *)malloc(MAX_NEW_CFG_LEN);
@@ -204,25 +230,33 @@ int main(int argc, char *argv[])
                     }
                     int iBufLen = iRet;
 
-                    iRet = SendToSync(pstQueue, iSyncEventFd, pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
+                    iRet = send2Queue(pstInstantQueue, pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
                     if(iRet < 0)
                     {
-                        log_error("SendToSync error(%d)!", iRet);
+                        log_error("send2Queue error(%d)!", iRet);
                     }
+                    event_setEventFlags(iSyncEventFd, MASTER_EVENT_NEWCFG_INSTANT);
                 }
 
-                if(uiEventsFlag & EVENT_FLAG_SLAVE_RESTART) //set the flag when sync thread find no keep alive ack
+                if(uiEventsFlag & MASTER_EVENT_KEYIN_WAITED) //when find specifyID different, get slave restart event
                 {
-                    log_info("Get slave restart event flag.");
+                    log_info("Get MASTER_EVENT_KEYIN_WAITED.");
 
-                    /* batch SendToSync */
+                    /* loop to send to waited queue */
                 }
 
-                if(uiEventsFlag & EVENT_FLAG_SYNC_TIMER) //set the flag when sync thread find no keep alive ack
+                if(uiEventsFlag & MASTER_EVENT_SLAVE_RESTART) //when find specifyID different, get slave restart event
                 {
-                    log_info("Get sync batch timer event flag.");
+                    log_info("Get MASTER_EVENT_SLAVE_RESTART, batch backup.");
 
-                    /* batch SendToSync */
+                    /* batch backup */
+                }
+
+                if(uiEventsFlag & MASTER_EVENT_CHECKALIVE_TIMER) //when not recived msg for a while, get check alive timer event
+                {
+                    log_info("Get MASTER_EVENT_CHECKALIVE_TIMER, restart.");
+
+                    /* restart */
                 }
             }//else if iMainEventFd
         }//for

@@ -4,11 +4,13 @@
 #include <stdint.h> //for unit64_t
 
 /* event flags for eventfd */
-#define EVENT_FLAG_NONE 0x00
-#define EVENT_FLAG_MASTER_NEWCFG    0x01
-#define EVENT_FLAG_SLAVE_RESTART    0x02
-#define EVENT_FLAG_SYNC_TIMER       0x04
-#define EVENT_FLAG_QUEUE_PUSH       0x08
+#define SLAVE_EVENT_NULL                0x0000
+#define SLAVE_EVENT_MASTER_NEWCFG       0x0001
+#define SLAVE_EVENT_SLAVE_RESTART       0x0002
+#define SLAVE_EVENT_SYNC_TIMER          0x0004
+#define SLAVE_EVENT_QUEUE_PUSH          0x0008
+#define SLAVE_EVENT_SYNC_LOGIN          0x0010
+
 
 int event_init(unsigned int iInitVal);
 

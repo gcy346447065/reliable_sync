@@ -32,12 +32,15 @@ typedef struct
 typedef struct
 {
     MSG_HEADER header;
+    char synFlag;
+    char ackFlag;
     char specifyNum;
 }__attribute__((__packed__)) MSG_LOGIN_REQ;
 
 typedef struct
 {
     MSG_HEADER header;
+    char synAckFlag;
     char specifyNum;
 }__attribute__((__packed__)) MSG_LOGIN_RSP;
 
@@ -47,7 +50,7 @@ typedef struct
 typedef struct
 {
     MSG_HEADER header;
-    short newCfgNum;
+    short newCfgID;
     short checksum;
     char data[];
 }__attribute__((__packed__)) MSG_NEW_CFG_REQ;
@@ -55,13 +58,14 @@ typedef struct
 enum
 {
     NEW_CFG_RESULT_SUCCEED = 0,
-    NEW_CFG_RESULT_FAILED = 1
+    NEW_CFG_RESULT_CHECKSUM_ERROR = 1,
+    NEW_CFG_RESULT_STATUS_ERROR = 2
 };
 
 typedef struct
 {
     MSG_HEADER header;
-    short newCfgNum;
+    short newCfgID;
     char result;
 }__attribute__((__packed__)) MSG_NEW_CFG_RSP;
 

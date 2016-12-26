@@ -41,6 +41,20 @@ int timer_start(int iTimerFd, int iMS)
     return 0;
 }
 
+int timer_stop(int iTimerFd)
+{
+    struct itimerspec iNewTimerSpec;
+    memset(&iNewTimerSpec, 0, sizeof(struct itimerspec));
+    if(timerfd_settime(iTimerFd, 0, &iNewTimerSpec, NULL) < 0)
+    {
+        log_error("timerfd settime error!");
+        return -1;
+    }
+
+    log_info("timer stop ok.");
+    return 0;
+}
+
 int timer_close(int iTimerFd)
 {
     close(iTimerFd);

@@ -1,6 +1,8 @@
 #include <stdlib.h> //for malloc
 #include "queue.h"
 
+static int g_iDataID = 0;
+
 stQueue *queue_init()
 {
     stQueue *pstQueue = (stQueue *)malloc(sizeof(stQueue));
@@ -8,7 +10,9 @@ stQueue *queue_init()
     {
         pstQueue->pFront = NULL;
         pstQueue->pRear = NULL;
+        pstQueue->pReadNow = NULL;
         pstQueue->iSize = 0;
+        pstQueue->iReadSize = 0;
         pthread_mutex_init(&pstQueue->pMutex, NULL);
     }
 
@@ -22,12 +26,14 @@ stNode *queue_push(stQueue *pstQueue, void *pData, int iDataLen)
     {
         pNode->pData = pData;
         pNode->iDataLen = iDataLen;
+        pNode->iDataID = ++g_iDataID;
         pNode->pNext = NULL;
 
         pthread_mutex_lock(&pstQueue->pMutex);
         if(queue_isEmpty(pstQueue))
         {
             pstQueue->pFront = pNode;
+            pstQueue->pReadNow = pNode;
         }
         else
         {
@@ -35,6 +41,7 @@ stNode *queue_push(stQueue *pstQueue, void *pData, int iDataLen)
         }
         pstQueue->pRear = pNode;
         pstQueue->iSize++;
+        pstQueue->iReadSize++;
         pthread_mutex_unlock(&pstQueue->pMutex);
     }
 
@@ -58,6 +65,21 @@ stNode *queue_pop(stQueue *pstQueue)
     pthread_mutex_unlock(&pstQueue->pMutex);
 
     return pstQueue->pFront;
+}
+
+stNode *queue_read(stQueue *pstQueue)
+{
+    stNode *pNode = pstQueue->pReadNow;
+    pthread_mutex_lock(&pstQueue->pMutex);
+    if(pstQueue->iReadSize != 0)
+    {
+        pstQueue->iReadSize--;
+        pstQueue->pReadNow = pNode->pNext;
+        free(pNode);
+    }
+    pthread_mutex_unlock(&pstQueue->pMutex);
+
+    return pstQueue->pReadNow;
 }
 
 void queue_free(stQueue *pstQueue)
@@ -98,6 +120,11 @@ int queue_isEmpty(stQueue *pstQueue)
 int queue_getSize(stQueue *pstQueue)
 {
     return pstQueue->iSize;
+}
+
+int queue_getReadSize(stQueue *pstQueue)
+{
+    return pstQueue->iReadSize;
 }
 
 

@@ -9,6 +9,8 @@ SET(SRC_LIST
     sync.cpp
     queue.cpp
     checksum.cpp
+    send.cpp
+    recv.cpp
     )
 ADD_EXECUTABLE(syncmaster ${SRC_LIST})
 TARGET_LINK_LIBRARIES(syncmaster pthread)
