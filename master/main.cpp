@@ -20,7 +20,6 @@
 
 enum SEND_METHOD_TO_QUEUE
 {
-    SEND_SET_SYNC_TIMER,
     SEND_NEWCFG_WAITED,
     SEND_NEWCFG_INSTANT
 };
@@ -38,11 +37,12 @@ int send2Queue(stQueue *pstQueue, void *pBuf, int iBufLen, int iMaxPkgLen, void 
     {
         case SEND_NEWCFG_WAITED:
             log_info("SEND_NEWCFG_WAITED.");
+            queue_push(pstQueue, pBuf, iBufLen);//pstWaitedQueue
             break;
 
         case SEND_NEWCFG_INSTANT:
             log_info("SEND_NEWCFG_INSTANT.");
-            queue_push(pstQueue, pBuf, iBufLen);
+            queue_push(pstQueue, pBuf, iBufLen);//pstInstantQueue
             break;
             
         default:
@@ -136,8 +136,8 @@ int main(int argc, char *argv[])
     /* log for Beginning */
     log_info("Main Task Beginning.");
 
-    int iNewCfgFd; //opened when reading STDIN, realtime SendToSync when get new config event
-    int iFileBegin, iFileEnd;
+    int iNewCfgFd, iFileBegin, iFileEnd;
+    char acFilenameBegin[128], acFilenameEnd[128];
     while(1)
     {
         /* main task */
@@ -162,19 +162,24 @@ int main(int argc, char *argv[])
                 }
                 acStdinBuf[iRet-1] = '\0'; //-1 for '\n'
 
-                if(char *pcFilename = strstr(acStdinBuf, NEW_CFG_INSTANT_START_STR)) //"?"
+                if(sscanf(acStdinBuf, "?file%d", &iFileBegin) == 1) //"?file2"
                 {
-                    pcFilename += NEW_CFG_INSTANT_START_STR_LEN; //strlen("?")
-                    log_info("Get new config, filename: \"%s\".", pcFilename);
-
-                    iNewCfgFd = open(pcFilename, O_RDONLY);
-                    if(iNewCfgFd > 0)
+                    sprintf(acFilenameBegin, "file%d", iFileBegin);
+                    if((iNewCfgFd = open(acFilenameBegin, O_RDONLY)) > 0)
                     {
                         log_info("open INSTANT file ok.");
-                        iRet = event_setEventFlags(iMainEventFd, MASTER_EVENT_KEYIN_INSTANT);
-                        if(iRet == 0)
+
+                        iRet = write(STDIN_FILENO, "Send INSTANT to slave.\r\n", strlen("Send INSTANT to slave.\r\n"));
+                        if(iRet < 0)
                         {
-                            log_info("set event flag MASTER_EVENT_KEYIN_INSTANT ok.");
+                            log_error("write STDIN_FILENO error(%s)!", strerror(errno));
+                            return -1;
+                        }
+
+                        iRet = event_setEventFlags(iMainEventFd, MASTER_EVENT_KEYIN_INSTANT);
+                        if(iRet != 0)
+                        {
+                            log_info("set event flag MASTER_EVENT_KEYIN_INSTANT failed!");
                         }
                     }
                     else
@@ -182,19 +187,30 @@ int main(int argc, char *argv[])
                         log_error("open new config file error(%s)!", strerror(errno));
                     }
                 }
-                else if(sscanf(acStdinBuf, "/file%d:file%d", iFileBegin, iFileEnd)) //"/file8:file10"
+                else if(sscanf(acStdinBuf, "/file%d:file%d", &iFileBegin, &iFileEnd) == 2) //"/file8:file10"
                 {
-                    char *pcFilenameBegin, *pcFilenameEnd;
-                    sprintf(pcFilenameBegin, "file%d", iFileBegin);
-                    sprintf(pcFilenameEnd, "file%d", iFileEnd);
-                    if(open(pcFilenameBegin, O_RDONLY) > 0 && open(pcFilenameEnd, O_RDONLY) > 0)
+                    sprintf(acFilenameBegin, "file%d", iFileBegin);
+                    sprintf(acFilenameEnd, "file%d", iFileEnd);
+                    if(open(acFilenameBegin, O_RDONLY) > 0 && open(acFilenameEnd, O_RDONLY) > 0)
                     {
                         log_info("open WAITED files ok.");
-                        iRet = event_setEventFlags(iMainEventFd, MASTER_EVENT_KEYIN_WAITED);
-                        if(iRet == 0)
+
+                        iRet = write(STDIN_FILENO, "Send WAITED to slave.\r\n", strlen("Send WAITED to slave.\r\n"));
+                        if(iRet < 0)
                         {
-                            log_info("set event flag MASTER_EVENT_KEYIN_WAITED ok.");
+                            log_error("write STDIN_FILENO error(%s)!", strerror(errno));
+                            return -1;
                         }
+
+                        iRet = event_setEventFlags(iMainEventFd, MASTER_EVENT_KEYIN_WAITED);
+                        if(iRet != 0)
+                        {
+                            log_info("set event flag MASTER_EVENT_KEYIN_WAITED failed!");
+                        }
+                    }
+                    else
+                    {
+                        log_error("open new config file error(%s)!", strerror(errno));
                     }
                 }
                 else
@@ -220,9 +236,9 @@ int main(int argc, char *argv[])
                     log_info("Get MASTER_EVENT_KEYIN_INSTANT.");
 
                     /* realtime SendToSync */
-                    char *pcNewCfgBuf = (char *)malloc(MAX_NEW_CFG_LEN);
-                    memset(pcNewCfgBuf, 0, MAX_NEW_CFG_LEN);
-                    iRet = read(iNewCfgFd, pcNewCfgBuf, MAX_NEW_CFG_LEN);
+                    char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
+                    memset(pcNewCfgBuf, 0, MAX_PKG_LEN);
+                    iRet = read(iNewCfgFd, pcNewCfgBuf, MAX_PKG_LEN);
                     if(iRet < 0)
                     {
                         log_error("read iNewCfgFd error(%d)!", iRet);
@@ -235,6 +251,7 @@ int main(int argc, char *argv[])
                     {
                         log_error("send2Queue error(%d)!", iRet);
                     }
+
                     event_setEventFlags(iSyncEventFd, MASTER_EVENT_NEWCFG_INSTANT);
                 }
 
@@ -243,6 +260,30 @@ int main(int argc, char *argv[])
                     log_info("Get MASTER_EVENT_KEYIN_WAITED.");
 
                     /* loop to send to waited queue */
+                    char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
+                    for(int i=iFileBegin; i<=iFileEnd; i++)
+                    {
+                        memset(pcNewCfgBuf, 0, MAX_PKG_LEN);
+                        sprintf(acFilenameBegin, "file%d", i);
+                        if((iNewCfgFd = open(acFilenameBegin, O_RDONLY)) > 0)
+                        {
+                            iRet = read(iNewCfgFd, pcNewCfgBuf, MAX_PKG_LEN);
+                            if(iRet < 0)
+                            {
+                                log_error("read iNewCfgFd error(%d)!", iRet);
+                                return -1;
+                            }
+                            int iBufLen = iRet;
+
+                            iRet = send2Queue(pstWaitedQueue, pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
+                            if(iRet < 0)
+                            {
+                                log_error("send2Queue error(%d)!", iRet);
+                            }
+                        }
+                    }
+
+                    event_setEventFlags(iSyncEventFd, MASTER_EVENT_NEWCFG_WAITED);
                 }
 
                 if(uiEventsFlag & MASTER_EVENT_SLAVE_RESTART) //when find specifyID different, get slave restart event
@@ -270,178 +311,3 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-
-
-
-#if 0
-void SetSendSynAckFlag(int iSig)
-{
-    if(iSig == SIGALRM)
-    {
-        log_debug("Set send SYN ACK flag again.");
-        g_bSendSynAckFlag = true;
-    }
-}
-
-void *server_service(void *arg)
-{
-    log_info("Server Service Beginning.");
-
-    /* socket init */
-    int iRet = socket_init();
-    if(iRet < 0)
-    {
-        log_error("socket init error(%d)!", iRet);
-        return (void *)-1;
-    }
-    int iSockFd = iRet;
-    log_debug("Server iSockFd=%d.", iSockFd);
-    
-    /* memset buffer and struct */
-    char acBuffer[BUFFER_SIZE];
-    memset(acBuffer, 0, BUFFER_SIZE);
-
-    char acReadBuffer[BUFFER_SIZE];
-    memset(acReadBuffer, 0, BUFFER_SIZE);
-
-    struct sockaddr_in stRecvAddr;
-    memset(&stRecvAddr, 0, sizeof(stRecvAddr));
-    int iRecvAddrLen = 0;
-
-    /* set timer alarm signal callback for setting send SYN ACK flag */
-    signal(SIGALRM, SetSendSynAckFlag);
-
-    int iBackupType;
-    const void *pAddr;
-    int iLength;
-
-    while(1)
-    {
-        //avoid 100% CPU
-        sleep(1); 
-        
-        /* wait for socket msg */ //TO OD: epoll?
-        memset(acBuffer, 0, BUFFER_SIZE);
-        int iRecvLen = recvfrom(iSockFd, acBuffer, BUFFER_SIZE, 0, (struct sockaddr *)&stRecvAddr, (socklen_t *)&iRecvAddrLen);
-        if(iRecvLen > 0)
-        {
-            //TO DO: the stRecvAddr of the first msg is NULL
-            log_debug("Get socket msg: %d, %s.", stRecvAddr.sin_port, acBuffer);
-        }
-
-        /* adjust and remember the socket status */ //TO DO: timeout to reset status
-        switch(g_iSocketStatus)
-        {
-            case SERVER_SOCKET_WAIT_SYN:
-                if(strcmp(acBuffer, "SYN") == 0)
-                {
-                    g_iSocketStatus = SERVER_SOCKET_SEND_SYN_ACK;
-                    g_bSendSynAckFlag = true;
-                }
-                break;
-
-            case SERVER_SOCKET_SEND_SYN_ACK:
-                if(strcmp(acBuffer, "ACK") != 0)
-                {
-                    if(g_bSendSynAckFlag)
-                    {
-                        if(sendto(iSockFd, "SYN ACK", 7, 0, (struct sockaddr *)&stRecvAddr, iRecvAddrLen) < 0)
-                        {
-                            log_debug("Send SYN ACK to client failed!");
-                            g_bSendSynAckFlag = false;
-                            alarm(3);//3s to set g_bSendSynAckFlag = true;
-                        }
-                        else
-                        {
-                            log_debug("Send SYN ACK ok.");
-                            g_bSendSynAckFlag = false;
-                        }
-                    }
-                }
-                else
-                {
-                    log_debug("Recv ACK ok. SERVER READY.");
-                    g_iSocketStatus = SERVER_SOCKET_READY;
-                }
-                break;
-
-            case SERVER_SOCKET_READY:
-                //TO DO: keep alive, reset status when failed
-                
-                /* wait for backup msg */ //TO OD: recv from message queue
-                GetBackupFlag(&g_iBackupStatus, &pAddr, &iLength);
-                if(g_iBackupStatus > BACKUP_NULL)
-                {
-                    /* get backup msg, remember the backup status */
-                    log_debug("Get backup msg: %d, %s, %d.", g_iBackupStatus, pAddr, iLength);
-
-                    //open backup file with backup msg
-                    int iFileFd = open((const char *)pAddr, O_RDONLY);
-                    if(iFileFd < 0)
-                    {
-                        log_error("Open backup file error!");
-                        return (void *)-1;
-                    }
-
-                    //stat backup file to check file size
-                    struct stat fileStat;
-                    if(stat((const char *)pAddr, &fileStat) < 0)
-                    {
-                        log_error("Stat backup file error!");
-                        return (void *)-2;
-                    }
-                    if(fileStat.st_size != iLength)
-                    {
-                        log_error("Backup file size error!");
-                        return (void *)-3;
-                    }
-
-                    //send the backup file
-                    log_debug("Send backup file now, iLength = %d.", iLength);
-                    int iSeekOffset = 0;
-                    do
-                    {
-                        int iSeekRet = lseek(iFileFd, iSeekOffset, SEEK_SET);
-                        if(iSeekRet < 0)
-                        {
-                            log_error("Seek backup file error!");
-                            return (void *)-4;
-                        }
-
-                        memset(acReadBuffer, 0, BUFFER_SIZE);
-                        int iReadRet = read(iFileFd, acReadBuffer, BUFFER_SIZE);
-                        if(iReadRet < 0)
-                        {
-                            log_error("Read backup file error!");
-                            return (void *)-5;
-                        }
-
-                        iSeekOffset += iReadRet;
-
-                        if(sendto(iSockFd, acReadBuffer, iReadRet, 0, (struct sockaddr *)&stRecvAddr, iRecvAddrLen) < 0)
-                        {
-                            log_error("Send backup file error!");
-                            //TO DO: resend
-                        }
-                        else
-                        {
-                            log_debug("Send backup file ok, iSeekOffset = %d.", iSeekOffset);
-                        }
-                    }while(iSeekOffset < iLength);
-
-                    ResetBackupFlag();
-                }
-                break;
-
-            default:
-                log_error("Unknown server status!");
-                return (void *)-6;
-        }
-    }
-
-    log_info("Server Service Ending.");
-
-    socket_free(iSockFd);
-    return (void *)NULL;
-}
-#endif

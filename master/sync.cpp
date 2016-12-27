@@ -18,6 +18,19 @@
 #include "recv.h"
 #include "protocol.h"
 
+char g_cMasterSyncStatus = STATUS_INIT;
+char g_cLoginRspSeq = 0;
+char g_cMasterSpecifyID = 0;
+char g_cSlaveSpecifyID = 0;
+
+int g_iNewCfgID = 0;
+int g_iKeepaliveTimerFd = 0;
+int g_iSyncSockFd = 0;
+int g_iLoginTimerFd = 0;
+
+stQueue *g_pstInstantQueue;
+stQueue *g_pstWaitedQueue;
+
 int _add_to_epoll(struct epoll_event stEvent, int iSyncEpollFd, int iAddFd)
 {
     memset(&stEvent, 0, sizeof(struct epoll_event));
@@ -36,8 +49,8 @@ void *master_sync(void *arg)
     struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
     int iMainEventFd = pstSyncStruct->iMainEventFd;
     int iSyncEventFd = pstSyncStruct->iSyncEventFd;
-    stQueue *pstInstantQueue = pstSyncStruct->pstInstantQueue;
-    stQueue *pstWaitedQueue = pstSyncStruct->pstWaitedQueue;
+    g_pstInstantQueue = pstSyncStruct->pstInstantQueue;
+    g_pstWaitedQueue = pstSyncStruct->pstWaitedQueue;
     log_debug("iMainEventFd(%d), iSyncEventFd(%d)", iMainEventFd, iSyncEventFd);
 
     /* 
@@ -118,7 +131,7 @@ void *master_sync(void *arg)
     }
 
     srand((int)time(0));
-    g_masterSpecifyNum = (char)(rand() % 0x100);
+    g_cMasterSpecifyID = (char)(rand() % 0x100);
 
     /*
      add g_iKeepaliveTimerFd timerfd to epoll
@@ -202,15 +215,15 @@ void *master_sync(void *arg)
                 {
                     log_info("Get MASTER_EVENT_NEWCFG_INSTANT.");
 
-                    if((!queue_isEmpty(pstInstantQueue)) && g_masterSyncStatus == STATUS_NEW_CFG)
+                    if(queue_getReadSize(g_pstInstantQueue) != 0 && g_cMasterSyncStatus == STATUS_NEWCFG)
                     {
-                        /* handle pstInstantQueue, send to slave */
-                        log_debug("queue_getReadSize(%d).", queue_getReadSize(pstInstantQueue));
+                        /* handle g_pstInstantQueue, send to slave */
+                        log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstInstantQueue));
 
-                        iRet = alloc_master_newCfgReq(pstInstantQueue->pReadNow->pData, pstInstantQueue->pReadNow->iDataLen, &pMsg, &iMsgLen);
+                        iRet = alloc_master_newCfgInstantReq(g_pstInstantQueue->pReadNow->pData, g_pstInstantQueue->pReadNow->iDataLen, g_pstInstantQueue->pReadNow->iDataID, &pMsg, &iMsgLen);
                         if(iRet < 0)
                         {
-                            log_error("alloc_master_newCfgReq error(%d)!", iRet);
+                            log_error("alloc_master_newCfgInstantReq error(%d)!", iRet);
                             return (void *)-1;
                         }
 
@@ -219,10 +232,9 @@ void *master_sync(void *arg)
                             log_debug("Send to SLAVE SYNC failed!");
                         }
 
-                        /* queue_pop pstInstantQueue */
-                        //add to resend hash table
-                        queue_read(pstInstantQueue);
-                        log_debug("queue_getReadSize(%d).", queue_getReadSize(pstInstantQueue));
+                        /* queue_read g_pstInstantQueue */
+                        queue_read(g_pstInstantQueue);
+                        log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstInstantQueue));
                     }
                 }
 
@@ -230,24 +242,69 @@ void *master_sync(void *arg)
                 {
                     log_info("Get MASTER_EVENT_NEWCFG_WAITED.");
 
-                    //pstWaitedQueue
+                    if(queue_getReadSize(g_pstWaitedQueue) != 0 && g_cMasterSyncStatus == STATUS_NEWCFG)
+                    {
+                        /* handle g_pstWaitedQueue, send to slave */
+                        log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstWaitedQueue));
+
+                        iRet = alloc_master_newCfgWaitedReq(MAX_PKG_LEN, &pMsg, &iMsgLen);
+                        if(iRet < 0)
+                        {
+                            log_error("alloc_master_newCfgWaitedReq error(%d)!", iRet);
+                            return (void *)-1;
+                        }
+                        MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)pMsg;
+
+                        int i=0, iMsgLenSum = sizeof(MSG_NEWCFG_WAITED_REQ);
+                        DATA_NEWCFG *pDataNewcfg = (DATA_NEWCFG *)(req->dataNewcfg);
+                        while(queue_getReadSize(g_pstWaitedQueue) != 0)
+                        {
+                            iMsgLenSum = iMsgLenSum + sizeof(DATA_NEWCFG) + g_pstWaitedQueue->pReadNow->iDataLen;
+                            if(iMsgLenSum >= MAX_PKG_LEN)
+                            {
+                                iMsgLenSum = iMsgLenSum - sizeof(DATA_NEWCFG) - g_pstWaitedQueue->pReadNow->iDataLen;
+                                break;
+                            }
+
+                            pDataNewcfg->iNewCfgID = htonl(g_pstWaitedQueue->pReadNow->iDataID);
+                            pDataNewcfg->sChecksum = htons(checksum((const char *)g_pstWaitedQueue->pReadNow->pData, g_pstWaitedQueue->pReadNow->iDataLen));
+                            pDataNewcfg->iDataLen = htonl(g_pstWaitedQueue->pReadNow->iDataLen);
+                            memcpy(pDataNewcfg->acData, g_pstWaitedQueue->pReadNow->pData, g_pstWaitedQueue->pReadNow->iDataLen);
+
+                            queue_read(g_pstWaitedQueue);
+                            i++;
+                            pDataNewcfg++;
+                        }
+
+                        req->msgHeader.sLength = htons(iMsgLenSum - MSG_HEADER_LEN);
+
+                        const char *pcData = (const char *)req->dataNewcfg;
+                        req->sAllChecksum = htons(checksum(pcData, iMsgLenSum - sizeof(MSG_NEWCFG_WAITED_REQ)));
+
+                        if(send2SlaveSync(g_iSyncSockFd, pMsg, iMsgLenSum) < 0)
+                        {
+                            log_debug("Send to SLAVE SYNC failed!");
+                        }
+
+                        log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstInstantQueue));
+                    }
                 }
             }//if iSyncEventFd
             else if(stEvents[i].data.fd == g_iLoginTimerFd && stEvents[i].events & EPOLLIN)
             {
                 log_debug("epoll event g_iLoginTimerFd.");
-                if(g_masterSyncStatus == STATUS_LOGIN)
+                if(g_cMasterSyncStatus == STATUS_LOGIN)
                 {
                     //send login msg
                     MSG_LOGIN_RSP *rsp;
-                    iRet = alloc_master_rspMsg(CMD_LOGIN, g_loginRspSeq, (void **)&rsp);
+                    iRet = alloc_master_rspMsg(CMD_LOGIN, g_cLoginRspSeq, (void **)&rsp);
                     if(iRet < 0)
                     {
                         log_error("alloc_master_rspMsg error(%d)!", iRet);
                         return (void *)-1;
                     }
-                    rsp->synAckFlag = 1;//the second one in three-way handshake
-                    rsp->specifyNum = g_masterSpecifyNum;
+                    rsp->cSynAckFlag = 1;//the second one in three-way handshake
+                    rsp->cSpecifyID = g_cMasterSpecifyID;
                     if(send2SlaveSync(g_iSyncSockFd, rsp, sizeof(MSG_LOGIN_RSP)) < 0)
                     {
                         log_debug("Send to SLAVE SYNC failed!");

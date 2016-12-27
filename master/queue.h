@@ -26,6 +26,7 @@ stQueue *queue_init();
 stNode *queue_push(stQueue *pstQueue, void *pData, int iDataLen);
 stNode *queue_pop(stQueue *pstQueue);
 stNode *queue_read(stQueue *pstQueue);
+stNode *queue_foreach(stQueue *pstQueue, int iTargetDataID);
 void queue_free(stQueue *pstQueue);
 
 void queue_clean(stQueue *pstQueue);

@@ -9,8 +9,9 @@
 #include "macro.h"
 #include "send.h"
 
+extern int g_iKeepaliveTimerFd;
 
-static char g_seq = 0;
+static char g_cSeq = 0;
 
 int send2SlaveSync(int iSyncSockFd, const void *pMsg, int iMsgLen)
 {
@@ -25,17 +26,17 @@ int send2SlaveSync(int iSyncSockFd, const void *pMsg, int iMsgLen)
     return 0;
 }
 
-int alloc_master_rspMsg(char cmd, char seq, void **ppMsg)
+int alloc_master_rspMsg(char cCmd, char cSeq, void **ppMsg)
 {
     int iMsgLen = 0;
-    switch(cmd)
+    switch(cCmd)
     {
         case CMD_LOGIN:
             iMsgLen = sizeof(MSG_LOGIN_RSP);
             break;
 
-        case CMD_NEW_CFG:
-            iMsgLen = sizeof(MSG_NEW_CFG_RSP);
+        case CMD_NEWCFG_INSTANT:
+            iMsgLen = sizeof(MSG_NEWCFG_INSTANT_RSP);
             break;
 
         case CMD_KEEP_ALIVE:
@@ -47,20 +48,20 @@ int alloc_master_rspMsg(char cmd, char seq, void **ppMsg)
     }
 
     MSG_HEADER *pMsgHeader = (MSG_HEADER *)malloc(iMsgLen);
-    pMsgHeader->signature = htons(START_FLAG);
-    pMsgHeader->cmd = cmd;
-    pMsgHeader->seq = seq;
-    pMsgHeader->length = htons(iMsgLen - MSG_HEADER_LEN);
+    pMsgHeader->sSignature = htons(START_FLAG);
+    pMsgHeader->cCmd = cCmd;
+    pMsgHeader->cSeq = cSeq;
+    pMsgHeader->sLength = htons(iMsgLen - MSG_HEADER_LEN);
 
     log_hex(pMsgHeader, iMsgLen);
     *ppMsg = pMsgHeader;
     return 0;
 }
 
-int alloc_master_reqMsg(char cmd, void **ppMsg)
+int alloc_master_reqMsg(char cCmd, void **ppMsg)
 {
     int iMsgLen = 0;
-    switch(cmd)
+    switch(cCmd)
     {
         case CMD_KEEP_ALIVE:
             iMsgLen = sizeof(MSG_KEEP_ALIVE_REQ);
@@ -76,37 +77,56 @@ int alloc_master_reqMsg(char cmd, void **ppMsg)
         return -1;
     }
 
-    pMsgHeader->signature = htons(START_FLAG);
-    pMsgHeader->cmd = cmd;
-    pMsgHeader->seq = ++g_seq;
-    pMsgHeader->length = htons(iMsgLen - MSG_HEADER_LEN);
+    pMsgHeader->sSignature = htons(START_FLAG);
+    pMsgHeader->cCmd = cCmd;
+    pMsgHeader->cSeq = ++g_cSeq;
+    pMsgHeader->sLength = htons(iMsgLen - MSG_HEADER_LEN);
 
     log_hex(pMsgHeader, iMsgLen);
     *ppMsg = pMsgHeader;
     return 0;
 }
 
-int alloc_master_newCfgReq(void *pData, int iDataLen, void **ppMsg, int *piMsgLen)
+int alloc_master_newCfgInstantReq(void *pData, int iDataLen, int iNewCfgID, void **ppMsg, int *piMsgLen)
 {
-    int iMsgLen = sizeof(MSG_NEW_CFG_REQ) + iDataLen;
+    int iMsgLen = sizeof(MSG_NEWCFG_INSTANT_REQ) + iDataLen;
 
-    MSG_NEW_CFG_REQ *req = (MSG_NEW_CFG_REQ *)malloc(iMsgLen);
+    MSG_NEWCFG_INSTANT_REQ *req = (MSG_NEWCFG_INSTANT_REQ *)malloc(iMsgLen);
     if(!req)
     {
         return -1;
     }
 
-    req->header.signature = htons(START_FLAG);
-    req->header.cmd = CMD_NEW_CFG;
-    req->header.seq = ++g_seq;
-    req->header.length = htons(iMsgLen - MSG_HEADER_LEN);
+    req->msgHeader.sSignature = htons(START_FLAG);
+    req->msgHeader.cCmd = CMD_NEWCFG_INSTANT;
+    req->msgHeader.cSeq = ++g_cSeq;
+    req->msgHeader.sLength = htons(iMsgLen - MSG_HEADER_LEN);
 
-    req->newCfgID = htons(++g_newCfgID);
-    req->checksum = htons(checksum((const char *)pData, iDataLen));
-    memcpy(req->data, pData, iDataLen);
+    req->iNewCfgID = htonl(iNewCfgID);
+    req->sChecksum = htons(checksum((const char *)pData, iDataLen));
+    memcpy(req->acData, pData, iDataLen);
 
     log_hex(req, iMsgLen);
     *ppMsg = req;
     *piMsgLen = iMsgLen;
+    return 0;
+}
+
+int alloc_master_newCfgWaitedReq(int iMallocLen ,void **ppMsg, int *piMsgLen)
+{
+    MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)malloc(iMallocLen);
+    if(!req)
+    {
+        return -1;
+    }
+
+    req->msgHeader.sSignature = htons(START_FLAG);
+    req->msgHeader.cCmd = CMD_NEWCFG_WAITED;
+    req->msgHeader.cSeq = ++g_cSeq;
+    req->msgHeader.sLength = htons(iMallocLen - MSG_HEADER_LEN);
+
+    log_hex(req, iMallocLen);
+    *ppMsg = req;
+    *piMsgLen = iMallocLen;
     return 0;
 }

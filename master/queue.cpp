@@ -82,6 +82,34 @@ stNode *queue_read(stQueue *pstQueue)
     return pstQueue->pReadNow;
 }
 
+stNode *queue_foreach(stQueue *pstQueue, int iTargetDataID)
+{
+    stNode *pNode = pstQueue->pFront;
+    pthread_mutex_lock(&pstQueue->pMutex);
+    for(int i=0; i<pstQueue->iSize; i++)
+    {
+        if(pNode->iDataID == iTargetDataID)
+        {
+            //found
+            break;
+        }
+        else if(pNode->iDataID > iTargetDataID)
+        {
+            //error
+            pNode = NULL;
+            break;
+        }
+        else if(pNode->iDataID < iTargetDataID)
+        {
+            //turn to the next one
+            pNode = pNode->pNext;
+        }
+    }
+    pthread_mutex_unlock(&pstQueue->pMutex);
+
+    return pNode;
+}
+
 void queue_free(stQueue *pstQueue)
 {
     if(pstQueue != NULL)

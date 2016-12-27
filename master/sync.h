@@ -7,19 +7,23 @@ enum
 {
     STATUS_INIT = 0,
     STATUS_LOGIN = 1,
-    STATUS_NEW_CFG = 2
+    STATUS_NEWCFG = 2
 };
 
-static char g_masterSyncStatus = STATUS_INIT;
-static char g_loginRspSeq = 0;
-static char g_masterSpecifyNum = 0;
-static char g_slaveSpecifyNum = 0;
+/*
+extern char g_cMasterSyncStatus;
+extern char g_cLoginRspSeq;
+extern char g_cMasterSpecifyID;
+extern char g_cSlaveSpecifyID;
 
-static short g_newCfgID = 0;
+extern int g_iNewCfgID;
+extern int g_iKeepaliveTimerFd;
+extern int g_iSyncSockFd;
+extern int g_iLoginTimerFd;
 
-static int g_iKeepaliveTimerFd = 0;
-static int g_iSyncSockFd = 0;
-static int g_iLoginTimerFd = 0;
+extern stQueue *g_pstInstantQueue;
+extern stQueue *g_pstWaitedQueue;
+*/
 
 struct sync_struct
 {
