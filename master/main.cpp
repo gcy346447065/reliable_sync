@@ -35,16 +35,16 @@ int send2Queue(stQueue *pstQueue, void *pBuf, int iBufLen, int iMaxPkgLen, void 
 
     switch(iSendMethod)
     {
+        case SEND_NEWCFG_INSTANT:
+            log_info("SEND_NEWCFG_INSTANT.");
+            queue_push(pstQueue, pBuf, iBufLen);//pstInstantQueue
+            break;
+
         case SEND_NEWCFG_WAITED:
             log_info("SEND_NEWCFG_WAITED.");
             queue_push(pstQueue, pBuf, iBufLen);//pstWaitedQueue
             break;
 
-        case SEND_NEWCFG_INSTANT:
-            log_info("SEND_NEWCFG_INSTANT.");
-            queue_push(pstQueue, pBuf, iBufLen);//pstInstantQueue
-            break;
-            
         default:
             log_error("iSendMethod:%d.", iSendMethod);
             return -1;

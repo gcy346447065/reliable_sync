@@ -25,8 +25,8 @@ char g_cSlaveSpecifyID = 0;
 
 int g_iNewCfgID = 0;
 int g_iKeepaliveTimerFd = 0;
-int g_iSyncSockFd = 0;
 int g_iLoginTimerFd = 0;
+int g_iSyncSockFd = 0;
 
 stQueue *g_pstInstantQueue;
 stQueue *g_pstWaitedQueue;
@@ -129,7 +129,6 @@ void *master_sync(void *arg)
         log_error("epoll add g_iLoginTimerFd error(%d)!", iRet);
         return (void *)-1;
     }
-
     srand((int)time(0));
     g_cMasterSpecifyID = (char)(rand() % 0x100);
 
@@ -142,12 +141,14 @@ void *master_sync(void *arg)
         log_error("sync timer create error(%d)!", g_iKeepaliveTimerFd);
         return (void *)-1;
     }
+
     iRet = timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE);
     if(iRet < 0)
     {
         log_error("sync timer start error(%d)!", iRet);
         return (void *)-1;
     }
+    
     iRet = _add_to_epoll(stEvent, iSyncEpollFd, g_iKeepaliveTimerFd);
     if(iRet < 0)
     {
@@ -180,9 +181,21 @@ void *master_sync(void *arg)
     }
 
     /*
-     new cfg resend table init 
+     add iNewcfgWaitedTimerFd to epoll 
      */
-    
+    int iNewcfgWaitedTimerFd = timer_create();
+    if(iNewcfgWaitedTimerFd < 0)
+    {
+        log_error("sync timer create error(%d)!", iNewcfgWaitedTimerFd);
+        return (void *)-1;
+    }
+
+    iRet = _add_to_epoll(stEvent, iSyncEpollFd, iNewcfgWaitedTimerFd);
+    if(iRet < 0)
+    {
+        log_error("epoll add iNewcfgWaitedTimerFd error(%d)!", iRet);
+        return (void *)-1;
+    }
 
     /* memset buffer and struct */
     int iBufferSize;
@@ -191,6 +204,9 @@ void *master_sync(void *arg)
 
     void *pMsg;
     int iMsgLen;
+    int iNewcfgWaitedLenSum = sizeof(MSG_NEWCFG_WAITED_REQ);
+    int iTargetMsgLen = 0;
+    char cFirstNewcfgWaitedFlag = 1, cNewcfgWaitedOkFlag = 1;
 
     while(1)
     {
@@ -242,51 +258,76 @@ void *master_sync(void *arg)
                 {
                     log_info("Get MASTER_EVENT_NEWCFG_WAITED.");
 
-                    if(queue_getReadSize(g_pstWaitedQueue) != 0 && g_cMasterSyncStatus == STATUS_NEWCFG)
+                    //第一次收到MASTER_EVENT_NEWCFG_WAITED，开启定时阈值检测
+                    if(cFirstNewcfgWaitedFlag)
                     {
-                        /* handle g_pstWaitedQueue, send to slave */
-                        log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstWaitedQueue));
-
-                        iRet = alloc_master_newCfgWaitedReq(MAX_PKG_LEN, &pMsg, &iMsgLen);
+                        iRet = timer_start(iNewcfgWaitedTimerFd, NEWCFG_WAITED_TIMER_VALUE);
                         if(iRet < 0)
                         {
-                            log_error("alloc_master_newCfgWaitedReq error(%d)!", iRet);
+                            log_error("sync timer start error(%d)!", iRet);
                             return (void *)-1;
                         }
-                        MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)pMsg;
 
-                        int i=0, iMsgLenSum = sizeof(MSG_NEWCFG_WAITED_REQ);
-                        DATA_NEWCFG *pDataNewcfg = (DATA_NEWCFG *)(req->dataNewcfg);
-                        while(queue_getReadSize(g_pstWaitedQueue) != 0)
+                        cFirstNewcfgWaitedFlag = 0;
+                    }
+
+                    //检查定量
+                    iNewcfgWaitedLenSum = iNewcfgWaitedLenSum + g_pstWaitedQueue->pRear->iDataLen + sizeof(DATA_NEWCFG);
+                    if(iNewcfgWaitedLenSum >= MAX_PKG_LEN)//满足定量阈值，发送队列g_pstWaitedQueue中的配置
+                    {
+                        //第一次满足阈值，记录下当前不超过阈值的最大值
+                        if(cNewcfgWaitedOkFlag)
                         {
-                            iMsgLenSum = iMsgLenSum + sizeof(DATA_NEWCFG) + g_pstWaitedQueue->pReadNow->iDataLen;
-                            if(iMsgLenSum >= MAX_PKG_LEN)
+                            iTargetMsgLen = iNewcfgWaitedLenSum - g_pstWaitedQueue->pRear->iDataLen - sizeof(DATA_NEWCFG);
+                            cNewcfgWaitedOkFlag = 0;
+                        }
+                        
+                        if(g_cMasterSyncStatus == STATUS_NEWCFG)
+                        {
+                            /* handle g_pstWaitedQueue, send to slave */
+                            log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstWaitedQueue));
+
+                            iRet = alloc_master_newCfgWaitedReq(iTargetMsgLen, &pMsg, &iMsgLen);
+                            if(iRet < 0)
                             {
-                                iMsgLenSum = iMsgLenSum - sizeof(DATA_NEWCFG) - g_pstWaitedQueue->pReadNow->iDataLen;
-                                break;
+                                log_error("alloc_master_newCfgWaitedReq error(%d)!", iRet);
+                                return (void *)-1;
                             }
 
-                            pDataNewcfg->iNewCfgID = htonl(g_pstWaitedQueue->pReadNow->iDataID);
-                            pDataNewcfg->sChecksum = htons(checksum((const char *)g_pstWaitedQueue->pReadNow->pData, g_pstWaitedQueue->pReadNow->iDataLen));
-                            pDataNewcfg->iDataLen = htonl(g_pstWaitedQueue->pReadNow->iDataLen);
-                            memcpy(pDataNewcfg->acData, g_pstWaitedQueue->pReadNow->pData, g_pstWaitedQueue->pReadNow->iDataLen);
+                            MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)pMsg;
+                            DATA_NEWCFG *pDataNewcfg = (DATA_NEWCFG *)(req->dataNewcfg);
 
-                            queue_read(g_pstWaitedQueue);
-                            i++;
-                            pDataNewcfg++;
+                            int iMsgLenSum = 0;
+                            while(queue_getReadSize(g_pstWaitedQueue) != 0 && iMsgLenSum < iTargetMsgLen)
+                            {
+                                iMsgLenSum = iMsgLenSum + g_pstWaitedQueue->pReadNow->iDataLen + sizeof(DATA_NEWCFG);
+
+                                pDataNewcfg->iNewCfgID = htonl(g_pstWaitedQueue->pReadNow->iDataID);
+                                pDataNewcfg->sChecksum = htons(checksum((const char *)g_pstWaitedQueue->pReadNow->pData, g_pstWaitedQueue->pReadNow->iDataLen));
+                                pDataNewcfg->iDataLen = htonl(g_pstWaitedQueue->pReadNow->iDataLen);
+                                memcpy(pDataNewcfg->acData, g_pstWaitedQueue->pReadNow->pData, g_pstWaitedQueue->pReadNow->iDataLen);
+
+                                queue_read(g_pstWaitedQueue);//移动队列的pReadNow指针向后一格
+                                pDataNewcfg = (DATA_NEWCFG *)((char *)pDataNewcfg + g_pstWaitedQueue->pReadNow->iDataLen + sizeof(DATA_NEWCFG));//偏移指针以填充下一个配置包
+                            }
+
+                            req->sAllChecksum = htons(checksum((const char *)req->dataNewcfg, iTargetMsgLen - sizeof(MSG_NEWCFG_WAITED_REQ)));
+
+                            if(send2SlaveSync(g_iSyncSockFd, pMsg, iTargetMsgLen) < 0)
+                            {
+                                log_debug("Send to SLAVE SYNC failed!");
+                            }
+
+                            log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstInstantQueue));
+                            iNewcfgWaitedLenSum -= iTargetMsgLen;//重置队列中的配置长度之和 
+                            cNewcfgWaitedOkFlag = 1;//重置第一次满足阈值的标志
+                            iRet = timer_start(iNewcfgWaitedTimerFd, NEWCFG_WAITED_TIMER_VALUE);//重置定时阈值的定时器
+                            if(iRet < 0)
+                            {
+                                log_error("sync timer start error(%d)!", iRet);
+                                return (void *)-1;
+                            }
                         }
-
-                        req->msgHeader.sLength = htons(iMsgLenSum - MSG_HEADER_LEN);
-
-                        const char *pcData = (const char *)req->dataNewcfg;
-                        req->sAllChecksum = htons(checksum(pcData, iMsgLenSum - sizeof(MSG_NEWCFG_WAITED_REQ)));
-
-                        if(send2SlaveSync(g_iSyncSockFd, pMsg, iMsgLenSum) < 0)
-                        {
-                            log_debug("Send to SLAVE SYNC failed!");
-                        }
-
-                        log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstInstantQueue));
                     }
                 }
             }//if iSyncEventFd
@@ -352,6 +393,54 @@ void *master_sync(void *arg)
                 }
 
             }//else if iCheckaliveTimerFd
+            else if(stEvents[i].data.fd == iNewcfgWaitedTimerFd && stEvents[i].events & EPOLLIN)
+            {
+                log_debug("epoll event iNewcfgWaitedTimerFd.");
+
+                //将当前队列g_pstWaitedQueue中的配置（肯定没有超过定量阈值）发送出去
+                if(g_cMasterSyncStatus == STATUS_NEWCFG)
+                {
+                    /* handle g_pstWaitedQueue, send to slave */
+                    log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstWaitedQueue));
+
+                    iRet = alloc_master_newCfgWaitedReq(iNewcfgWaitedLenSum, &pMsg, &iMsgLen);
+                    if(iRet < 0)
+                    {
+                        log_error("alloc_master_newCfgWaitedReq error(%d)!", iRet);
+                        return (void *)-1;
+                    }
+
+                    MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)pMsg;
+                    DATA_NEWCFG *pDataNewcfg = (DATA_NEWCFG *)(req->dataNewcfg);
+
+                    int iMsgLenSum = 0;
+                    while(queue_getReadSize(g_pstWaitedQueue) != 0 && iMsgLenSum < iNewcfgWaitedLenSum)
+                    {
+                        iMsgLenSum = iMsgLenSum + g_pstWaitedQueue->pReadNow->iDataLen + sizeof(DATA_NEWCFG);
+
+                        pDataNewcfg->iNewCfgID = htonl(g_pstWaitedQueue->pReadNow->iDataID);
+                        pDataNewcfg->sChecksum = htons(checksum((const char *)g_pstWaitedQueue->pReadNow->pData, g_pstWaitedQueue->pReadNow->iDataLen));
+                        pDataNewcfg->iDataLen = htonl(g_pstWaitedQueue->pReadNow->iDataLen);
+                        memcpy(pDataNewcfg->acData, g_pstWaitedQueue->pReadNow->pData, g_pstWaitedQueue->pReadNow->iDataLen);
+
+                        queue_read(g_pstWaitedQueue);//移动队列的pReadNow指针向后一格
+                        pDataNewcfg = (DATA_NEWCFG *)((char *)pDataNewcfg + g_pstWaitedQueue->pReadNow->iDataLen + sizeof(DATA_NEWCFG));//偏移指针以填充下一个配置包
+                    }
+
+                    req->sAllChecksum = htons(checksum((const char *)req->dataNewcfg, iNewcfgWaitedLenSum - sizeof(MSG_NEWCFG_WAITED_REQ)));
+
+                    if(send2SlaveSync(g_iSyncSockFd, pMsg, iNewcfgWaitedLenSum) < 0)
+                    {
+                        log_debug("Send to SLAVE SYNC failed!");
+                    }
+
+                    log_debug("queue_getReadSize(%d).", queue_getReadSize(g_pstInstantQueue));
+                    iNewcfgWaitedLenSum = 0;//重置队列中的配置长度之和 
+                }
+
+                cFirstNewcfgWaitedFlag = 1;//下次NewcfgWaited到来时，再开启定时阈值检测
+
+            }//else if iNewcfgWaitedTimerFd
             else if(stEvents[i].data.fd == g_iSyncSockFd && stEvents[i].events & EPOLLIN)
             {
                 log_debug("epoll event g_iSyncSockFd.");

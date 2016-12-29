@@ -1,6 +1,12 @@
 #ifndef _MACRO_H_
 #define _MACRO_H_
 
+enum 
+{
+    STATUS_INIT = 0,
+    STATUS_LOGIN = 1,
+    STATUS_NEWCFG = 2
+};
 
 #define MAX_EPOLL_NUM 1024
 #define MAX_PKG_LEN 1024
@@ -15,6 +21,6 @@
 #define LOGIN_TIMER_VALUE           (1000*8)
 #define KEEPALIVE_TIMER_VALUE       (1000*60*3)
 #define CHECKALIVE_TIMER_VALUE      (1000*60*10)
-
+#define NEWCFG_WAITED_TIMER_VALUE   (1000*60*5)
 
 #endif //_MACRO_H_

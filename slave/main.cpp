@@ -17,14 +17,6 @@
 #include "sync.h"
 
 
-
-int RecvFromSync()
-{
-
-    log_info("RecvFromSync ok.");
-    return 0;
-}
-
 int main(int argc, char *argv[])
 {
     /* log init */
@@ -101,9 +93,9 @@ int main(int argc, char *argv[])
                     return -1;
                 }
 
-                if(uiEventsFlag & SLAVE_EVENT_SYNC_TIMER) //set the flag when sync thread find no keep alive ack
+                if(uiEventsFlag & SLAVE_EVENT_CHECKALIVE_TIMER)
                 {
-                    log_info("Get sync batch timer event flag.");
+                    log_info("Get SLAVE_EVENT_CHECKALIVE_TIMER, restart.");
 
                     /* batch SendToSync */
                 }

@@ -1,9 +1,7 @@
 #include <netinet/in.h> //for sockaddr_in htons
-
 #include "log.h"
 #include "timer.h"
 #include "protocol.h"
-#include "sync.h"
 #include "queue.h"
 #include "recv.h"
 
@@ -19,7 +17,7 @@ extern stQueue *g_pstWaitedQueue;
 typedef int (*MSG_PROC)(const char *pcMsg);
 typedef struct
 {
-    char cmd;
+    char cCmd;
     MSG_PROC pfn;
 } MSG_PROC_MAP;
 
@@ -37,22 +35,22 @@ static int sync_login(const char *pcMsg)
         return -1;
     }
 
-    if(req->cSynFlag == 1 && req->cAckFlag == 0)
+    if(req->cSynFlag == 1 && req->cAckFlag == 0 && g_cMasterSyncStatus == STATUS_INIT)
     {
         //get the first one in three-way handshake, loop send the second one as rsp
         log_info("sync_login loop send rsp.");
 
         g_cMasterSyncStatus = STATUS_LOGIN;
         g_cLoginRspSeq = req->msgHeader.cSeq;
-        timer_start(g_iLoginTimerFd, 1);//get timer right now
+        timer_start(g_iLoginTimerFd, 1); //right now
     }
-    else if(req->cSynFlag == 0 && req->cAckFlag == 1)
+    else if(req->cSynFlag == 0 && req->cAckFlag == 1 && g_cMasterSyncStatus == STATUS_LOGIN)
     {
         //get the third one in three-way handshake, login succeed
         log_info("sync_login succeed.");
 
-        g_cMasterSyncStatus = STATUS_NEWCFG;
         timer_stop(g_iLoginTimerFd);
+        g_cMasterSyncStatus = STATUS_NEWCFG;
     }
 
     return 0;
@@ -104,7 +102,7 @@ static int sync_keepAlive(const char *pcMsg)
     }
     if(ntohs(req->msgHeader.sLength) < sizeof(MSG_KEEP_ALIVE_REQ) - MSG_HEADER_LEN)
     {
-        log_error("login message length not enough!");
+        log_error("keep alive message length not enough!");
         return -1;
     }
 
@@ -125,7 +123,7 @@ int handle_one_msg(const char *pcMsg)
 
     for(int i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
     {
-        if(g_msgProcs[i].cmd == pcMsgHeader->cCmd)
+        if(g_msgProcs[i].cCmd == pcMsgHeader->cCmd)
         {
             MSG_PROC pfn = g_msgProcs[i].pfn;
             if(pfn)

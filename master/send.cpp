@@ -1,9 +1,8 @@
 #include <netinet/in.h> //for sockaddr_in htons
-#include <stdlib.h> //for malloc rand
+#include <stdlib.h> //for malloc rand NULL
 #include <unistd.h> //for read write
 #include <string.h> //for memset strstr memcpy
 #include "log.h"
-#include "sync.h"
 #include "timer.h"
 #include "checksum.h"
 #include "macro.h"
@@ -112,9 +111,9 @@ int alloc_master_newCfgInstantReq(void *pData, int iDataLen, int iNewCfgID, void
     return 0;
 }
 
-int alloc_master_newCfgWaitedReq(int iMallocLen ,void **ppMsg, int *piMsgLen)
+int alloc_master_newCfgWaitedReq(int iMsgLen ,void **ppMsg, int *piMsgLen)
 {
-    MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)malloc(iMallocLen);
+    MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)malloc(iMsgLen);
     if(!req)
     {
         return -1;
@@ -123,10 +122,10 @@ int alloc_master_newCfgWaitedReq(int iMallocLen ,void **ppMsg, int *piMsgLen)
     req->msgHeader.sSignature = htons(START_FLAG);
     req->msgHeader.cCmd = CMD_NEWCFG_WAITED;
     req->msgHeader.cSeq = ++g_cSeq;
-    req->msgHeader.sLength = htons(iMallocLen - MSG_HEADER_LEN);
+    req->msgHeader.sLength = htons(iMsgLen - MSG_HEADER_LEN);
 
-    log_hex(req, iMallocLen);
+    log_hex(req, iMsgLen);
     *ppMsg = req;
-    *piMsgLen = iMallocLen;
+    *piMsgLen = iMsgLen;
     return 0;
 }
