@@ -93,11 +93,18 @@ int main(int argc, char *argv[])
                     return -1;
                 }
 
-                if(uiEventsFlag & SLAVE_EVENT_CHECKALIVE_TIMER)
+                if(uiEventsFlag & SLAVE_EVENT_MASTER_RESTART) //when find specifyID different, get slave restart event
+                {
+                    log_info("Get SLAVE_EVENT_MASTER_RESTART, batch backup.");
+
+                    //TO DO: clean the queue and batch backup
+                }
+
+                if(uiEventsFlag & SLAVE_EVENT_CHECKALIVE_TIMER) //when not recived msg for a while, get check alive timer event
                 {
                     log_info("Get SLAVE_EVENT_CHECKALIVE_TIMER, restart.");
 
-                    /* batch SendToSync */
+                    /* restart */
                 }
             }//else if iMainEventFd
         }//for

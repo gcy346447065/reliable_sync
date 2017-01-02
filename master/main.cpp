@@ -16,15 +16,18 @@
 #include "event.h"
 #include "socket.h"
 #include "sync.h"
-#include "queue.h"
+#include "list.h"
 
-enum SEND_METHOD_TO_QUEUE
+enum SEND_METHOD_TO_LIST
 {
     SEND_NEWCFG_WAITED,
     SEND_NEWCFG_INSTANT
 };
 
-int send2Queue(stQueue *pstQueue, void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
+stList *g_pstInstantList;
+stList *g_pstWaitedList;
+
+int send2List(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
 {
     if(pBuf == NULL || iBufLen == 0)
     {
@@ -37,12 +40,12 @@ int send2Queue(stQueue *pstQueue, void *pBuf, int iBufLen, int iMaxPkgLen, void 
     {
         case SEND_NEWCFG_INSTANT:
             log_info("SEND_NEWCFG_INSTANT.");
-            queue_push(pstQueue, pBuf, iBufLen);//pstInstantQueue
+            list_push(g_pstInstantList, pBuf, iBufLen);//pstInstantList
             break;
 
         case SEND_NEWCFG_WAITED:
             log_info("SEND_NEWCFG_WAITED.");
-            queue_push(pstQueue, pBuf, iBufLen);//pstWaitedQueue
+            list_push(g_pstWaitedList, pBuf, iBufLen);//pstWaitedList
             break;
 
         default:
@@ -59,17 +62,17 @@ int main(int argc, char *argv[])
     /* log init */
     log_init();
 
-    /* queue init */
-    stQueue *pstInstantQueue = queue_init();
-    if(pstInstantQueue == NULL )
+    /* List init */
+    g_pstInstantList = list_init();
+    if(g_pstInstantList == NULL )
     {
-        log_error("queue_init error!");
+        log_error("list_init error!");
         return -1;
     }
-    stQueue *pstWaitedQueue = queue_init();
-    if(pstWaitedQueue == NULL )
+    g_pstWaitedList = list_init();
+    if(g_pstWaitedList == NULL )
     {
-        log_error("queue_init error!");
+        log_error("list_init error!");
         return -1;
     }
 
@@ -124,8 +127,6 @@ int main(int argc, char *argv[])
     struct sync_struct stSyncStruct;
     stSyncStruct.iMainEventFd = iMainEventFd;
     stSyncStruct.iSyncEventFd = iSyncEventFd;
-    stSyncStruct.pstInstantQueue = pstInstantQueue;
-    stSyncStruct.pstWaitedQueue = pstWaitedQueue;
     iRet = pthread_create(&SyncThreadId, NULL, master_sync, (void *)&stSyncStruct);
     if(iRet != 0)
     {
@@ -246,10 +247,10 @@ int main(int argc, char *argv[])
                     }
                     int iBufLen = iRet;
 
-                    iRet = send2Queue(pstInstantQueue, pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
+                    iRet = send2List(pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
                     if(iRet < 0)
                     {
-                        log_error("send2Queue error(%d)!", iRet);
+                        log_error("send2List error(%d)!", iRet);
                     }
 
                     event_setEventFlags(iSyncEventFd, MASTER_EVENT_NEWCFG_INSTANT);
@@ -259,7 +260,7 @@ int main(int argc, char *argv[])
                 {
                     log_info("Get MASTER_EVENT_KEYIN_WAITED.");
 
-                    /* loop to send to waited queue */
+                    /* loop to send to waited List */
                     char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
                     for(int i=iFileBegin; i<=iFileEnd; i++)
                     {
@@ -275,10 +276,10 @@ int main(int argc, char *argv[])
                             }
                             int iBufLen = iRet;
 
-                            iRet = send2Queue(pstWaitedQueue, pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
+                            iRet = send2List(pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
                             if(iRet < 0)
                             {
-                                log_error("send2Queue error(%d)!", iRet);
+                                log_error("send2List error(%d)!", iRet);
                             }
                         }
                     }
@@ -290,7 +291,7 @@ int main(int argc, char *argv[])
                 {
                     log_info("Get MASTER_EVENT_SLAVE_RESTART, batch backup.");
 
-                    /* batch backup */
+                    //TO DO: clean the List and batch backup
                 }
 
                 if(uiEventsFlag & MASTER_EVENT_CHECKALIVE_TIMER) //when not recived msg for a while, get check alive timer event

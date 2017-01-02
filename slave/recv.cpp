@@ -3,6 +3,7 @@
 #include "log.h"
 #include "timer.h"
 #include "macro.h"
+#include "event.h"
 #include "protocol.h"
 #include "send.h"
 #include "recv.h"
@@ -13,6 +14,7 @@ extern char g_cSlaveSpecifyID;
 
 extern int g_iSyncSockFd;
 extern int g_iLoginTimerFd;
+extern int g_iMainEventFd;
 
 typedef int (*MSG_PROC)(const char *pcMsg);
 typedef struct
@@ -38,6 +40,22 @@ static int sync_login(const char *pcMsg)
     if(rsp->cSynAckFlag == 1 && g_cSlaveSyncStatus == STATUS_LOGIN)
     {
         timer_stop(g_iLoginTimerFd);
+
+        if(g_cMasterSpecifyID == 0)
+        {
+            g_cMasterSpecifyID = rsp->cSpecifyID;
+        }
+        else if(g_cMasterSpecifyID != rsp->cSpecifyID)
+        {
+            int iRet = event_setEventFlags(g_iMainEventFd, SLAVE_EVENT_MASTER_RESTART);
+            if(iRet < 0)
+            {
+                log_error("set g_iMainEventFd SLAVE_EVENT_MASTER_RESTART error(%d)!", iRet);
+                return -1;
+            }
+
+            g_cMasterSpecifyID = rsp->cSpecifyID;
+        }
 
         //get the second one in three-way handshake, send the third one as req
         MSG_LOGIN_REQ *req = (MSG_LOGIN_REQ *)alloc_slave_reqMsg(CMD_LOGIN, sizeof(MSG_LOGIN_REQ));
@@ -159,6 +177,30 @@ static int sync_keepAlive(const char *pcMsg)
     {
         log_error("keep alive message length not enough!");
         return -1;
+    }
+
+    if(g_cMasterSpecifyID != req->cSpecifyID)
+    {
+        int iRet = event_setEventFlags(g_iMainEventFd, SLAVE_EVENT_MASTER_RESTART);
+        if(iRet < 0)
+        {
+            log_error("set g_iMainEventFd SLAVE_EVENT_MASTER_RESTART error(%d)!", iRet);
+            return -1;
+        }
+
+        g_cMasterSpecifyID = req->cSpecifyID;
+    }
+
+    MSG_KEEP_ALIVE_RSP *rsp = (MSG_KEEP_ALIVE_RSP *)alloc_slave_rspMsg(CMD_KEEP_ALIVE, sizeof(MSG_KEEP_ALIVE_RSP));
+    if(rsp == NULL)
+    {
+        log_error("alloc_master_rspMsg MSG_KEEP_ALIVE_RSP error!");
+        return -1;
+    }
+    rsp->cSpecifyID = g_cSlaveSpecifyID;
+    if(send2MasterSync(g_iSyncSockFd, rsp, sizeof(MSG_KEEP_ALIVE_RSP)) < 0) 
+    {
+        log_debug("Send to SLAVE SYNC failed!");
     }
 
     return 0;

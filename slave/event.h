@@ -6,7 +6,7 @@
 /* event flags for eventfd */
 #define SLAVE_EVENT_NULL                0x0000
 #define SLAVE_EVENT_MASTER_NEWCFG       0x0001
-#define SLAVE_EVENT_SLAVE_RESTART       0x0002
+#define SLAVE_EVENT_MASTER_RESTART      0x0002
 #define SLAVE_EVENT_CHECKALIVE_TIMER    0x0004
 #define SLAVE_EVENT_QUEUE_PUSH          0x0008
 #define SLAVE_EVENT_SYNC_LOGIN          0x0010

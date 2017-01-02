@@ -13,21 +13,21 @@ static char g_cSeq = 0;
 
 int send2MasterSync(int iSyncSockFd, const void *pMsg, int iMsgLen)
 {
+    int iRet = 0;
+
     if(write(iSyncSockFd, pMsg, iMsgLen) < 0) //after connect, write = send
     {
-        log_debug("Send to SLAVE SYNC failed!");
-        return -1;
+        log_debug("Send to MASTER SYNC failed!");
+        iRet = -1;
     }
 
     timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE); //restart keepalive timer
-
-    return 0;
+    return iRet;
 }
 
 MSG_HEADER *alloc_slave_reqMsg(char cCmd, int iLength)
 {
     MSG_HEADER *pMsgHeader = (MSG_HEADER *)malloc(iLength);
-
     if(pMsgHeader)
     {
         pMsgHeader->sSignature = htons(START_FLAG);

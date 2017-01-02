@@ -24,6 +24,7 @@ char g_cSlaveSpecifyID = 0;
 int g_iKeepaliveTimerFd = 0;
 int g_iLoginTimerFd = 0;
 int g_iSyncSockFd = 0;
+int g_iMainEventFd = 0;
 
 int _add_to_epoll(struct epoll_event stEvent, int iSyncEpollFd, int iAddFd)
 {
@@ -41,9 +42,9 @@ void *slave_sync(void *arg)
      parse sync struct from main thread
      */
     struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
-    int iMainEventFd = pstSyncStruct->iMainEventFd;
+    g_iMainEventFd = pstSyncStruct->iMainEventFd;
     int iSyncEventFd = pstSyncStruct->iSyncEventFd;
-    log_debug("iMainEventFd(%d), iSyncEventFd(%d)", iMainEventFd, iSyncEventFd);
+    log_debug("g_iMainEventFd(%d), iSyncEventFd(%d)", g_iMainEventFd, iSyncEventFd);
 
     /*
      epoll create 
@@ -124,7 +125,7 @@ void *slave_sync(void *arg)
     srand((int)time(0));
     g_cSlaveSpecifyID = (char)(rand() % 0x100);
 
-    iRet = timer_start(g_iLoginTimerFd, LOGIN_TIMER_VALUE); //10s
+    iRet = timer_start(g_iLoginTimerFd, 1); //right now
     if(iRet < 0)
     {
         log_error("sync timer start error(%d)!", iRet);
@@ -263,10 +264,10 @@ void *slave_sync(void *arg)
                 log_debug("epoll event iCheckaliveTimerFd.");
 
                 //no msg recived for a while, send event to main to restart
-                iRet = event_setEventFlags(iMainEventFd, SLAVE_EVENT_CHECKALIVE_TIMER);
+                iRet = event_setEventFlags(g_iMainEventFd, SLAVE_EVENT_CHECKALIVE_TIMER);
                 if(iRet < 0)
                 {
-                    log_error("set iMainEventFd MASTER_EVENT_CHECKALIVE_TIMER error(%d)!", iRet);
+                    log_error("set g_iMainEventFd MASTER_EVENT_CHECKALIVE_TIMER error(%d)!", iRet);
                     return (void *)-1;
                 }
 

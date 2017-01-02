@@ -91,8 +91,10 @@ typedef struct
 typedef struct
 {
     MSG_HEADER msgHeader;
-    char cAllResult;
-    int aiAgainNewcfgID[];
+    char cFailedNewcfgNum;
+    int aiFailedNewcfgID[];
+    char cSucceedNewcfgNum;
+    int aiSucceedNewcfgID[];
 }__attribute__((__packed__)) MSG_NEWCFG_WAITED_RSP;
 
 /*
@@ -101,13 +103,13 @@ typedef struct
 typedef struct
 {
     MSG_HEADER msgHeader;
-    char cSpecifyNum;
+    char cSpecifyID;
 }__attribute__((__packed__)) MSG_KEEP_ALIVE_REQ;
 
 typedef struct
 {
     MSG_HEADER msgHeader;
-    char cSpecifyNum;
+    char cSpecifyID;
 }__attribute__((__packed__)) MSG_KEEP_ALIVE_RSP;
 
 #pragma pack(pop)

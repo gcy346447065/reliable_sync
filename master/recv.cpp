@@ -1,18 +1,24 @@
 #include <netinet/in.h> //for sockaddr_in htons
 #include "log.h"
 #include "timer.h"
+#include "macro.h"
+#include "event.h"
 #include "protocol.h"
-#include "queue.h"
+#include "list.h"
+#include "send.h"
 #include "recv.h"
 
 extern char g_cMasterSyncStatus;
 extern char g_cLoginRspSeq;
 extern char g_cMasterSpecifyID;
+extern char g_cSlaveSpecifyID;
 
+extern int g_iSyncSockFd;
 extern int g_iLoginTimerFd;
+extern int g_iMainEventFd;
 
-extern stQueue *g_pstInstantQueue;
-extern stQueue *g_pstWaitedQueue;
+extern stList *g_pstInstantList;
+extern stList *g_pstWaitedList;
 
 typedef int (*MSG_PROC)(const char *pcMsg);
 typedef struct
@@ -39,6 +45,21 @@ static int sync_login(const char *pcMsg)
     {
         //get the first one in three-way handshake, loop send the second one as rsp
         log_info("sync_login loop send rsp.");
+        if(g_cSlaveSpecifyID == 0)
+        {
+            g_cSlaveSpecifyID = req->cSpecifyID;
+        }
+        else if(g_cSlaveSpecifyID != req->cSpecifyID)
+        {
+            int iRet = event_setEventFlags(g_iMainEventFd, MASTER_EVENT_SLAVE_RESTART);
+            if(iRet < 0)
+            {
+                log_error("set g_iMainEventFd MASTER_EVENT_SLAVE_RESTART error(%d)!", iRet);
+                return -1;
+            }
+
+            g_cSlaveSpecifyID = req->cSpecifyID;
+        }
 
         g_cMasterSyncStatus = STATUS_LOGIN;
         g_cLoginRspSeq = req->msgHeader.cSeq;
@@ -79,7 +100,7 @@ static int sync_newCfgInstant(const char *pcMsg)
         log_info("get sync_newCfgInstant(newCfgID:%d) rsp failed(result:%d).", ntohl(rsp->iNewCfgID), rsp->cResult);
 
         //resend the new cfg with newCfgID
-        queue_foreach(g_pstInstantQueue, ntohl(rsp->iNewCfgID));
+        list_find(g_pstInstantList, ntohl(rsp->iNewCfgID));
     }
 
     return 0;
@@ -104,6 +125,30 @@ static int sync_keepAlive(const char *pcMsg)
     {
         log_error("keep alive message length not enough!");
         return -1;
+    }
+
+    if(g_cSlaveSpecifyID != req->cSpecifyID)
+    {
+        int iRet = event_setEventFlags(g_iMainEventFd, MASTER_EVENT_SLAVE_RESTART);
+        if(iRet < 0)
+        {
+            log_error("set g_iMainEventFd MASTER_EVENT_SLAVE_RESTART error(%d)!", iRet);
+            return -1;
+        }
+
+        g_cSlaveSpecifyID = req->cSpecifyID;
+    }
+
+    MSG_KEEP_ALIVE_RSP *rsp = (MSG_KEEP_ALIVE_RSP *)alloc_master_rspMsg(CMD_KEEP_ALIVE, req->msgHeader.cSeq);
+    if(rsp == NULL)
+    {
+        log_error("alloc_master_rspMsg MSG_KEEP_ALIVE_RSP error!");
+        return -1;
+    }
+    rsp->cSpecifyID = g_cMasterSpecifyID;
+    if(send2SlaveSync(g_iSyncSockFd, rsp, sizeof(MSG_KEEP_ALIVE_RSP)) < 0)
+    {
+        log_debug("Send to SLAVE SYNC failed!");
     }
 
     return 0;
