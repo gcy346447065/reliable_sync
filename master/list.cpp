@@ -1,4 +1,6 @@
 #include <stdlib.h> //for malloc
+#include "log.h"
+#include "event.h"
 #include "list.h"
 
 static int g_iDataID = 0;
@@ -30,6 +32,8 @@ int list_push(stList *pstList, void *pData, int iDataLen)
         pNode->pData = pData;
         pNode->iDataLen = iDataLen;
         pNode->iDataID = ++g_iDataID;
+        pNode->iFindTimers = 0;
+        pNode->iSendTimers = 0;
         pNode->pPrev = pstList->pRear;
         pNode->pNext = NULL;
 
@@ -74,7 +78,7 @@ int list_read(stList *pstList)
     return iRet;
 }
 
-int list_delete(stList *pstList, int iTargetDataID)
+int list_deleteByDataID(stList *pstList, int iTargetDataID)
 {
     int iRet = -1;
     stNode *pNode = pstList->pFront;
@@ -111,16 +115,21 @@ int list_delete(stList *pstList, int iTargetDataID)
                 }
             }
 
-            pNode->pPrev->pNext = pNode->pNext;
-            pNode->pNext->pPrev = pNode->pPrev;
+            if(pNode->pPrev != NULL && pNode->pNext != NULL)
+            {
+                pNode->pPrev->pNext = pNode->pNext;
+                pNode->pNext->pPrev = pNode->pPrev;
+            }
             free(pNode);
 
             iRet = 0;//只有找到才能返回0
+            log_info("list_deleteByDataID iTargetDataID(%d) ok.", iTargetDataID);
             break;
         }
         else if(pNode->iDataID > iTargetDataID)
         {
             //error
+            log_info("list_deleteByDataID iTargetDataID(%d) failed!", iTargetDataID);
             break;
         }
         else if(pNode->iDataID < iTargetDataID)
@@ -134,6 +143,51 @@ int list_delete(stList *pstList, int iTargetDataID)
     return iRet;
 }
 
+int list_deleteByNode(stList *pstList, stNode *pNode)
+{
+    pthread_mutex_lock(&pstList->pMutex);
+
+    log_info("list_deleteByNode pNode->iDataID(%d) ok.", pNode->iDataID);
+
+    pstList->iSize--;
+    if(list_isEmpty(pstList))
+    {
+        pstList->pFront = NULL;
+        pstList->pRear = NULL;
+        pstList->pReadNow = NULL;
+        pstList->iSize = 0;
+        pstList->iReadSize = 0;
+    }
+    else
+    {
+        if(pNode == pstList->pFront)
+        {
+            pstList->pFront = pNode->pNext;
+        }
+
+        if(pNode == pstList->pRear)
+        {
+            pstList->pRear = pNode->pPrev;
+        }
+
+        if(pNode == pstList->pReadNow)//实际上不可能是pReadNow，因为删除的肯定是读取过的
+        {
+            pstList->pReadNow = pNode->pNext;
+        }
+    }
+
+    if(pNode->pPrev != NULL && pNode->pNext != NULL)
+    {
+        pNode->pPrev->pNext = pNode->pNext;
+        pNode->pNext->pPrev = pNode->pPrev;
+    }
+    free(pNode);
+
+    pthread_mutex_unlock(&pstList->pMutex);
+
+    return 0;
+}
+
 stNode *list_find(stList *pstList, int iTargetDataID)
 {
     stNode *pNode = pstList->pFront;
@@ -143,17 +197,21 @@ stNode *list_find(stList *pstList, int iTargetDataID)
         if(pNode->iDataID == iTargetDataID)
         {
             //found
+            log_info("list_find iTargetDataID(%d) ok.", iTargetDataID);
+            pNode->iFindTimers++;//累加查找次数
             break;
         }
         else if(pNode->iDataID > iTargetDataID)
         {
             //error
             pNode = NULL;
+            log_info("list_find iTargetDataID(%d) failed!", iTargetDataID);
             break;
         }
         else if(pNode->iDataID < iTargetDataID)
         {
             //turn to the next one
+            pNode->iFindTimers++;//累加查找次数
             pNode = pNode->pNext;
         }
     }

@@ -22,9 +22,9 @@ enum
 #define SLAVE_IP "192.168.11.114"
 #define SLAVE_SYNC_TO_SYNC_PORT    8762
 
-#define LOGIN_TIMER_VALUE           (1000*10)
-#define KEEPALIVE_TIMER_VALUE       (1000*60*3)
-#define CHECKALIVE_TIMER_VALUE      (1000*60*10)
+#define LOGIN_TIMER_VALUE           (1000*10+2)
+#define KEEPALIVE_TIMER_VALUE       (1000*60*3+2)
+#define CHECKALIVE_TIMER_VALUE      (1000*60*10+2)
 
 
 #endif //_MACRO_H_

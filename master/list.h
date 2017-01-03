@@ -5,9 +5,11 @@
 
 typedef struct Node
 {
-    void *pData;
-    int iDataLen;
+    int iFindTimers;
+    int iSendTimers;
     int iDataID;
+    int iDataLen;
+    void *pData;
     struct Node *pPrev;
     struct Node *pNext;
 }stNode;
@@ -26,7 +28,8 @@ typedef struct List
 stList *list_init();
 int list_push(stList *pstList, void *pData, int iDataLen);
 int list_read(stList *pstList);
-int list_delete(stList *pstList, int iTargetDataID);
+int list_deleteByDataID(stList *pstList, int iTargetDataID);
+int list_deleteByNode(stList *pstList, stNode *pTargetNode);
 stNode *list_find(stList *pstList, int iTargetDataID);
 void list_free(stList *pstList);
 void list_clean(stList *pstList);

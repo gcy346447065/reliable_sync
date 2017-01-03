@@ -63,7 +63,8 @@ static int sync_login(const char *pcMsg)
 
         g_cMasterSyncStatus = STATUS_LOGIN;
         g_cLoginRspSeq = req->msgHeader.cSeq;
-        timer_start(g_iLoginTimerFd, 1); //right now
+        
+        timer_start(g_iLoginTimerFd, LOGIN_TIMER_VALUE); //8s
     }
     else if(req->cSynFlag == 0 && req->cAckFlag == 1 && g_cMasterSyncStatus == STATUS_LOGIN)
     {
@@ -94,13 +95,39 @@ static int sync_newCfgInstant(const char *pcMsg)
     if(rsp->cResult == NEWCFG_RESULT_SUCCEED)
     {
         log_info("get sync_newCfgInstant rsp succeed.");
+
+        list_deleteByDataID(g_pstInstantList, ntohl(rsp->iNewCfgID));
     }
     else
     {
         log_info("get sync_newCfgInstant(newCfgID:%d) rsp failed(result:%d).", ntohl(rsp->iNewCfgID), rsp->cResult);
 
         //resend the new cfg with newCfgID
-        list_find(g_pstInstantList, ntohl(rsp->iNewCfgID));
+        stNode *pNode = list_find(g_pstInstantList, ntohl(rsp->iNewCfgID));
+        if(pNode != NULL)
+        {
+            if(pNode->iSendTimers >= 3)//重发3次仍失败则删去节点
+            {
+                list_deleteByNode(g_pstInstantList, pNode);
+            }
+            else
+            {
+                MSG_NEWCFG_INSTANT_REQ *req = alloc_master_newCfgInstantReq(pNode->pData, pNode->iDataLen, pNode->iDataID);
+                if(req == NULL)
+                {
+                    log_error("alloc_master_newCfgInstantReq error!");
+                    return -1;
+                }
+
+                if(send2SlaveSync(g_iSyncSockFd, req, sizeof(MSG_NEWCFG_INSTANT_REQ) + pNode->iDataLen) < 0)
+                {
+                    log_debug("Send to SLAVE SYNC failed!");
+                }
+
+                pNode->iFindTimers = 0;//查找次数清0
+                pNode->iSendTimers++;//发送次数累加
+            }
+        }
     }
 
     return 0;

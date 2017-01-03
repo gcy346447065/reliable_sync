@@ -28,6 +28,7 @@ int g_iKeepaliveTimerFd = 0;
 int g_iLoginTimerFd = 0;
 int g_iSyncSockFd = 0;
 int g_iMainEventFd = 0;
+int g_iSyncEventFd = 0;
 
 extern stList *g_pstInstantList;
 extern stList *g_pstWaitedList;
@@ -40,6 +41,48 @@ int _add_to_epoll(struct epoll_event stEvent, int iSyncEpollFd, int iAddFd)
     return epoll_ctl(iSyncEpollFd, EPOLL_CTL_ADD, iAddFd, &stEvent);
 }
 
+int _ListTraverseAndResend(stList *pstList)
+{
+    stNode *pNode = pstList->pFront;
+    pthread_mutex_lock(&pstList->pMutex);
+    while(pNode != NULL)
+    {
+        if(pNode->iSendTimers >= 3)//重发3次仍失败则删去节点
+        {
+            stNode *pNextNode = pNode->pNext;
+            list_deleteByNode(g_pstInstantList, pNode);
+            pNode = pNextNode;
+            continue;
+        }
+
+        if(pNode->iFindTimers >= 3)//查找次数超过3次则重发
+        {
+            log_debug("pNode->iDataID(%d), pNode->iFindTimers(%d).", pNode->iDataID, pNode->iFindTimers);
+            
+            //resend
+            MSG_NEWCFG_INSTANT_REQ *req = alloc_master_newCfgInstantReq(pNode->pData, pNode->iDataLen, pNode->iDataID);
+            if(req == NULL)
+            {
+                log_error("alloc_master_newCfgInstantReq error!");
+                return -1;
+            }
+
+            if(send2SlaveSync(g_iSyncSockFd, req, sizeof(MSG_NEWCFG_INSTANT_REQ) + pNode->iDataLen) < 0)
+            {
+                log_debug("Send to SLAVE SYNC failed!");
+            }
+
+            pNode->iFindTimers = 0;//查找次数清0
+            pNode->iSendTimers++;//发送次数累加
+        }
+
+        pNode = pNode->pNext;
+    }
+    pthread_mutex_unlock(&pstList->pMutex);
+
+    return 0;
+}
+
 void *master_sync(void *arg)
 {
     log_info("SYNC task Beginning.");
@@ -49,8 +92,8 @@ void *master_sync(void *arg)
      */
     struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
     g_iMainEventFd = pstSyncStruct->iMainEventFd;
-    int iSyncEventFd = pstSyncStruct->iSyncEventFd;
-    log_debug("g_iMainEventFd(%d), iSyncEventFd(%d)", g_iMainEventFd, iSyncEventFd);
+    g_iSyncEventFd = pstSyncStruct->iSyncEventFd;
+    log_debug("g_iMainEventFd(%d), g_iSyncEventFd(%d)", g_iMainEventFd, g_iSyncEventFd);
 
     /* 
      epoll create 
@@ -66,10 +109,10 @@ void *master_sync(void *arg)
     /* 
      add sync eventfd to epoll 
      */
-    int iRet = _add_to_epoll(stEvent, iSyncEpollFd, iSyncEventFd);
+    int iRet = _add_to_epoll(stEvent, iSyncEpollFd, g_iSyncEventFd);
     if(iRet < 0)
     {
-        log_error("epoll add iSyncEventFd error(%d)!", iRet);
+        log_error("epoll add g_iSyncEventFd error(%d)!", iRet);
         return (void *)-1;
     }
 
@@ -180,6 +223,30 @@ void *master_sync(void *arg)
     }
 
     /*
+     add iListTraverseTimerFd timerfd to epoll 
+     */
+    int iListTraverseTimerFd = timer_create();
+    if(iListTraverseTimerFd < 0)
+    {
+        log_error("sync timer create error(%d)!", iListTraverseTimerFd);
+        return (void *)-1;
+    }
+
+    iRet = timer_start(iListTraverseTimerFd, LIST_TRAVERSE_TIMER_VALUE);//5min
+    if(iRet < 0)
+    {
+        log_error("sync timer start error(%d)!", iRet);
+        return (void *)-1;
+    }
+
+    iRet = _add_to_epoll(stEvent, iSyncEpollFd, iListTraverseTimerFd);
+    if(iRet < 0)
+    {
+        log_error("epoll add iListTraverseTimerFd error(%d)!", iRet);
+        return (void *)-1;
+    }
+
+    /*
      add iNewcfgWaitedTimerFd to epoll 
      */
     int iNewcfgWaitedTimerFd = timer_create();
@@ -213,13 +280,13 @@ void *master_sync(void *arg)
         int iEpollNum = epoll_wait(iSyncEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
-            if(stEvents[i].data.fd == iSyncEventFd && stEvents[i].events & EPOLLIN)
+            if(stEvents[i].data.fd == g_iSyncEventFd && stEvents[i].events & EPOLLIN)
             {
                 log_info("Get eventfd.");
 
-                /* get events from iSyncEventFd */
+                /* get events from g_iSyncEventFd */
                 uint64_t uiEventsFlag;
-                iRet = event_getEventFlags(iSyncEventFd, &uiEventsFlag);
+                iRet = event_getEventFlags(g_iSyncEventFd, &uiEventsFlag);
                 if(iRet < 0)
                 {
                     log_error("event_getEventFlags error(%d)!", iRet);
@@ -246,6 +313,9 @@ void *master_sync(void *arg)
                         {
                             log_debug("Send to SLAVE SYNC failed!");
                         }
+
+                        g_pstInstantList->pReadNow->iFindTimers = 0;//查找次数清0
+                        g_pstInstantList->pReadNow->iSendTimers++;//发送次数累加
 
                         /* list_read g_pstInstantList */
                         list_read(g_pstInstantList);
@@ -318,16 +388,16 @@ void *master_sync(void *arg)
                             log_debug("list_getReadSize(%d).", list_getReadSize(g_pstInstantList));
                             iNewcfgWaitedLenSum -= iTargetMsgLen;//重置队列中的配置长度之和 
                             cNewcfgWaitedOkFlag = 1;//重置第一次满足阈值的标志
-                            iRet = timer_start(iNewcfgWaitedTimerFd, NEWCFG_WAITED_TIMER_VALUE);//重置定时阈值的定时器
+                            iRet = timer_read(iNewcfgWaitedTimerFd);//重置定时阈值的定时器
                             if(iRet < 0)
                             {
-                                log_error("sync timer start error(%d)!", iRet);
+                                log_error("sync timer_read error(%d)!", iRet);
                                 return (void *)-1;
                             }
                         }
                     }
                 }
-            }//if iSyncEventFd
+            }//if g_iSyncEventFd
             else if(stEvents[i].data.fd == g_iLoginTimerFd && stEvents[i].events & EPOLLIN)
             {
                 log_debug("epoll event g_iLoginTimerFd.");
@@ -348,10 +418,10 @@ void *master_sync(void *arg)
                     }
                 }
 
-                iRet = timer_start(g_iLoginTimerFd, LOGIN_TIMER_VALUE); //8s
+                iRet = timer_read(g_iLoginTimerFd); //8s
                 if(iRet < 0)
                 {
-                    log_error("login timer start error(%d)!", iRet);
+                    log_error("login timer_read error(%d)!", iRet);
                     return (void *)-1;
                 }
             }//else if g_iLoginTimerFd
@@ -359,17 +429,28 @@ void *master_sync(void *arg)
             {
                 log_debug("epoll event g_iKeepaliveTimerFd.");
 
-                //no msg sent for a while, send keep alive msg
-                MSG_KEEP_ALIVE_REQ *req = (MSG_KEEP_ALIVE_REQ *)alloc_master_reqMsg(CMD_KEEP_ALIVE);
-                if(req == NULL)
+                if(g_cMasterSyncStatus == STATUS_NEWCFG)
                 {
-                    log_error("alloc_master_reqMsg error!");
-                    return (void *)-1;
+                    //no msg sent for a while, send keep alive msg
+                    MSG_KEEP_ALIVE_REQ *req = (MSG_KEEP_ALIVE_REQ *)alloc_master_reqMsg(CMD_KEEP_ALIVE);
+                    if(req == NULL)
+                    {
+                        log_error("alloc_master_reqMsg error!");
+                        return (void *)-1;
+                    }
+                    req->cSpecifyID = g_cMasterSpecifyID;
+
+                    if(send2SlaveSync(g_iSyncSockFd, req, sizeof(MSG_KEEP_ALIVE_REQ)) < 0)
+                    {
+                        log_debug("Send keepalive req to SLAVE SYNC failed!");
+                    }
                 }
 
-                if(send2SlaveSync(g_iSyncSockFd, req, sizeof(MSG_KEEP_ALIVE_REQ)) < 0)
+                iRet = timer_read(g_iKeepaliveTimerFd); //3min
+                if(iRet < 0)
                 {
-                    log_debug("Send keepalive req to SLAVE SYNC failed!");
+                    log_error("keep alive timer_read error(%d)!", iRet);
+                    return (void *)-1;
                 }
 
             }//else if g_iKeepaliveTimerFd
@@ -377,15 +458,44 @@ void *master_sync(void *arg)
             {
                 log_debug("epoll event iCheckaliveTimerFd.");
 
-                //no msg recived for a while, send event to main to restart
-                iRet = event_setEventFlags(g_iMainEventFd, MASTER_EVENT_CHECKALIVE_TIMER);
+                if(g_cMasterSyncStatus == STATUS_NEWCFG)
+                {
+                    //no msg recived for a while, relogin
+                    srand((int)time(0));
+                    g_cMasterSpecifyID = (char)(rand() % 0x100);
+                    g_cMasterSyncStatus = STATUS_INIT;//change status into STATUS_INIT
+                    //send event to main to restart
+                    iRet = event_setEventFlags(g_iMainEventFd, MASTER_EVENT_CHECKALIVE_TIMER);
+                    if(iRet < 0)
+                    {
+                        log_error("set g_iMainEventFd MASTER_EVENT_CHECKALIVE_TIMER error(%d)!", iRet);
+                        return (void *)-1;
+                    }
+                }
+
+                iRet = timer_read(iCheckaliveTimerFd);
                 if(iRet < 0)
                 {
-                    log_error("set g_iMainEventFd MASTER_EVENT_CHECKALIVE_TIMER error(%d)!", iRet);
+                    log_error("check alive timer_read error(%d)!", iRet);
                     return (void *)-1;
                 }
 
             }//else if iCheckaliveTimerFd
+            else if(stEvents[i].data.fd == iListTraverseTimerFd && stEvents[i].events & EPOLLIN)
+            {
+                log_debug("epoll event iListTraverseTimerFd.");
+
+                _ListTraverseAndResend(g_pstInstantList);
+                _ListTraverseAndResend(g_pstWaitedList);
+
+                iRet = timer_read(iListTraverseTimerFd);//5min
+                if(iRet < 0)
+                {
+                    log_error("sync timer_read error(%d)!", iRet);
+                    return (void *)-1;
+                }
+
+            }//else if iListTraverseTimerFd
             else if(stEvents[i].data.fd == iNewcfgWaitedTimerFd && stEvents[i].events & EPOLLIN)
             {
                 log_debug("epoll event iNewcfgWaitedTimerFd.");
@@ -430,6 +540,12 @@ void *master_sync(void *arg)
                 }
 
                 cFirstNewcfgWaitedFlag = 1;//下次NewcfgWaited到来时，再开启定时阈值检测
+                iRet = timer_read(iNewcfgWaitedTimerFd);
+                if(iRet < 0)
+                {
+                    log_error("sync timer_read error(%d)!", iRet);
+                    return (void *)-1;
+                }
 
             }//else if iNewcfgWaitedTimerFd
             else if(stEvents[i].data.fd == g_iSyncSockFd && stEvents[i].events & EPOLLIN)

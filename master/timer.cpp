@@ -37,7 +37,19 @@ int timer_start(int iTimerFd, int iMS)
         return -2;
     }
 
-    log_info("timer start iMS(%d) ok.", iMS);
+    return 0;
+}
+
+//必须要read timerFd，否则会连续触发epoll
+int timer_read(int iTimerFd)
+{
+    unsigned long int ulExp;
+    int iRet = read(iTimerFd, &ulExp, sizeof(ulExp));
+    if(iRet != sizeof(ulExp))
+    {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -51,7 +63,6 @@ int timer_stop(int iTimerFd)
         return -1;
     }
 
-    log_info("timer stop ok.");
     return 0;
 }
 

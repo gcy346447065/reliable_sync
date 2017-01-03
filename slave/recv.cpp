@@ -4,6 +4,7 @@
 #include "timer.h"
 #include "macro.h"
 #include "event.h"
+#include "checksum.h"
 #include "protocol.h"
 #include "send.h"
 #include "recv.h"
@@ -69,7 +70,7 @@ static int sync_login(const char *pcMsg)
         req->cSpecifyID = g_cSlaveSpecifyID;
         if(send2MasterSync(g_iSyncSockFd, req, sizeof(MSG_LOGIN_REQ)) < 0) //after connect, write = send
         {
-            log_debug("Send to SLAVE SYNC failed!");
+            log_debug("Send to MASTER SYNC failed!");
         }
 
         g_cSlaveSyncStatus = STATUS_NEWCFG;
@@ -78,71 +79,51 @@ static int sync_login(const char *pcMsg)
     return 0;
 }
 
-#if 0
-static int sync_newCfg(const char *pcMsg)
+static int sync_newCfgInstant(const char *pcMsg)
 {
-    const MSG_NEW_CFG_REQ *req = (const MSG_NEW_CFG_REQ *)pcMsg;
+    const MSG_NEWCFG_INSTANT_REQ *req = (const MSG_NEWCFG_INSTANT_REQ *)pcMsg;
     if(!req)
     {
-        log_error("msg req empty!");
+        log_error("msg handle empty!");
         return -1;
     }
-    if(ntohs(req->msgHeader.sLength) < sizeof(MSG_NEW_CFG_REQ) - MSG_HEADER_LEN)
+    if(ntohs(req->msgHeader.sLength) < sizeof(MSG_NEWCFG_INSTANT_REQ) - MSG_HEADER_LEN)
     {
-        log_error("login message length not enough!");
+        log_error("message sLength not enough!");
         return -1;
     }
 
-    log_info("req->newCfgNum(%d), req->checksum(%d).", ntohs(req->newCfgNum), ntohs(req->checksum));
+    log_info("req->iNewCfgID(%d), req->sChecksum(%d).", ntohl(req->iNewCfgID), ntohs(req->sChecksum));
 
-    MSG_NEW_CFG_RSP *rsp = (MSG_NEW_CFG_RSP *)alloc_slave_rspMsg((const MSG_HEADER *)pcMsg);
+    int iDataLen = ntohs(req->msgHeader.sLength) + MSG_HEADER_LEN - sizeof(MSG_NEWCFG_INSTANT_REQ);
+    short sCalChecksum = checksum((const char *)req->acData, iDataLen);
+    log_info("sCalChecksum(%d).", sCalChecksum);
+
+    MSG_NEWCFG_INSTANT_RSP *rsp = (MSG_NEWCFG_INSTANT_RSP *)alloc_slave_rspMsg(CMD_NEWCFG_INSTANT, req->msgHeader.cSeq);
     if(!rsp)
     {
         log_error("msg rsp empty!");
         return -1;
     }
-    rsp->newCfgNum = req->newCfgNum;
+    rsp->iNewCfgID = req->iNewCfgID;//一次ntohl、一次htonl，所以省去转序
 
-    if(g_slaveSyncStatus == STATUS_NEW_CFG)
+    if(sCalChecksum == (short)ntohs(req->sChecksum))
     {
-        short iSlaveChecksum = checksum((const char *)(req->data), ntohs(req->msgHeader.sLength) - sizeof(short)*2);
-        log_info("iSlaveChecksum(%d)", iSlaveChecksum);
-        if(iSlaveChecksum == ntohs(req->checksum))
-        {
-            rsp->result = NEW_CFG_RESULT_SUCCEED;
-        }
-        else
-        {
-            rsp->result = NEW_CFG_RESULT_CHECKSUM_ERROR;
-        }
+        rsp->cResult = NEWCFG_RESULT_SUCCEED;
+
+        //TODO:还原配置
+        log_debug("TODO: here is new cfg.");
     }
     else
     {
-        rsp->result = NEW_CFG_RESULT_STATUS_ERROR;
+        rsp->cResult = NEWCFG_RESULT_CHECKSUM_ERROR;
+
+        log_debug("NEWCFG_RESULT_CHECKSUM_ERROR.");
     }
 
-    if(write(iSockFd, rsp, sizeof(MSG_NEW_CFG_RSP)) < 0) //after connect, write = send
+    if(send2MasterSync(g_iSyncSockFd, rsp, sizeof(MSG_NEWCFG_INSTANT_RSP)) < 0)
     {
-        log_debug("Send to MASTER MSG_NEW_CFG_RSP failed!");
-        return -1;
-    }
-
-    return 0;
-}
-#endif
-
-static int sync_newCfgInstant(const char *pcMsg)
-{
-    const MSG_NEWCFG_INSTANT_RSP *rsp = (const MSG_NEWCFG_INSTANT_RSP *)pcMsg;
-    if(!rsp)
-    {
-        log_error("msg handle empty!");
-        return -1;
-    }
-    if(ntohs(rsp->msgHeader.sLength) < sizeof(MSG_NEWCFG_INSTANT_RSP) - MSG_HEADER_LEN)
-    {
-        log_error("keep alive message sLength not enough!");
-        return -1;
+        log_debug("Send to MASTER SYNC failed!");
     }
 
     return 0;
@@ -200,7 +181,7 @@ static int sync_keepAlive(const char *pcMsg)
     rsp->cSpecifyID = g_cSlaveSpecifyID;
     if(send2MasterSync(g_iSyncSockFd, rsp, sizeof(MSG_KEEP_ALIVE_RSP)) < 0) 
     {
-        log_debug("Send to SLAVE SYNC failed!");
+        log_debug("Send to MASTER SYNC failed!");
     }
 
     return 0;

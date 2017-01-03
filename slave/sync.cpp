@@ -125,7 +125,7 @@ void *slave_sync(void *arg)
     srand((int)time(0));
     g_cSlaveSpecifyID = (char)(rand() % 0x100);
 
-    iRet = timer_start(g_iLoginTimerFd, 1); //right now
+    iRet = timer_start(g_iLoginTimerFd, LOGIN_TIMER_VALUE); //10s
     if(iRet < 0)
     {
         log_error("sync timer start error(%d)!", iRet);
@@ -213,10 +213,10 @@ void *slave_sync(void *arg)
                     }
                 }
 
-                iRet = timer_start(g_iLoginTimerFd, LOGIN_TIMER_VALUE); //10s
+                iRet = timer_read(g_iLoginTimerFd); //10s
                 if(iRet < 0)
                 {
-                    log_error("login timer start error(%d)!", iRet);
+                    log_error("login timer_read error(%d)!", iRet);
                     return (void *)-1;
                 }
             }//if g_iLoginTimerFd
@@ -243,19 +243,28 @@ void *slave_sync(void *arg)
             {
                 log_debug("epoll event g_iKeepaliveTimerFd.");
 
-                //no msg sent for a while, send keep alive msg
-                MSG_KEEP_ALIVE_REQ *req = (MSG_KEEP_ALIVE_REQ *)alloc_slave_reqMsg(CMD_KEEP_ALIVE, sizeof(MSG_KEEP_ALIVE_REQ));
-                if(req == NULL)
+                if(g_cSlaveSyncStatus == STATUS_NEWCFG)
                 {
-                    log_error("alloc_slave_reqMsg MSG_KEEP_ALIVE_REQ error!");
-                    return (void *)-1;
+                    //no msg sent for a while, send keep alive msg
+                    MSG_KEEP_ALIVE_REQ *req = (MSG_KEEP_ALIVE_REQ *)alloc_slave_reqMsg(CMD_KEEP_ALIVE, sizeof(MSG_KEEP_ALIVE_REQ));
+                    if(req == NULL)
+                    {
+                        log_error("alloc_slave_reqMsg MSG_KEEP_ALIVE_REQ error!");
+                        return (void *)-1;
+                    }
+                    req->cSpecifyID = g_cSlaveSpecifyID;
+
+                    if(send2MasterSync(g_iSyncSockFd, req, sizeof(MSG_KEEP_ALIVE_REQ)) < 0)
+                    {
+                        log_debug("Send keepalive req to MASTER SYNC failed! To send again!");
+                    }
                 }
 
-                if(send2MasterSync(g_iSyncSockFd, req, sizeof(MSG_KEEP_ALIVE_REQ)) < 0)
+                iRet = timer_read(g_iKeepaliveTimerFd); //3min
+                if(iRet < 0)
                 {
-                    log_debug("Send keepalive req to MASTER SYNC failed! To send again!");
-
-                    //TODO :send for 5 timers
+                    log_error("keep alive timer_read error(%d)!", iRet);
+                    return (void *)-1;
                 }
 
             }//else if g_iKeepaliveTimerFd
@@ -263,11 +272,32 @@ void *slave_sync(void *arg)
             {
                 log_debug("epoll event iCheckaliveTimerFd.");
 
-                //no msg recived for a while, send event to main to restart
-                iRet = event_setEventFlags(g_iMainEventFd, SLAVE_EVENT_CHECKALIVE_TIMER);
+                if(g_cSlaveSyncStatus == STATUS_NEWCFG)
+                {
+                    //no msg recived for a while, relogin
+                    srand((int)time(0));
+                    g_cSlaveSpecifyID = (char)(rand() % 0x100);
+                    g_cSlaveSyncStatus = STATUS_LOGIN;//change status into STATUS_LOGIN
+                    iRet = timer_start(g_iLoginTimerFd, 1); //right now
+                    if(iRet < 0)
+                    {
+                        log_error("sync timer start error(%d)!", iRet);
+                        return (void *)-1;
+                    }
+
+                    //send event to main to restart
+                    iRet = event_setEventFlags(g_iMainEventFd, SLAVE_EVENT_CHECKALIVE_TIMER);
+                    if(iRet < 0)
+                    {
+                        log_error("set g_iMainEventFd MASTER_EVENT_CHECKALIVE_TIMER error(%d)!", iRet);
+                        return (void *)-1;
+                    }
+                }
+
+                iRet = timer_read(iCheckaliveTimerFd);
                 if(iRet < 0)
                 {
-                    log_error("set g_iMainEventFd MASTER_EVENT_CHECKALIVE_TIMER error(%d)!", iRet);
+                    log_error("check alive timer_read error(%d)!", iRet);
                     return (void *)-1;
                 }
 
@@ -281,8 +311,15 @@ void *slave_sync(void *arg)
                 if((iBufferSize = read(g_iSyncSockFd, acBuffer, MAX_BUFFER_SIZE)) > 0) //after connect, read = recv
                 {
                     log_hex(acBuffer, iBufferSize);
-
                     handle_sync_msg(acBuffer, iBufferSize);
+
+                    //restart check alive timer
+                    iRet = timer_start(iCheckaliveTimerFd, CHECKALIVE_TIMER_VALUE);
+                    if(iRet < 0)
+                    {
+                        log_error("sync timer start error(%d)!", iRet);
+                        return (void *)-1;
+                    }
                 }
 
             }//else if g_iSyncSockFd

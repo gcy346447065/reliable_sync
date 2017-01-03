@@ -48,6 +48,10 @@ MSG_HEADER *alloc_slave_rspMsg(char cCmd, char cSeq)
             iMsgLen = sizeof(MSG_KEEP_ALIVE_RSP);
             break;
 
+        case CMD_NEWCFG_INSTANT:
+            iMsgLen = sizeof(MSG_NEWCFG_INSTANT_RSP);
+            break;
+
         default:
             return NULL;
     }
