@@ -8,6 +8,8 @@ SET(SRC_LIST
     socket.cpp
     sync.cpp
     checksum.cpp
+    send.cpp
+    recv.cpp
     )
 ADD_EXECUTABLE(syncslave ${SRC_LIST})
 TARGET_LINK_LIBRARIES(syncslave pthread)

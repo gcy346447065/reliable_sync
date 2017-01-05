@@ -3,6 +3,8 @@
 
 int timer_create(void);
 int timer_start(int iTimerFd, int iMS);
+int timer_read(int iTimerFd);
+int timer_stop(int iTimerFd);
 int timer_close(int iTimerFd);
 
 #endif //_TIMER_H_

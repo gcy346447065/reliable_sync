@@ -5,7 +5,7 @@
 short checksum(const char *pData, int iDataLen)
 {
     log_debug("checksum iDataLen(%d)", iDataLen);
-    log_hex(pData, iDataLen);
+    //log_hex(pData, iDataLen);
     short sum1 = 0, sum2 = 0;
 
     for(int i=0; i<iDataLen; i++)
