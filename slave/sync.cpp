@@ -213,10 +213,10 @@ void *slave_sync(void *arg)
                     }
                 }
 
-                iRet = timer_read(g_iLoginTimerFd); //10s
+                iRet = timer_get(g_iLoginTimerFd); //10s
                 if(iRet < 0)
                 {
-                    log_error("login timer_read error(%d)!", iRet);
+                    log_error("login timer_get error(%d)!", iRet);
                     return (void *)-1;
                 }
             }//if g_iLoginTimerFd
@@ -260,10 +260,10 @@ void *slave_sync(void *arg)
                     }
                 }
 
-                iRet = timer_read(g_iKeepaliveTimerFd); //3min
+                iRet = timer_get(g_iKeepaliveTimerFd); //3min
                 if(iRet < 0)
                 {
-                    log_error("keep alive timer_read error(%d)!", iRet);
+                    log_error("keep alive timer_get error(%d)!", iRet);
                     return (void *)-1;
                 }
 
@@ -294,10 +294,10 @@ void *slave_sync(void *arg)
                     }
                 }
 
-                iRet = timer_read(iCheckaliveTimerFd);
+                iRet = timer_get(iCheckaliveTimerFd);
                 if(iRet < 0)
                 {
-                    log_error("check alive timer_read error(%d)!", iRet);
+                    log_error("check alive timer_get error(%d)!", iRet);
                     return (void *)-1;
                 }
 

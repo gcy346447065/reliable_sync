@@ -1,14 +1,9 @@
-#include <netinet/in.h> //for sockaddr_in
-#include <sys/socket.h> //for recvfrom
-#include <arpa/inet.h> //for inet_addr
-#include <pthread.h> //for pthread
 #include <sys/epoll.h> //for epoll
-#include <stdlib.h> //for malloc
-#include <stdint.h> //for unit64_t
+#include <unistd.h> //for read STDIN_FILENO
 #include <stdio.h> //for sscanf sprintf
-#include <unistd.h> //for read
-#include <errno.h> //for errno
+#include <stdlib.h> //for malloc
 #include <string.h> //for memset strstr
+#include <errno.h> //for errno
 #include <fcntl.h> //for open
 #include "macro.h"
 #include "log.h"
@@ -16,18 +11,100 @@
 #include "event.h"
 #include "socket.h"
 #include "sync.h"
+#include "tool.h"
 #include "list.h"
 
-enum SEND_METHOD_TO_LIST
+typedef int (*MAIN_PROC)(const char *pcMsg);
+typedef struct
 {
-    SEND_NEWCFG_WAITED,
-    SEND_NEWCFG_INSTANT
-};
+    char cAction;
+    MAIN_PROC pProc;
+}MSG_PROC_MAP;
 
 stList *g_pstInstantList;
 stList *g_pstWaitedList;
 
-int send2List(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
+int g_iMainEpollFd = 0;
+int g_iMainEventFd = 0;
+int g_iSyncEventFd = 0;
+
+static int g_iFileNumInstant = 0;
+static int g_iFileNumWaitedBegin = 0;
+static int g_iFileNumWaitedEnd = 0;
+
+/*
+ * 配置模块调用同步API前要做的初始化操作
+ */
+int reliable_sync_init(void)
+{
+    /* list init */
+    g_pstInstantList = list_init();
+    if(g_pstInstantList == NULL)
+    {
+        log_error("list_init error!");
+        return -1;
+    }
+    g_pstWaitedList = list_init();
+    if(g_pstWaitedList == NULL)
+    {
+        log_error("list_init error!");
+        return -1;
+    }
+
+    /* epoll create */
+    g_iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
+    if(g_iMainEpollFd < 0)
+    {
+        log_error("epoll create error(%d)!", g_iMainEpollFd);
+        return -1;
+    }
+
+    /* eventfd init */
+    g_iMainEventFd = event_init(0); //0 for event flag init value
+    if(g_iMainEventFd < 0)
+    {
+        log_error("event_init error(%d)!", g_iMainEventFd);
+        return -1;
+    }
+    g_iSyncEventFd = event_init(0); //0 for event flag init value
+    if(g_iSyncEventFd < 0)
+    {
+        log_error("event_init error(%d)!", g_iSyncEventFd);
+        return -1;
+    }
+
+    /* add g_iMainEventFd to g_iMainEpollFd */
+    int iRet = tool_add_event_to_epoll(g_iMainEpollFd, g_iMainEventFd);
+    if(iRet < 0)
+    {
+        log_error("Epoll(%d) add Event(%d) error(%d)!", g_iMainEpollFd, g_iMainEventFd, iRet);
+        return -1;
+    }
+
+    /* add STDIN_FILENO to g_iMainEpollFd */
+    iRet = tool_add_event_to_epoll(g_iMainEpollFd, STDIN_FILENO);
+    if(iRet < 0)
+    {
+        log_error("Epoll(%d) add Event(%d) error(%d)!", g_iMainEpollFd, STDIN_FILENO, iRet);
+        return -1;
+    }
+
+    /* sync pthread create */
+    pthread_t SyncThreadId;
+    iRet = pthread_create(&SyncThreadId, NULL, master_sync_thread, NULL);
+    if(iRet < 0)
+    {
+        log_error("pthread create error(%d)!", iRet);
+        return -1;
+    }
+
+    return 0;
+}
+
+/*
+ * 配置模块可调用该函数发送配置
+ */
+int reliable_sync_send(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSendMethod)
 {
     if(pBuf == NULL || iBufLen == 0)
     {
@@ -53,262 +130,268 @@ int send2List(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr, int iSen
             return -1;
     }
 
-    log_info("SendToSync ok.");
     return 0;
 }
 
+int _epoll_stdin(void)
+{
+    log_info("Get STDIN_FILENO fd.");
+
+    //从控制台读取键入字符串
+    char *pcStdinBuf = (char *)malloc(MAX_STDIN_FILE_LEN);
+    memset(pcStdinBuf, 0, MAX_STDIN_FILE_LEN);
+    int iRet = read(STDIN_FILENO, pcStdinBuf, MAX_STDIN_FILE_LEN);
+    if(iRet < 0)
+    {
+        log_error("read STDIN_FILENO error(%s)!", strerror(errno));
+        return -1;
+    }
+    pcStdinBuf[iRet-1] = '\0'; //-1 for '\n'
+
+    //字符串为"?file%d"时为单个文件instant立即备份
+    //字符串为"/file%d:file%d"时为区间内多个文件waited定时定量备份
+    if(sscanf(pcStdinBuf, "?file%d", &g_iFileNumInstant) == 1) //"?file2"
+    {
+        char *pcFilenameInstant = (char *)malloc(MAX_STDIN_FILE_LEN);
+        memset(pcFilenameInstant, 0, MAX_STDIN_FILE_LEN);
+        sprintf(pcFilenameInstant, "file%d", g_iFileNumInstant);
+        if((open(pcFilenameInstant, O_RDONLY)) > 0)
+        {
+            log_info("open INSTANT file ok.");
+
+            iRet = write(STDIN_FILENO, "Send INSTANT to slave.\r\n", strlen("Send INSTANT to slave.\r\n"));
+            if(iRet < 0)
+            {
+                log_error("write STDIN_FILENO error(%s)!", strerror(errno));
+                return -1;
+            }
+
+            //触发instant键入事件(向sync模块发送单个文件)
+            iRet = event_setEventFlags(g_iMainEventFd, MASTER_MAIN_EVENT_KEYIN_INSTANT);
+            if(iRet != 0)
+            {
+                log_error("set event flag MASTER_MAIN_EVENT_KEYIN_INSTANT failed!");
+                return -1;
+            }
+        }
+        else
+        {
+            log_info("open new config file error(%s)!", strerror(errno));
+        }
+
+        free(pcFilenameInstant);
+    }
+    else if(sscanf(pcStdinBuf, "/file%d:file%d", &g_iFileNumWaitedBegin, &g_iFileNumWaitedEnd) == 2) //"/file8:file10"
+    {
+        char *pcFilenameBegin = (char *)malloc(MAX_STDIN_FILE_LEN);
+        char *pcFilenameEnd = (char *)malloc(MAX_STDIN_FILE_LEN);
+        memset(pcFilenameBegin, 0, MAX_STDIN_FILE_LEN);
+        memset(pcFilenameEnd, 0, MAX_STDIN_FILE_LEN);
+        sprintf(pcFilenameBegin, "file%d", g_iFileNumWaitedBegin);
+        sprintf(pcFilenameEnd, "file%d", g_iFileNumWaitedEnd);
+        if(open(pcFilenameBegin, O_RDONLY) > 0 && open(pcFilenameEnd, O_RDONLY) > 0)
+        {
+            log_info("open WAITED files ok.");
+ 
+            iRet = write(STDIN_FILENO, "Send WAITED to slave.\r\n", strlen("Send WAITED to slave.\r\n"));
+            if(iRet < 0)
+            {
+                log_error("write STDIN_FILENO error(%s)!", strerror(errno));
+                return -1;
+            }
+ 
+            //触发waited键入事件(向sync模块发送多个文件)
+            iRet = event_setEventFlags(g_iMainEventFd, MASTER_MAIN_EVENT_KEYIN_WAITED);
+            if(iRet != 0)
+            {
+                log_error("set event flag MASTER_MAIN_EVENT_KEYIN_WAITED failed!");
+                return -1;
+            }
+        }
+        else
+        {
+            log_info("open new config file error(%s)!", strerror(errno));
+        }
+
+        free(pcFilenameBegin);
+        free(pcFilenameEnd);
+    }
+    else
+    {
+        log_info("Unknown command!");
+    }
+
+    free(pcStdinBuf);
+    return 0;
+}
+
+int _epoll_mainEvent(void)
+{
+    log_info("Get iMainEventFd.");
+
+    //获取事件标志，共有64种事件，可同时触发多个
+    unsigned long ulEventsFlag;
+    int iRet = event_getEventFlags(g_iMainEventFd, &ulEventsFlag);
+    if(iRet < 0)
+    {
+        log_error("event_getEventFlags error(%d)!", iRet);
+        return -1;
+    }
+
+    //触发instant键入事件，向sync模块发送配置消息
+    if(ulEventsFlag & MASTER_MAIN_EVENT_KEYIN_INSTANT)
+    {
+        log_info("Get MASTER_MAIN_EVENT_KEYIN_INSTANT.");
+
+        char *pcFilenameInstant = (char *)malloc(MAX_STDIN_FILE_LEN);
+        memset(pcFilenameInstant, 0, MAX_STDIN_FILE_LEN);
+        sprintf(pcFilenameInstant, "file%d", g_iFileNumInstant);
+
+        int iFileInstantFd;
+        if((iFileInstantFd = open(pcFilenameInstant, O_RDONLY)) > 0)
+        {
+            char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
+            memset(pcNewCfgBuf, 0, MAX_PKG_LEN);
+            iRet = read(iFileInstantFd, pcNewCfgBuf, MAX_PKG_LEN);
+            if(iRet < 0)
+            {
+                log_error("read iFileInstantFd error(%d)!", iRet);
+                return -1;
+            }
+            int iBufLen = iRet;
+
+            //向sync模块发送instant配置消息
+            iRet = reliable_sync_send(pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
+            if(iRet < 0)
+            {
+                log_info("reliable_sync_send failed(%d)!", iRet);
+            }
+
+            //触发sync模块的instant事件
+            iRet = event_setEventFlags(g_iSyncEventFd, MASTER_SYNC_EVENT_NEWCFG_INSTANT);
+            if(iRet < 0)
+            {
+                log_error("event_setEventFlags error(%d)!", iRet);
+                return -1;
+            }
+
+            free(pcNewCfgBuf);
+        }
+
+        free(pcFilenameInstant);
+    }
+
+    //触发waited键入事件，循环向sync模块发送配置消息
+    if(ulEventsFlag & MASTER_MAIN_EVENT_KEYIN_WAITED) //when find specifyID different, get slave restart event
+    {
+        log_info("Get MASTER_MAIN_EVENT_KEYIN_WAITED.");
+
+        char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
+        char *pcFilenameWaited = (char *)malloc(MAX_STDIN_FILE_LEN);
+
+        for(int i = g_iFileNumWaitedBegin; i <= g_iFileNumWaitedEnd; i++)
+        {
+            memset(pcFilenameWaited, 0, MAX_STDIN_FILE_LEN);
+            sprintf(pcFilenameWaited, "file%d", i);
+            int iFileWaitedFd;
+            if((iFileWaitedFd = open(pcFilenameWaited, O_RDONLY)) > 0)
+            {
+                memset(pcNewCfgBuf, 0, MAX_PKG_LEN);
+                iRet = read(iFileWaitedFd, pcNewCfgBuf, MAX_PKG_LEN);
+                if(iRet < 0)
+                {
+                    log_error("read iFileWaitedFd error(%d)!", iRet);
+                    return -1;
+                }
+                int iBufLen = iRet;
+
+                //向sync模块循环发送waited配置消息
+                iRet = reliable_sync_send(pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
+                if(iRet < 0)
+                {
+                    log_info("reliable_sync_send failed(%d)!", iRet);
+                }
+            }
+        }
+
+        free(pcNewCfgBuf);
+        free(pcFilenameWaited);
+
+        //触发sync模块的waited事件
+        iRet = event_setEventFlags(g_iSyncEventFd, MASTER_SYNC_EVENT_NEWCFG_WAITED);
+        if(iRet < 0)
+        {
+            log_error("event_setEventFlags error(%d)!", iRet);
+            return -1;
+        }
+    }
+
+    //通过sync模块的keep_alive机制检测到slave有重启，清除链表中残余配置并重新开始批量备份
+    if(ulEventsFlag & MASTER_MAIN_EVENT_SLAVE_RESTART)
+    {
+        log_info("Get MASTER_EVENT_SLAVE_RESTART, batch backup.");
+
+        //TO DO: clean the List and batch backup
+    }
+
+    //sync模块超时未收到slave的消息，作重启操作？
+    if(ulEventsFlag & MASTER_MAIN_EVENT_CHECKALIVE_TIMER)
+    {
+        log_info("Get MASTER_EVENT_CHECKALIVE_TIMER, restart.");
+
+        /* restart */
+    }
+
+    return 0;
+}
+
+/*
+ * 配置模块为实际主线程
+ */
 int main(int argc, char *argv[])
 {
-    /* log init */
-    log_init();
+    log_init();//现用的是syslog输出到local1.log文件中，如有其他打印log方式可代之
 
-    /* List init */
-    g_pstInstantList = list_init();
-    if(g_pstInstantList == NULL )
-    {
-        log_error("list_init error!");
-        return -1;
-    }
-    g_pstWaitedList = list_init();
-    if(g_pstWaitedList == NULL )
-    {
-        log_error("list_init error!");
-        return -1;
-    }
+    log_info("MAIN Task Beginning.");
 
-    /* epoll create */
-    int iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
-    if(iMainEpollFd < 0)
-    {
-        log_error("epoll create error(%d)!", iMainEpollFd);
-        return -1;
-    }
-    struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
-
-    /* main eventfd init, add main eventfd to epoll */
-    int iMainEventFd = event_init(0); //0 for event flag init value
-    if(iMainEventFd < 0)
-    {
-        log_error("iMainEventFd error(%d)!", iMainEventFd);
-        return -1;
-    }
-    log_debug("iMainEventFd(%d)", iMainEventFd);
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iMainEventFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    int iRet = epoll_ctl(iMainEpollFd, EPOLL_CTL_ADD, iMainEventFd, &stEvent);
+    int iRet = reliable_sync_init();
     if(iRet < 0)
     {
-        log_error("epoll add iMainEventFd error(%d)!", iRet);
-        return -1;
+        log_error("reliable_sync_init");
     }
 
-    /* sync eventfd init, for sync read */
-    int iSyncEventFd = event_init(0); //0 for event flag init value
-    if(iSyncEventFd < 0)
-    {
-        log_error("iSyncEventFd error(%d)!", iSyncEventFd);
-        return -1;
-    }
-
-    /* add STDIN_FILENO to epoll for test(to trigger master find new config) */
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = STDIN_FILENO;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    iRet = epoll_ctl(iMainEpollFd, EPOLL_CTL_ADD, STDIN_FILENO, &stEvent);
-    if(iRet < 0)
-    {
-        log_error("epoll add STDIN_FILENO error(%d)!", iRet);
-        return -1;
-    }
-
-    /* sync pthread create, send iMainEventFd to sync thread */
-    pthread_t SyncThreadId;
-    struct sync_struct stSyncStruct;
-    stSyncStruct.iMainEventFd = iMainEventFd;
-    stSyncStruct.iSyncEventFd = iSyncEventFd;
-    iRet = pthread_create(&SyncThreadId, NULL, master_sync, (void *)&stSyncStruct);
-    if(iRet != 0)
-    {
-        log_error("pthread create error(%d)!", iRet);
-        return -1;
-    }
-
-    /* log for Beginning */
-    log_info("Main Task Beginning.");
-
-    int iNewCfgFd, iFileBegin, iFileEnd;
-    char acFilenameBegin[128], acFilenameEnd[128];
+    struct epoll_event stEvents[MAX_EPOLL_NUM];
     while(1)
     {
-        /* main task */
-
-        /* epoll wail */
-        int iEpollNum = epoll_wait(iMainEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
+        int iEpollNum = epoll_wait(g_iMainEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
             if(stEvents[i].data.fd == STDIN_FILENO && stEvents[i].events & EPOLLIN)
             {
-                log_info("Get STDIN_FILENO fd.");
-
-                /* read STDIN_FILENO */
-                char acStdinBuf[128];
-                memset(acStdinBuf, 0, 128);
-
-                iRet = read(STDIN_FILENO, acStdinBuf, 128);
+                //控制台有输入，用于测试时触发下配置
+                iRet = _epoll_stdin();
                 if(iRet < 0)
                 {
-                    log_error("read STDIN_FILENO error(%s)!", strerror(errno));
-                    return -1;
+                    log_warning("_epoll_stdin failed!");
                 }
-                acStdinBuf[iRet-1] = '\0'; //-1 for '\n'
-
-                if(sscanf(acStdinBuf, "?file%d", &iFileBegin) == 1) //"?file2"
-                {
-                    sprintf(acFilenameBegin, "file%d", iFileBegin);
-                    if((iNewCfgFd = open(acFilenameBegin, O_RDONLY)) > 0)
-                    {
-                        log_info("open INSTANT file ok.");
-
-                        iRet = write(STDIN_FILENO, "Send INSTANT to slave.\r\n", strlen("Send INSTANT to slave.\r\n"));
-                        if(iRet < 0)
-                        {
-                            log_error("write STDIN_FILENO error(%s)!", strerror(errno));
-                            return -1;
-                        }
-
-                        iRet = event_setEventFlags(iMainEventFd, MASTER_EVENT_KEYIN_INSTANT);
-                        if(iRet != 0)
-                        {
-                            log_info("set event flag MASTER_EVENT_KEYIN_INSTANT failed!");
-                        }
-                    }
-                    else
-                    {
-                        log_error("open new config file error(%s)!", strerror(errno));
-                    }
-                }
-                else if(sscanf(acStdinBuf, "/file%d:file%d", &iFileBegin, &iFileEnd) == 2) //"/file8:file10"
-                {
-                    sprintf(acFilenameBegin, "file%d", iFileBegin);
-                    sprintf(acFilenameEnd, "file%d", iFileEnd);
-                    if(open(acFilenameBegin, O_RDONLY) > 0 && open(acFilenameEnd, O_RDONLY) > 0)
-                    {
-                        log_info("open WAITED files ok.");
-
-                        iRet = write(STDIN_FILENO, "Send WAITED to slave.\r\n", strlen("Send WAITED to slave.\r\n"));
-                        if(iRet < 0)
-                        {
-                            log_error("write STDIN_FILENO error(%s)!", strerror(errno));
-                            return -1;
-                        }
-
-                        iRet = event_setEventFlags(iMainEventFd, MASTER_EVENT_KEYIN_WAITED);
-                        if(iRet != 0)
-                        {
-                            log_info("set event flag MASTER_EVENT_KEYIN_WAITED failed!");
-                        }
-                    }
-                    else
-                    {
-                        log_error("open new config file error(%s)!", strerror(errno));
-                    }
-                }
-                else
-                {
-                    log_error("Unknown command!");
-                }
-            }//if STDIN_FILENO
-            else if(stEvents[i].data.fd == iMainEventFd && stEvents[i].events & EPOLLIN)
+            }
+            else if(stEvents[i].data.fd == g_iMainEventFd && stEvents[i].events & EPOLLIN)
             {
-                log_info("Get iMainEventFd.");
-
-                /* get events from iMainEventFd */
-                uint64_t uiEventsFlag;
-                iRet = event_getEventFlags(iMainEventFd, &uiEventsFlag);
+                //接收到新事件，主要用于配置模块与同步模块的通讯
+                iRet = _epoll_mainEvent();
                 if(iRet < 0)
                 {
-                    log_error("event_getEventFlags error(%d)!", iRet);
-                    return -1;
+                    log_warning("_epoll_mainEvent failed!");
                 }
-
-                if(uiEventsFlag & MASTER_EVENT_KEYIN_INSTANT) //planned: set by main mask, tested: when get STDIN_FILENO keys in
-                {
-                    log_info("Get MASTER_EVENT_KEYIN_INSTANT.");
-
-                    /* realtime SendToSync */
-                    char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
-                    memset(pcNewCfgBuf, 0, MAX_PKG_LEN);
-                    iRet = read(iNewCfgFd, pcNewCfgBuf, MAX_PKG_LEN);
-                    if(iRet < 0)
-                    {
-                        log_error("read iNewCfgFd error(%d)!", iRet);
-                        return -1;
-                    }
-                    int iBufLen = iRet;
-
-                    iRet = send2List(pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
-                    if(iRet < 0)
-                    {
-                        log_error("send2List error(%d)!", iRet);
-                    }
-
-                    event_setEventFlags(iSyncEventFd, MASTER_EVENT_NEWCFG_INSTANT);
-                }
-
-                if(uiEventsFlag & MASTER_EVENT_KEYIN_WAITED) //when find specifyID different, get slave restart event
-                {
-                    log_info("Get MASTER_EVENT_KEYIN_WAITED.");
-
-                    /* loop to send to waited List */
-                    char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
-                    for(int i=iFileBegin; i<=iFileEnd; i++)
-                    {
-                        memset(pcNewCfgBuf, 0, MAX_PKG_LEN);
-                        sprintf(acFilenameBegin, "file%d", i);
-                        if((iNewCfgFd = open(acFilenameBegin, O_RDONLY)) > 0)
-                        {
-                            iRet = read(iNewCfgFd, pcNewCfgBuf, MAX_PKG_LEN);
-                            if(iRet < 0)
-                            {
-                                log_error("read iNewCfgFd error(%d)!", iRet);
-                                return -1;
-                            }
-                            int iBufLen = iRet;
-
-                            iRet = send2List(pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
-                            if(iRet < 0)
-                            {
-                                log_error("send2List error(%d)!", iRet);
-                            }
-                        }
-                    }
-
-                    event_setEventFlags(iSyncEventFd, MASTER_EVENT_NEWCFG_WAITED);
-                }
-
-                if(uiEventsFlag & MASTER_EVENT_SLAVE_RESTART) //when find specifyID different, get slave restart event
-                {
-                    log_info("Get MASTER_EVENT_SLAVE_RESTART, batch backup.");
-
-                    //TO DO: clean the List and batch backup
-                }
-
-                if(uiEventsFlag & MASTER_EVENT_CHECKALIVE_TIMER) //when not recived msg for a while, get check alive timer event
-                {
-                    log_info("Get MASTER_EVENT_CHECKALIVE_TIMER, restart.");
-
-                    /* restart */
-                }
-            }//else if iMainEventFd
-        }//for
-    }//while
+            }
+        }
+    }
 
     /* free all */
-    log_info("Main Task Ending.");
+    log_info("MAIN Task Ending.");
     log_free();
-    close(iMainEpollFd);
-    close(iMainEventFd);
+    close(g_iMainEpollFd);
+    close(g_iMainEventFd);
     return 0;
 }
 

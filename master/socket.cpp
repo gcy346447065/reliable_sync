@@ -1,8 +1,10 @@
 #include <sys/socket.h>
-#include <netinet/in.h>
+#include <netinet/in.h> //for sockaddr_in htons
+#include <arpa/inet.h> //for inet_addr
 #include <sys/ioctl.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include "socket.h"
 #include "macro.h"
 #include "log.h"
@@ -24,6 +26,28 @@ int socket_init(void)
     {
         log_error("Set socket no block error!");
         return -2;
+    }
+
+    struct sockaddr_in stMasterSync2SyncAddr;
+    memset(&stMasterSync2SyncAddr, 0, sizeof(stMasterSync2SyncAddr)); 
+    stMasterSync2SyncAddr.sin_family = AF_INET;
+    stMasterSync2SyncAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
+    stMasterSync2SyncAddr.sin_port = htons(MASTER_SYNC_TO_SYNC_PORT);
+    if(bind(iSockFd, (struct sockaddr *)&stMasterSync2SyncAddr, sizeof(stMasterSync2SyncAddr)) < 0)
+    {
+        log_error("socket bind error(%d)!", errno);
+        return -3;
+    }
+
+    struct sockaddr_in stSlaveSync2SyncAddr;
+    memset(&stSlaveSync2SyncAddr, 0, sizeof(stSlaveSync2SyncAddr)); 
+    stSlaveSync2SyncAddr.sin_family = AF_INET;
+    stSlaveSync2SyncAddr.sin_addr.s_addr = inet_addr(SLAVE_IP); 
+    stSlaveSync2SyncAddr.sin_port = htons(SLAVE_SYNC_TO_SYNC_PORT);
+    if(connect(iSockFd, (struct sockaddr *)&stSlaveSync2SyncAddr, sizeof(stSlaveSync2SyncAddr)) < 0)
+    {
+        log_error("socket connect error(%d)!", errno);
+        return -4;
     }
 
     return iSockFd;

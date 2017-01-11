@@ -3,7 +3,7 @@
 
 #include "protocol.h"
 
-int send2SlaveSync(int iSyncSockFd, const void *pMsg, int iMsgLen);
+int sendToSlaveSync(int iSyncSockFd, const void *pMsg, int iMsgLen);
 
 MSG_HEADER *alloc_master_rspMsg(char cCmd, char cSeq);
 MSG_HEADER *alloc_master_reqMsg(char cCmd);

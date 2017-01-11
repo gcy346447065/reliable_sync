@@ -1,4 +1,5 @@
 #include <stdlib.h> //for malloc
+#include <string.h> //for memcpy
 #include "log.h"
 #include "event.h"
 #include "list.h"
@@ -29,9 +30,9 @@ int list_push(stList *pstList, void *pData, int iDataLen)
     if(pNode != NULL)
     {
         pthread_mutex_lock(&pstList->pMutex);
-        pNode->pData = pData;
+        memcpy(pNode->pData, pData, iDataLen);
         pNode->iDataLen = iDataLen;
-        pNode->iDataID = ++g_iDataID;
+        pNode->iDataID = ++g_iDataID;//每个配置的ID
         pNode->iFindTimers = 0;
         pNode->iSendTimers = 0;
         pNode->pPrev = pstList->pRear;

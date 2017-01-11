@@ -2,6 +2,7 @@
 #define _LOG_H_
 
 #include <syslog.h>
+#include <libgen.h>
 
 #define WITH_LOG
 
@@ -9,7 +10,7 @@
     #define log(level, format, ...) \
         do { \
             syslog(level, "[%s,%s(),%d,"#level"] "format, \
-                __FILE__, __func__, __LINE__, ##__VA_ARGS__ ); \
+                basename((char *)__FILE__), __func__, __LINE__, ##__VA_ARGS__ ); \
         } while (0)
 
     #define log_error(...) log(LOG_ERR, __VA_ARGS__)

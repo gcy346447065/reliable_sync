@@ -23,10 +23,10 @@ int main(int argc, char *argv[])
     log_init();
 
     /* epoll create */
-    int iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
-    if(iMainEpollFd < 0)
+    int g_iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
+    if(g_iMainEpollFd < 0)
     {
-        log_error("epoll create error(%d)!", iMainEpollFd);
+        log_error("epoll create error(%d)!", g_iMainEpollFd);
         return -1;
     }
     struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
     memset(&stEvent, 0, sizeof(struct epoll_event));
     stEvent.data.fd = iMainEventFd;
     stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    int iRet = epoll_ctl(iMainEpollFd, EPOLL_CTL_ADD, iMainEventFd, &stEvent);
+    int iRet = epoll_ctl(g_iMainEpollFd, EPOLL_CTL_ADD, iMainEventFd, &stEvent);
     if(iRet < 0)
     {
         log_error("epoll add iMainEventFd error(%d)!", iRet);
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
         /* main task */
 
         /* epoll wail */
-        int iEpollNum = epoll_wait(iMainEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
+        int iEpollNum = epoll_wait(g_iMainEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
             if(stEvents[i].data.fd == iMainEventFd && stEvents[i].events & EPOLLIN)
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
     /* free all */
     log_info("Main Task Ending.");
     log_free();
-    close(iMainEpollFd);
+    close(g_iMainEpollFd);
     close(iMainEventFd);
     return 0;
 }

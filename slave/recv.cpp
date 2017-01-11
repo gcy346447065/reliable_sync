@@ -199,14 +199,24 @@ int handle_one_msg(const char *pcMsg)
 {
     const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;
 
-    for(int i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
+    if(g_cSlaveSyncStatus == STATUS_INIT || g_cSlaveSyncStatus == STATUS_LOGIN)//只接受CMD_LOGIN消息
     {
-        if(g_msgProcs[i].cCmd == pcMsgHeader->cCmd)
+        if(pcMsgHeader->cCmd == CMD_LOGIN)
         {
-            MSG_PROC pfn = g_msgProcs[i].pfn;
-            if(pfn)
+            return sync_login(pcMsg);
+        }
+    }
+    else if(g_cSlaveSyncStatus == STATUS_NEWCFG)//接受所有消息
+    {
+        for(int i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
+        {
+            if(g_msgProcs[i].cCmd == pcMsgHeader->cCmd)
             {
-                return pfn(pcMsg);
+                MSG_PROC pfn = g_msgProcs[i].pfn;
+                if(pfn)
+                {
+                    return pfn(pcMsg);
+                }
             }
         }
     }

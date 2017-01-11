@@ -1,4 +1,5 @@
 #include <netinet/in.h> //for sockaddr_in htons
+#include <unistd.h> //for read write
 #include "log.h"
 #include "timer.h"
 #include "macro.h"
@@ -14,7 +15,8 @@ extern char g_cMasterSpecifyID;
 extern char g_cSlaveSpecifyID;
 
 extern int g_iSyncSockFd;
-extern int g_iLoginTimerFd;
+extern int g_iLoginSynAckTimerFd;
+extern int g_iCheckaliveTimerFd;
 extern int g_iMainEventFd;
 
 extern stList *g_pstInstantList;
@@ -26,6 +28,23 @@ typedef struct
     char cCmd;
     MSG_PROC pfn;
 } MSG_PROC_MAP;
+
+
+int recvFromSlaveSync(int iSyncSockFd, void *pMsg, int iMaxMsgLen)
+{
+    int iRet = timer_start(g_iCheckaliveTimerFd, CHECKALIVE_TIMER_VALUE);
+    if(iRet < 0)
+    {
+        log_error("sync timer start error(%d)!", iRet);
+        return -1;
+    }
+
+    if((iRet = read(iSyncSockFd, pMsg, iMaxMsgLen)) < 0)
+    {
+        log_error("Recv from SLAVE SYNC error!");
+    }
+    return iRet;
+}
 
 static int sync_login(const char *pcMsg)
 {
@@ -64,14 +83,14 @@ static int sync_login(const char *pcMsg)
         g_cMasterSyncStatus = STATUS_LOGIN;
         g_cLoginRspSeq = req->msgHeader.cSeq;
         
-        timer_start(g_iLoginTimerFd, LOGIN_TIMER_VALUE); //8s
+        timer_start(g_iLoginSynAckTimerFd, LOGIN_TIMER_VALUE); //8s
     }
     else if(req->cSynFlag == 0 && req->cAckFlag == 1 && g_cMasterSyncStatus == STATUS_LOGIN)
     {
         //get the third one in three-way handshake, login succeed
         log_info("sync_login succeed.");
 
-        timer_stop(g_iLoginTimerFd);
+        timer_stop(g_iLoginSynAckTimerFd);
         g_cMasterSyncStatus = STATUS_NEWCFG;
     }
 
@@ -119,7 +138,7 @@ static int sync_newCfgInstant(const char *pcMsg)
                     return -1;
                 }
 
-                if(send2SlaveSync(g_iSyncSockFd, req, sizeof(MSG_NEWCFG_INSTANT_REQ) + pNode->iDataLen) < 0)
+                if(sendToSlaveSync(g_iSyncSockFd, req, sizeof(MSG_NEWCFG_INSTANT_REQ) + pNode->iDataLen) < 0)
                 {
                     log_debug("Send to SLAVE SYNC failed!");
                 }
@@ -173,7 +192,7 @@ static int sync_keepAlive(const char *pcMsg)
         return -1;
     }
     rsp->cSpecifyID = g_cMasterSpecifyID;
-    if(send2SlaveSync(g_iSyncSockFd, rsp, sizeof(MSG_KEEP_ALIVE_RSP)) < 0)
+    if(sendToSlaveSync(g_iSyncSockFd, rsp, sizeof(MSG_KEEP_ALIVE_RSP)) < 0)
     {
         log_debug("Send to SLAVE SYNC failed!");
     }
@@ -193,14 +212,24 @@ int handle_one_msg(const char *pcMsg)
 {
     const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;
 
-    for(int i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
+    if(g_cMasterSyncStatus == STATUS_INIT || g_cMasterSyncStatus == STATUS_LOGIN)//只接受CMD_LOGIN消息
     {
-        if(g_msgProcs[i].cCmd == pcMsgHeader->cCmd)
+        if(pcMsgHeader->cCmd == CMD_LOGIN)
         {
-            MSG_PROC pfn = g_msgProcs[i].pfn;
-            if(pfn)
+            return sync_login(pcMsg);
+        }
+    }
+    else if(g_cMasterSyncStatus == STATUS_NEWCFG)//接受所有消息
+    {
+        for(int i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
+        {
+            if(g_msgProcs[i].cCmd == pcMsgHeader->cCmd)
             {
-                return pfn(pcMsg);
+                MSG_PROC pfn = g_msgProcs[i].pfn;
+                if(pfn)
+                {
+                    return pfn(pcMsg);
+                }
             }
         }
     }
@@ -234,3 +263,4 @@ int handle_sync_msg(const char *pcMsg, int iMsgLen)
 
     return 0;
 }
+

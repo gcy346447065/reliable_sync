@@ -7,6 +7,6 @@ struct sync_struct
     int iSyncEventFd;
 };
 
-void *master_sync(void *arg);
+void *master_sync_thread(void *arg);
 
 #endif //_SYNC_H_

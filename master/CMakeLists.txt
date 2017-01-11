@@ -3,6 +3,7 @@ PROJECT(syncmaster)
 
 SET(SRC_LIST
     main.cpp
+    tool.cpp
     timer.cpp
     event.cpp
     socket.cpp

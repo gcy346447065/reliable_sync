@@ -26,10 +26,10 @@ int timer_start(int iTimerFd, int iMS)
 
     struct itimerspec iNewTimerSpec;
     memset(&iNewTimerSpec, 0, sizeof(struct itimerspec));
-    iNewTimerSpec.it_interval.tv_sec = iMS/1000;
-    iNewTimerSpec.it_interval.tv_nsec = iMS%1000*1000000;
     iNewTimerSpec.it_value.tv_sec = iMS/1000;
     iNewTimerSpec.it_value.tv_nsec = iMS%1000*1000000;
+    iNewTimerSpec.it_interval.tv_sec = 0;
+    iNewTimerSpec.it_interval.tv_nsec = 0;
 
     if(timerfd_settime(iTimerFd, 0, &iNewTimerSpec, NULL) < 0) //0 for a time relative to the current value of the clock
     {
@@ -41,7 +41,7 @@ int timer_start(int iTimerFd, int iMS)
 }
 
 //必须要read timerFd，否则会连续触发epoll
-int timer_read(int iTimerFd)
+int timer_get(int iTimerFd)
 {
     unsigned long int ulExp;
     int iRet = read(iTimerFd, &ulExp, sizeof(ulExp));

@@ -12,17 +12,19 @@ extern int g_iKeepaliveTimerFd;
 
 static char g_cSeq = 0;
 
-int send2SlaveSync(int iSyncSockFd, const void *pMsg, int iMsgLen)
+int sendToSlaveSync(int iSyncSockFd, const void *pMsg, int iMsgLen)
 {
-    int iRet = 0;
-
-    if(write(iSyncSockFd, pMsg, iMsgLen) < 0) //after connect, write = send
+    int iRet = timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE); //restart keepalive timer
+    if(iRet < 0)
     {
-        log_debug("Send to SLAVE SYNC failed!");
-        iRet = -1;
+        log_error("timer_start error!");
+        return -1;
     }
 
-    timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE); //restart keepalive timer
+    if((iRet = write(iSyncSockFd, pMsg, iMsgLen)) < 0) //after connect, write = send
+    {
+        log_error("Send to SLAVE SYNC error!");
+    }
     return iRet;
 }
 
