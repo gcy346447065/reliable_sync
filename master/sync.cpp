@@ -185,6 +185,28 @@ int master_sync_init(void)
     return 0;
 }
 
+int _epoll_syncSocket(void)
+{
+    log_info("Get g_iSyncSockFd.");
+
+    int iRet = 0;
+    int iBufferSize = 0;
+    char *pcBuffer = (char *)malloc(MAX_BUFFER_SIZE);
+    memset(pcBuffer, 0, MAX_BUFFER_SIZE);
+    if((iBufferSize = recvFromSlaveSync(g_iSyncSockFd, pcBuffer, MAX_BUFFER_SIZE)) > 0)
+    {
+        log_hex(pcBuffer, iBufferSize);
+        iRet = handle_sync_msg(pcBuffer, iBufferSize);
+        if(iRet < 0)
+        {
+            log_error("handle_sync_msg error!");
+        }
+    }
+
+    free(pcBuffer);
+    return 0;
+}
+
 int _epoll_syncEvent(void)
 {
     log_info("Get g_iSyncEventFd.");
@@ -254,28 +276,6 @@ int _epoll_waitedTimer(void)
     return 0;
 }
 
-int _epoll_syncSocket(void)
-{
-    log_info("Get g_iSyncSockFd.");
-
-    int iRet = 0;
-    int iBufferSize = 0;
-    char *pcBuffer = (char *)malloc(MAX_BUFFER_SIZE);
-    memset(pcBuffer, 0, MAX_BUFFER_SIZE);
-    if((iBufferSize = recvFromSlaveSync(g_iSyncSockFd, pcBuffer, MAX_BUFFER_SIZE)) > 0)
-    {
-        log_hex(pcBuffer, iBufferSize);
-        iRet = handle_sync_msg(pcBuffer, iBufferSize);
-        if(iRet < 0)
-        {
-            log_error("handle_sync_msg error!");
-        }
-    }
-
-    free(pcBuffer);
-    return 0;
-}
-
 /*
  * sync模块的起点，由main线程创建
  */
@@ -296,7 +296,16 @@ void *master_sync_thread(void *arg)
         int iEpollNum = epoll_wait(g_iSyncEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
-            if(stEvents[i].data.fd == g_iSyncEventFd && stEvents[i].events & EPOLLIN)
+            if(stEvents[i].data.fd == g_iSyncSockFd && stEvents[i].events & EPOLLIN)
+            {
+                //
+                iRet = _epoll_syncSocket();
+                if(iRet < 0)
+                {
+                    log_warning("_epoll_syncSocket failed!");
+                }
+            }
+            else if(stEvents[i].data.fd == g_iSyncEventFd && stEvents[i].events & EPOLLIN)
             {
                 //控制台有输入，用于测试时触发下配置
                 iRet = _epoll_syncEvent();
@@ -348,15 +357,6 @@ void *master_sync_thread(void *arg)
                 if(iRet < 0)
                 {
                     log_warning("_epoll_waitedTimer failed!");
-                }
-            }
-            else if(stEvents[i].data.fd == g_iSyncSockFd && stEvents[i].events & EPOLLIN)
-            {
-                //
-                iRet = _epoll_syncSocket();
-                if(iRet < 0)
-                {
-                    log_warning("_epoll_syncSocket failed!");
                 }
             }
         }
