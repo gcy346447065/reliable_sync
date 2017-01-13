@@ -22,7 +22,7 @@ typedef struct
     short sSignature;
     char cCmd;
     char cSeq;
-    short sLength;
+    int iLength;
 }__attribute__((__packed__)) MSG_HEADER;
 
 #define MSG_HEADER_LEN sizeof(MSG_HEADER)
@@ -51,7 +51,7 @@ typedef struct
 typedef struct
 {
     MSG_HEADER msgHeader;
-    int iNewCfgID;
+    unsigned int uiInstantID;
     short sChecksum;
     char acData[];
 }__attribute__((__packed__)) MSG_NEWCFG_INSTANT_REQ;
@@ -66,7 +66,7 @@ enum
 typedef struct
 {
     MSG_HEADER msgHeader;
-    int iNewCfgID;
+    unsigned int uiInstantID;
     char cResult;
 }__attribute__((__packed__)) MSG_NEWCFG_INSTANT_RSP;
 
@@ -75,7 +75,7 @@ typedef struct
  */
 typedef struct
 {
-    int iNewCfgID;
+    unsigned int uiWaitedID;
     short sChecksum;
     int iDataLen;
     char acData[];
@@ -84,17 +84,14 @@ typedef struct
 typedef struct
 {
     MSG_HEADER msgHeader;
-    short sAllChecksum;
+    short sChecksum;
     DATA_NEWCFG dataNewcfg[];
 }__attribute__((__packed__)) MSG_NEWCFG_WAITED_REQ;
 
 typedef struct
 {
     MSG_HEADER msgHeader;
-    char cFailedNewcfgNum;
-    int aiFailedNewcfgID[];
-    char cSucceedNewcfgNum;
-    int aiSucceedNewcfgID[];
+    unsigned int auiSucceedID[];
 }__attribute__((__packed__)) MSG_NEWCFG_WAITED_RSP;
 
 /*

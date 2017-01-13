@@ -8,7 +8,8 @@ SET(SRC_LIST
     event.cpp
     socket.cpp
     sync.cpp
-    list.cpp
+    instantList.cpp
+    waitedList.cpp
     checksum.cpp
     send.cpp
     recv.cpp

@@ -12,7 +12,8 @@
 #include "socket.h"
 #include "sync.h"
 #include "tool.h"
-#include "list.h"
+#include "instantList.h"
+#include "waitedList.h"
 
 typedef int (*MAIN_PROC)(const char *pcMsg);
 typedef struct
@@ -21,8 +22,8 @@ typedef struct
     MAIN_PROC pProc;
 }MSG_PROC_MAP;
 
-stList *g_pstInstantList;
-stList *g_pstWaitedList;
+stInstantList *g_pstInstantList = NULL;
+stWaitedList *g_pstWaitedList = NULL;
 
 int g_iMainEpollFd = 0;
 int g_iMainEventFd = 0;
@@ -38,16 +39,16 @@ static int g_iFileNumWaitedEnd = 0;
 int reliable_sync_init(void)
 {
     /* list init */
-    g_pstInstantList = list_init();
+    g_pstInstantList = instantList_create();
     if(g_pstInstantList == NULL)
     {
-        log_error("list_init error!");
+        log_error("instantList_create error!");
         return -1;
     }
-    g_pstWaitedList = list_init();
+    g_pstWaitedList = waitedList_create();
     if(g_pstWaitedList == NULL)
     {
-        log_error("list_init error!");
+        log_error("waitedList_create error!");
         return -1;
     }
 
@@ -117,12 +118,12 @@ int reliable_sync_send(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr,
     {
         case SEND_NEWCFG_INSTANT:
             log_info("SEND_NEWCFG_INSTANT.");
-            list_push(g_pstInstantList, pBuf, iBufLen);//pstInstantList
+            instantList_push(g_pstInstantList, pBuf, iBufLen);//pstInstantList
             break;
 
         case SEND_NEWCFG_WAITED:
             log_info("SEND_NEWCFG_WAITED.");
-            list_push(g_pstWaitedList, pBuf, iBufLen);//pstWaitedList
+            waitedList_push(g_pstWaitedList, pBuf, iBufLen);//pstWaitedList
             break;
 
         default:

@@ -27,55 +27,13 @@ int g_iKeepaliveTimerFd = 0;
 int g_iCheckaliveTimerFd = 0;
 int g_iInstantTimerFd = 0;
 int g_iWaitedTimerFd = 0;
-//int g_iNewCfgID = 0;
 
 extern int g_iMainEventFd;
 extern int g_iSyncEventFd;
 
-extern stList *g_pstInstantList;
-extern stList *g_pstWaitedList;
+extern stInstantList *g_pstInstantList;
+extern stWaitedList *g_pstWaitedList;
 
-int _ListTraverseAndResend(stList *pstList)
-{
-    stNode *pNode = pstList->pFront;
-    pthread_mutex_lock(&pstList->pMutex);
-    while(pNode != NULL)
-    {
-        if(pNode->iSendTimers >= 3)//重发3次仍失败则删去节点
-        {
-            stNode *pNextNode = pNode->pNext;
-            list_deleteByNode(g_pstInstantList, pNode);
-            pNode = pNextNode;
-            continue;
-        }
-
-        if(pNode->iFindTimers >= 3)//查找次数超过3次则重发
-        {
-            log_debug("pNode->iDataID(%d), pNode->iFindTimers(%d).", pNode->iDataID, pNode->iFindTimers);
-            
-            //resend
-            MSG_NEWCFG_INSTANT_REQ *req = alloc_master_newCfgInstantReq(pNode->pData, pNode->iDataLen, pNode->iDataID);
-            if(req == NULL)
-            {
-                log_error("alloc_master_newCfgInstantReq error!");
-                return -1;
-            }
-
-            if(sendToSlaveSync(g_iSyncSockFd, req, sizeof(MSG_NEWCFG_INSTANT_REQ) + pNode->iDataLen) < 0)
-            {
-                log_debug("Send to SLAVE SYNC failed!");
-            }
-
-            pNode->iFindTimers = 0;//查找次数清0
-            pNode->iSendTimers++;//发送次数累加
-        }
-
-        pNode = pNode->pNext;
-    }
-    pthread_mutex_unlock(&pstList->pMutex);
-
-    return 0;
-}
 
 int master_sync_init(void)
 {
@@ -196,6 +154,7 @@ int _epoll_syncSocket(void)
     if((iBufferSize = recvFromSlaveSync(g_iSyncSockFd, pcBuffer, MAX_BUFFER_SIZE)) > 0)
     {
         log_hex(pcBuffer, iBufferSize);
+        
         iRet = handle_sync_msg(pcBuffer, iBufferSize);
         if(iRet < 0)
         {
