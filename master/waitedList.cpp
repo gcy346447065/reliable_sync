@@ -91,6 +91,7 @@ int waitedList_push(stWaitedList *pstWaitedList, void *pData, int iDataLen)
     return 0;
 }
 
+//不带锁，以便waitedList_findAndDelete进行调用
 int __waitedList_delete(stWaitedList *pstWaitedList, stWaitedNode *pNode)
 {
     pstWaitedList->uiListSize--;
@@ -182,9 +183,12 @@ int waitedList_traverseAndPack(stWaitedList *pstWaitedList, MSG_NEWCFG_WAITED_RE
         memcpy(pDataNewcfg->acData, pNode->pData, pNode->iDataLen);
 
         pDataNewcfg = (DATA_NEWCFG *)((char *)pDataNewcfg + pNode->iDataLen + sizeof(DATA_NEWCFG));//偏移指针以填充下一个配置包
+        pNode->cSendTimers++;
         pNode = pNode->pNext;
     }
     pthread_mutex_unlock(&pstWaitedList->pMutex);
+
+    req->sChecksum = htons(checksum((const char *)req->dataNewcfg, pstWaitedList.uiMsgLen - sizeof(MSG_NEWCFG_WAITED_REQ)));
 
     return 0;
 }

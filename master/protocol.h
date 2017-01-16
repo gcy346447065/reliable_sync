@@ -103,12 +103,6 @@ typedef struct
     char cSpecifyID;
 }__attribute__((__packed__)) MSG_KEEP_ALIVE_REQ;
 
-typedef struct
-{
-    MSG_HEADER msgHeader;
-    char cSpecifyID;
-}__attribute__((__packed__)) MSG_KEEP_ALIVE_RSP;
-
 #pragma pack(pop)
 
 #endif //_PROTOCOL_H_

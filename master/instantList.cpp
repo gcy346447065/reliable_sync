@@ -186,17 +186,15 @@ stInstantNode *instantList_find(stInstantList *pstInstantList, unsigned int uiTa
     return pNode;
 }
 
-
 int instantList_traverseAndResend(stInstantList *pstInstanList)
 {
     stInstantNode *pNode = pstInstanList->pFront;
-    pthread_mutex_lock(&pstInstanList->pMutex);
     while(pNode != NULL)
     {
         if(pNode->cSendTimers >= 3)//重发3次仍失败则删去节点
         {
             stInstantNode *pNextNode = pNode->pNext;
-            instantList_delete(pstInstanList, pNode);
+            instantList_delete(pstInstanList, pNode);//此处会加锁修改
             pNode = pNextNode;
             continue;
         }
@@ -228,7 +226,6 @@ int instantList_traverseAndResend(stInstantList *pstInstanList)
 
         pNode = pNode->pNext;
     }
-    pthread_mutex_unlock(&pstInstanList->pMutex);
 
     return 0;
 }

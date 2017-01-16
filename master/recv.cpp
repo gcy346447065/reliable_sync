@@ -58,7 +58,7 @@ static int sync_login(const char *pcMsg)
     }
     if(ntohl(req->msgHeader.iLength) < sizeof(MSG_LOGIN_REQ) - MSG_HEADER_LEN)
     {
-        log_error("login message length not enough!");
+        log_error("msg length not enough!");
         return -1;
     }
 
@@ -86,15 +86,15 @@ static int sync_login(const char *pcMsg)
             g_cSlaveSpecifyID = req->cSpecifyID;
         }
 
-        g_cMasterSyncStatus = STATUS_LOGIN;
-        g_cLoginRspSeq = req->msgHeader.cSeq;
-        
         iRet = timer_start(g_iLoginSynAckTimerFd, LOGIN_TIMER_VALUE); //8s
         if(iRet < 0)
         {
             log_error("sync timer_start error(%d)!", iRet);
             return -1;
         }
+
+        g_cMasterSyncStatus = STATUS_LOGIN;//如果停止定时器失败则不变换状态
+        g_cLoginRspSeq = req->msgHeader.cSeq;
     }
     else if(req->cSynFlag == 0 && req->cAckFlag == 1 && g_cMasterSyncStatus == STATUS_LOGIN)
     {
@@ -124,7 +124,7 @@ static int sync_newCfgInstant(const char *pcMsg)
     }
     if(ntohl(rsp->msgHeader.iLength) < sizeof(MSG_NEWCFG_INSTANT_RSP) - MSG_HEADER_LEN)
     {
-        log_error("login message length not enough!");
+        log_error("msg length not enough!");
         return -1;
     }
 
@@ -139,6 +139,7 @@ static int sync_newCfgInstant(const char *pcMsg)
         log_info("get sync_newCfgInstant rsp succeed.");
 
         //成功，删除该节点
+        log_debug("instantList_delete pstNode->uiInstantID(%d)", pstNode->uiInstantID);
         instantList_delete(g_pstInstantList, pstNode);
     }
     else
@@ -148,6 +149,7 @@ static int sync_newCfgInstant(const char *pcMsg)
         if(pstNode->iSendTimers >= 3)
         {
             //重发3次仍失败，删除该节点
+            log_debug("instantList_delete pstNode->uiInstantID(%d)", pstNode->uiInstantID);
             instantList_delete(g_pstInstantList, pstNode);
         }
         else
@@ -175,16 +177,29 @@ static int sync_newCfgInstant(const char *pcMsg)
 
 static int sync_newCfgWaited(const char *pcMsg)
 {
-    const MSG_NEWCFG_WAITED_REQ *rsp = (const MSG_NEWCFG_WAITED_REQ *)pcMsg;
+    const MSG_NEWCFG_WAITED_RSP *rsp = (const MSG_NEWCFG_WAITED_RSP *)pcMsg;
     if(!rsp)
     {
         log_error("msg handle empty!");
         return -1;
     }
-    if(ntohl(rsp->msgHeader.iLength) < sizeof(MSG_NEWCFG_WAITED_REQ) - MSG_HEADER_LEN)
+    if(ntohl(rsp->msgHeader.iLength) < sizeof(MSG_NEWCFG_WAITED_RSP) - MSG_HEADER_LEN)
     {
-        log_error("login message length not enough!");
+        log_error("msg length not enough!");
         return -1;
+    }
+
+    if(ntohl(rsp->msgHeader.iLength) == 0)//auiSucceedID[]为空
+    {
+        log_info("auiSucceedID empty.");
+        return 0;
+    }
+
+    unsigned int *piSucceedID = rsp->auiSucceedID;
+    for(int i = 0; i < ntohl(rsp->msgHeader.iLength) / sizeof(unsigned int); i++)
+    {
+        waitedList_findAndDelete(g_pstWaitedList, ntohl(*piSucceedID));//成功节点，查找并删除
+        piSucceedID++;
     }
 
     return 0;
@@ -200,7 +215,7 @@ static int sync_keepAlive(const char *pcMsg)
     }
     if(ntohl(req->msgHeader.iLength) < sizeof(MSG_KEEP_ALIVE_REQ) - MSG_HEADER_LEN)
     {
-        log_error("keep alive message length not enough!");
+        log_error("msg length not enough!");
         return -1;
     }
 
@@ -215,18 +230,6 @@ static int sync_keepAlive(const char *pcMsg)
         }
 
         g_cSlaveSpecifyID = req->cSpecifyID;
-    }
-
-    MSG_KEEP_ALIVE_RSP *rsp = (MSG_KEEP_ALIVE_RSP *)alloc_master_rspMsg(CMD_KEEP_ALIVE, req->msgHeader.cSeq);
-    if(rsp == NULL)
-    {
-        log_error("alloc_master_rspMsg MSG_KEEP_ALIVE_RSP error!");
-        return -1;
-    }
-    rsp->cSpecifyID = g_cMasterSpecifyID;
-    if(sendToSlaveSync(g_iSyncSockFd, rsp, sizeof(MSG_KEEP_ALIVE_RSP)) < 0)
-    {
-        log_debug("Send to SLAVE SYNC failed!");
     }
 
     return 0;
