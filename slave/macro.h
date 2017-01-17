@@ -8,8 +8,13 @@ enum
     STATUS_NEWCFG = 2
 };
 
-#define NEW_CFG_STR ":"
-#define NEW_CFG_STR_LEN strlen(NEW_CFG_STR)
+enum SEND_METHOD_TO_SYNC
+{
+    SEND_NEWCFG_WAITED,
+    SEND_NEWCFG_INSTANT
+};
+
+
 
 #define MAX_EPOLL_NUM 1024
 #define NEW_CFG_LEN 100

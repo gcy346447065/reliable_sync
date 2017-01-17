@@ -15,16 +15,6 @@
 #include "instantList.h"
 #include "waitedList.h"
 
-typedef int (*MAIN_PROC)(const char *pcMsg);
-typedef struct
-{
-    char cAction;
-    MAIN_PROC pProc;
-}MSG_PROC_MAP;
-
-stInstantList *g_pstInstantList = NULL;
-stWaitedList *g_pstWaitedList = NULL;
-
 int g_iMainEpollFd = 0;
 int g_iMainEventFd = 0;
 int g_iSyncEventFd = 0;
@@ -39,16 +29,16 @@ static int g_iFileNumWaitedEnd = 0;
 int reliable_sync_init(void)
 {
     /* list init */
-    g_pstInstantList = instantList_create();
-    if(g_pstInstantList == NULL)
+    int iRet = instantList_init();
+    if(iRet < 0)
     {
-        log_error("instantList_create error!");
+        log_error("instantList_init error!");
         return -1;
     }
-    g_pstWaitedList = waitedList_create();
-    if(g_pstWaitedList == NULL)
+    iRet = waitedList_init();
+    if(iRet < 0)
     {
-        log_error("waitedList_create error!");
+        log_error("waitedList_init error!");
         return -1;
     }
 
@@ -75,7 +65,7 @@ int reliable_sync_init(void)
     }
 
     /* add g_iMainEventFd to g_iMainEpollFd */
-    int iRet = tool_add_event_to_epoll(g_iMainEpollFd, g_iMainEventFd);
+    iRet = tool_add_event_to_epoll(g_iMainEpollFd, g_iMainEventFd);
     if(iRet < 0)
     {
         log_error("Epoll(%d) add Event(%d) error(%d)!", g_iMainEpollFd, g_iMainEventFd, iRet);
@@ -92,7 +82,8 @@ int reliable_sync_init(void)
 
     /* sync pthread create */
     pthread_t SyncThreadId;
-    iRet = pthread_create(&SyncThreadId, NULL, master_sync_thread, NULL);
+    struct sync_struct stSyncStruct;
+    iRet = pthread_create(&SyncThreadId, NULL, master_sync_thread, (void *)&stSyncStruct);
     if(iRet < 0)
     {
         log_error("pthread create error(%d)!", iRet);
@@ -117,13 +108,13 @@ int reliable_sync_send(void *pBuf, int iBufLen, int iMaxPkgLen, void *pDestAddr,
     switch(iSendMethod)
     {
         case SEND_NEWCFG_INSTANT:
-            log_info("SEND_NEWCFG_INSTANT.");
-            instantList_push(g_pstInstantList, pBuf, iBufLen);//pstInstantList
+            log_info("instantList_push(%d).", iBufLen);
+            instantList_push(pBuf, iBufLen);
             break;
 
         case SEND_NEWCFG_WAITED:
-            log_info("SEND_NEWCFG_WAITED.");
-            waitedList_push(g_pstWaitedList, pBuf, iBufLen);//pstWaitedList
+            log_info("waitedList_push(%d).", iBufLen);
+            waitedList_push(pBuf, iBufLen);
             break;
 
         default:
@@ -182,7 +173,7 @@ int _epoll_stdin(void)
 
         free(pcFilenameInstant);
     }
-    else if(sscanf(pcStdinBuf, "/file%d:file%d", &g_iFileNumWaitedBegin, &g_iFileNumWaitedEnd) == 2) //"/file8:file10"
+    else if(sscanf(pcStdinBuf, "/file%d:%d", &g_iFileNumWaitedBegin, &g_iFileNumWaitedEnd) == 2) //"/file8:10"
     {
         char *pcFilenameBegin = (char *)malloc(MAX_STDIN_FILE_LEN);
         char *pcFilenameEnd = (char *)malloc(MAX_STDIN_FILE_LEN);
@@ -217,6 +208,38 @@ int _epoll_stdin(void)
         free(pcFilenameBegin);
         free(pcFilenameEnd);
     }
+    else if(sscanf(pcStdinBuf, "/file%d", &g_iFileNumWaitedBegin) == 1) //"/file8:10"
+    {
+        g_iFileNumWaitedEnd = g_iFileNumWaitedBegin;
+        char *pcFilenameBegin = (char *)malloc(MAX_STDIN_FILE_LEN);
+        memset(pcFilenameBegin, 0, MAX_STDIN_FILE_LEN);
+        sprintf(pcFilenameBegin, "file%d", g_iFileNumWaitedBegin);
+        if(open(pcFilenameBegin, O_RDONLY) > 0)
+        {
+            log_info("open WAITED files ok.");
+
+            iRet = write(STDIN_FILENO, "Send WAITED to slave.\r\n", strlen("Send WAITED to slave.\r\n"));
+            if(iRet < 0)
+            {
+                log_error("write STDIN_FILENO error(%s)!", strerror(errno));
+                return -1;
+            }
+
+            //触发waited键入事件(向sync模块发送多个文件)
+            iRet = event_setEventFlags(g_iMainEventFd, MASTER_MAIN_EVENT_KEYIN_WAITED);
+            if(iRet != 0)
+            {
+                log_error("set event flag MASTER_MAIN_EVENT_KEYIN_WAITED failed!");
+                return -1;
+            }
+        }
+        else
+        {
+            log_info("open new config file error(%s)!", strerror(errno));
+        }
+
+        free(pcFilenameBegin);
+    }
     else
     {
         log_info("Unknown command!");
@@ -231,8 +254,8 @@ int _epoll_mainEvent(void)
     log_info("Get iMainEventFd.");
 
     //获取事件标志，共有64种事件，可同时触发多个
-    unsigned long ulEventsFlag;
-    int iRet = event_getEventFlags(g_iMainEventFd, &ulEventsFlag);
+    uint64_t uiEventsFlag;
+    int iRet = event_getEventFlags(g_iMainEventFd, &uiEventsFlag);
     if(iRet < 0)
     {
         log_error("event_getEventFlags error(%d)!", iRet);
@@ -240,7 +263,7 @@ int _epoll_mainEvent(void)
     }
 
     //触发instant键入事件，向sync模块发送配置消息
-    if(ulEventsFlag & MASTER_MAIN_EVENT_KEYIN_INSTANT)
+    if(uiEventsFlag & MASTER_MAIN_EVENT_KEYIN_INSTANT)
     {
         log_info("Get MASTER_MAIN_EVENT_KEYIN_INSTANT.");
 
@@ -251,9 +274,9 @@ int _epoll_mainEvent(void)
         int iFileInstantFd;
         if((iFileInstantFd = open(pcFilenameInstant, O_RDONLY)) > 0)
         {
-            char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
-            memset(pcNewCfgBuf, 0, MAX_PKG_LEN);
-            iRet = read(iFileInstantFd, pcNewCfgBuf, MAX_PKG_LEN);
+            char *pcInstantBuf = (char *)malloc(MAX_PKG_LEN);
+            memset(pcInstantBuf, 0, MAX_PKG_LEN);
+            iRet = read(iFileInstantFd, pcInstantBuf, MAX_PKG_LEN);
             if(iRet < 0)
             {
                 log_error("read iFileInstantFd error(%d)!", iRet);
@@ -262,7 +285,7 @@ int _epoll_mainEvent(void)
             int iBufLen = iRet;
 
             //向sync模块发送instant配置消息
-            iRet = reliable_sync_send(pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
+            iRet = reliable_sync_send(pcInstantBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_INSTANT);
             if(iRet < 0)
             {
                 log_info("reliable_sync_send failed(%d)!", iRet);
@@ -276,18 +299,18 @@ int _epoll_mainEvent(void)
                 return -1;
             }
 
-            free(pcNewCfgBuf);
+            free(pcInstantBuf);
         }
 
         free(pcFilenameInstant);
     }
 
     //触发waited键入事件，循环向sync模块发送配置消息
-    if(ulEventsFlag & MASTER_MAIN_EVENT_KEYIN_WAITED) //when find specifyID different, get slave restart event
+    if(uiEventsFlag & MASTER_MAIN_EVENT_KEYIN_WAITED) //when find specifyID different, get slave restart event
     {
         log_info("Get MASTER_MAIN_EVENT_KEYIN_WAITED.");
 
-        char *pcNewCfgBuf = (char *)malloc(MAX_PKG_LEN);
+        char *pcWaitedBuf = (char *)malloc(MAX_PKG_LEN);
         char *pcFilenameWaited = (char *)malloc(MAX_STDIN_FILE_LEN);
 
         for(int i = g_iFileNumWaitedBegin; i <= g_iFileNumWaitedEnd; i++)
@@ -297,8 +320,8 @@ int _epoll_mainEvent(void)
             int iFileWaitedFd;
             if((iFileWaitedFd = open(pcFilenameWaited, O_RDONLY)) > 0)
             {
-                memset(pcNewCfgBuf, 0, MAX_PKG_LEN);
-                iRet = read(iFileWaitedFd, pcNewCfgBuf, MAX_PKG_LEN);
+                memset(pcWaitedBuf, 0, MAX_PKG_LEN);
+                iRet = read(iFileWaitedFd, pcWaitedBuf, MAX_PKG_LEN);
                 if(iRet < 0)
                 {
                     log_error("read iFileWaitedFd error(%d)!", iRet);
@@ -307,7 +330,7 @@ int _epoll_mainEvent(void)
                 int iBufLen = iRet;
 
                 //向sync模块循环发送waited配置消息
-                iRet = reliable_sync_send(pcNewCfgBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
+                iRet = reliable_sync_send(pcWaitedBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
                 if(iRet < 0)
                 {
                     log_info("reliable_sync_send failed(%d)!", iRet);
@@ -315,7 +338,7 @@ int _epoll_mainEvent(void)
             }
         }
 
-        free(pcNewCfgBuf);
+        free(pcWaitedBuf);
         free(pcFilenameWaited);
 
         //触发sync模块的waited事件
@@ -328,17 +351,17 @@ int _epoll_mainEvent(void)
     }
 
     //通过sync模块的keep_alive机制检测到slave有重启，清除链表中残余配置并重新开始批量备份
-    if(ulEventsFlag & MASTER_MAIN_EVENT_SLAVE_RESTART)
+    if(uiEventsFlag & MASTER_MAIN_EVENT_SLAVE_RESTART)
     {
-        log_info("Get MASTER_EVENT_SLAVE_RESTART, batch backup.");
+        log_info("Get MASTER_MAIN_EVENT_SLAVE_RESTART, batch backup.");
 
         //TO DO: clean the List and batch backup
     }
 
     //sync模块超时未收到slave的消息，作重启操作？
-    if(ulEventsFlag & MASTER_MAIN_EVENT_CHECKALIVE_TIMER)
+    if(uiEventsFlag & MASTER_MAIN_EVENT_CHECKALIVE_TIMER)
     {
-        log_info("Get MASTER_EVENT_CHECKALIVE_TIMER, restart.");
+        log_info("Get MASTER_MAIN_EVENT_CHECKALIVE_TIMER, restart.");
 
         /* restart */
     }
@@ -351,7 +374,8 @@ int _epoll_mainEvent(void)
  */
 int main(int argc, char *argv[])
 {
-    log_init();//现用的是syslog输出到local1.log文件中，如有其他打印log方式可代之
+    //现用的是syslog输出到/var/log/local1.log文件中，如有其他打印log方式可代之
+    log_init();
 
     log_info("MAIN Task Beginning.");
 

@@ -21,16 +21,12 @@ extern int g_iLoginSynAckTimerFd;
 extern int g_iCheckaliveTimerFd;
 extern int g_iMainEventFd;
 
-extern stInstantList *g_pstInstantList;
-extern stWaitedList *g_pstWaitedList;
-
 typedef int (*MSG_PROC)(const char *pcMsg);
 typedef struct
 {
     char cCmd;
     MSG_PROC pfn;
 } MSG_PROC_MAP;
-
 
 int recvFromSlaveSync(int iSyncSockFd, void *pMsg, int iMaxMsgLen)
 {
@@ -128,7 +124,7 @@ static int sync_newCfgInstant(const char *pcMsg)
         return -1;
     }
 
-    stInstantNode *pstNode = instantList_find(g_pstInstantList, ntohl(rsp->iInstantID));
+    stInstantNode *pstNode = instantList_find(ntohl(rsp->uiInstantID));
     if(pstNode == NULL)
     {
         return -1;
@@ -140,17 +136,17 @@ static int sync_newCfgInstant(const char *pcMsg)
 
         //成功，删除该节点
         log_debug("instantList_delete pstNode->uiInstantID(%d)", pstNode->uiInstantID);
-        instantList_delete(g_pstInstantList, pstNode);
+        instantList_delete(pstNode);
     }
     else
     {
-        log_info("get sync_newCfgInstant(newCfgID:%d) rsp failed(result:%d).", ntohl(rsp->iInstantID), rsp->cResult);
+        log_info("get sync_newCfgInstant(newCfgID:%d) rsp failed(result:%d).", ntohl(rsp->uiInstantID), rsp->cResult);
 
-        if(pstNode->iSendTimers >= 3)
+        if(pstNode->cSendTimers >= 3)
         {
             //重发3次仍失败，删除该节点
             log_debug("instantList_delete pstNode->uiInstantID(%d)", pstNode->uiInstantID);
-            instantList_delete(g_pstInstantList, pstNode);
+            instantList_delete(pstNode);
         }
         else
         {
@@ -167,8 +163,8 @@ static int sync_newCfgInstant(const char *pcMsg)
                 log_debug("Send to SLAVE SYNC failed!");
             }
 
-            pstNode->iFindTimers = 0;//查找次数清0
-            pstNode->iSendTimers++;//发送次数累加
+            pstNode->cFindTimers = 0;//查找次数清0
+            pstNode->cSendTimers++;//发送次数累加
         }
     }
 
@@ -195,10 +191,10 @@ static int sync_newCfgWaited(const char *pcMsg)
         return 0;
     }
 
-    unsigned int *piSucceedID = rsp->auiSucceedID;
+    unsigned int *piSucceedID = (unsigned int *)(rsp->auiSucceedID);
     for(int i = 0; i < ntohl(rsp->msgHeader.iLength) / sizeof(unsigned int); i++)
     {
-        waitedList_findAndDelete(g_pstWaitedList, ntohl(*piSucceedID));//成功节点，查找并删除
+        waitedList_findAndDelete(ntohl(*piSucceedID));//成功节点，查找并删除
         piSucceedID++;
     }
 
@@ -290,13 +286,6 @@ int handle_sync_msg(const char *pcMsg, int iMsgLen)
         {
             log_error("signature error(%x)!", (unsigned)ntohs(pcMsgHeader->sSignature));
             return -1;
-        }
-
-        short sChecksum = checksum((const char *)pcMsgHeader, MSG_HEADER_LEN + ntohl(pcMsgHeader->iLength))
-        if(sChecksum != ntohs(pcMsgHeader->sChecksum))
-        {
-            log_error("checksum error(msg:%x, calc:%x)!", ntohs(pcMsgHeader->sChecksum), sChecksum);
-            continue;
         }
 
         handle_one_msg((const char *)pcMsgHeader);//如果多个数据包中有一个数据包未找到相应的解析函数时，暂未记录此异常情况

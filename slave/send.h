@@ -3,9 +3,10 @@
 
 #include "protocol.h"
 
-int send2MasterSync(int iSyncSockFd, const void *pMsg, int iMsgLen);
+int sendToMasterSync(int iSyncSockFd, const void *pMsg, int iMsgLen);
 
-MSG_HEADER *alloc_slave_reqMsg(char cCmd, int iLength);
+MSG_HEADER *alloc_slave_reqMsg(char cCmd);
 MSG_HEADER *alloc_slave_rspMsg(char cCmd, char cSeq);
+MSG_NEWCFG_WAITED_RSP *alloc_slave_newCfgWaitedRsp(char cSeq, unsigned int uiMsgLen);
 
 #endif //_SEND_H_

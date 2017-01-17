@@ -20,9 +20,13 @@
 
     #define log_hex(buf, buflen) \
                 do { \
+                    if(buflen == 0) \
+                    { \
+                        break; \
+                    } \
                     syslog(LOG_DEBUG, "    01 02 03 04 05 06 07 08 09 10"); \
                     int line = 0; \
-                    while(line < (buflen-1)/10) \
+                    while(line < buflen / 10) \
                     { \
                         syslog(LOG_DEBUG, "%02d: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", \
                             (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff, \

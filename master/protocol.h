@@ -85,6 +85,7 @@ typedef struct
 {
     MSG_HEADER msgHeader;
     short sChecksum;
+    unsigned int uiDataSum;
     DATA_NEWCFG dataNewcfg[];
 }__attribute__((__packed__)) MSG_NEWCFG_WAITED_REQ;
 

@@ -1,8 +1,6 @@
 #include <netinet/in.h> //for sockaddr_in
-#include <arpa/inet.h> //for inet_addr
 #include <sys/epoll.h> //for epoll
 #include <string.h> //for memset strstr
-#include <errno.h> //for errno
 #include <unistd.h> //for read
 #include <stdlib.h> //for malloc rand
 #include <time.h> //for time
@@ -16,313 +14,313 @@
 #include "send.h"
 #include "recv.h"
 #include "protocol.h"
+#include "tool.h"
+#include "instantList.h"
+#include "waitedList.h"
 
 char g_cSlaveSyncStatus = STATUS_INIT;
 char g_cMasterSpecifyID = 0;
 char g_cSlaveSpecifyID = 0;
 
-int g_iKeepaliveTimerFd = 0;
-int g_iLoginTimerFd = 0;
+int g_iSyncEpollFd = 0;
 int g_iSyncSockFd = 0;
-int g_iMainEventFd = 0;
+int g_iLoginSynTimerFd = 0;
+int g_iKeepaliveTimerFd = 0;
+int g_iCheckaliveTimerFd = 0;
 
-int _add_to_epoll(struct epoll_event stEvent, int iSyncEpollFd, int iAddFd)
+extern int g_iMainEventFd;
+extern int g_iSyncEventFd;
+
+stInstantList *g_pstInstantList;
+stWaitedList *g_pstWaitedList;
+
+int master_sync_init(void)
 {
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iAddFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    return epoll_ctl(iSyncEpollFd, EPOLL_CTL_ADD, iAddFd, &stEvent);
-}
-
-void *slave_sync(void *arg)
-{
-    log_info("SYNC task Beginning.");
-
-    /*
-     parse sync struct from main thread
-     */
-    struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
-    g_iMainEventFd = pstSyncStruct->iMainEventFd;
-    int iSyncEventFd = pstSyncStruct->iSyncEventFd;
-    log_debug("g_iMainEventFd(%d), iSyncEventFd(%d)", g_iMainEventFd, iSyncEventFd);
-
-    /*
-     epoll create 
-     */
-    int iSyncEpollFd = epoll_create(MAX_EPOLL_NUM);
-    if(iSyncEpollFd < 0)
+    g_iSyncEpollFd = epoll_create(MAX_EPOLL_NUM);
+    if(g_iSyncEpollFd < 0)
     {
-        log_error("epoll create error(%d)!", iSyncEpollFd);
-        return (void *)-1;
+        log_error("epoll create error(%d)!", g_iSyncEpollFd);
+        return -1;
     }
-    struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
 
-    /* 
-     add sync eventfd to epoll 
-     */
-    int iRet = _add_to_epoll(stEvent, iSyncEpollFd, iSyncEventFd);
+    //将g_iSyncEventFd添加到epoll中，由于main线程会向sync发送事件，所以需要由main创建
+    int iRet = tool_add_event_to_epoll(g_iSyncEpollFd, g_iSyncEventFd);
     if(iRet < 0)
     {
-        log_error("epoll add iSyncEventFd error(%d)!", iRet);
-        return (void *)-1;
+        log_error("Epoll(%d) add Event(%d) error(%d)!", g_iSyncEpollFd, g_iSyncEventFd, iRet);
+        return -1;
     }
 
-    /*
-     set g_iSyncSockFd bind and connect, add iSyncToSyncSockFd to epoll 
-     */
-    g_iSyncSockFd = socket_init();
+    //将g_iSyncSockFd添加到epoll中
+    g_iSyncSockFd = socket_init();//creat, bind, connect
     if(g_iSyncSockFd < 0)
     {
         log_error("socket init error(%d)!", g_iSyncSockFd);
-        return (void *)-1;
+        return -1;
     }
-
-    struct sockaddr_in stSlaveSync2SyncAddr;
-    memset(&stSlaveSync2SyncAddr, 0, sizeof(stSlaveSync2SyncAddr)); 
-    stSlaveSync2SyncAddr.sin_family = AF_INET;
-    stSlaveSync2SyncAddr.sin_addr.s_addr = inet_addr(SLAVE_IP); 
-    stSlaveSync2SyncAddr.sin_port = htons(SLAVE_SYNC_TO_SYNC_PORT);
-    if(bind(g_iSyncSockFd, (struct sockaddr *)&stSlaveSync2SyncAddr, sizeof(stSlaveSync2SyncAddr)) < 0)
-    {
-        log_error("socket bind error(%d)!", errno);
-        return (void *)-1;
-    }
-
-    struct sockaddr_in stMasterSync2SyncAddr;
-    memset(&stMasterSync2SyncAddr, 0, sizeof(stMasterSync2SyncAddr)); 
-    stMasterSync2SyncAddr.sin_family = AF_INET;
-    stMasterSync2SyncAddr.sin_addr.s_addr = inet_addr(MASTER_IP); 
-    stMasterSync2SyncAddr.sin_port = htons(MASTER_SYNC_TO_SYNC_PORT);
-    if(connect(g_iSyncSockFd, (struct sockaddr *)&stMasterSync2SyncAddr, sizeof(stMasterSync2SyncAddr)) < 0)
-    {
-        log_error("socket connect error(%d)!", errno);
-        return (void *)-1;
-    }
-
-    iRet = _add_to_epoll(stEvent, iSyncEpollFd, g_iSyncSockFd);
+    iRet = tool_add_event_to_epoll(g_iSyncEpollFd, g_iSyncSockFd);
     if(iRet < 0)
     {
-        log_error("epoll add g_iSyncSockFd error(%d)!", iRet);
-        return (void *)-1;
+        log_error("g_iSyncEpollFd add g_iSyncSockFd error(%d)!", iRet);
+        return -1;
     }
 
-    /*
-     add slave sync login timerfd to epoll 
-     */
-    g_iLoginTimerFd = timer_create();
-    if(g_iLoginTimerFd < 0)
+    //收到master发来的syn登录包后开启此定时器，用于循环发送SynAck登录包
+    g_iLoginSynTimerFd = timer_create();
+    if(g_iLoginSynTimerFd < 0)
     {
-        log_error("login timer create error(%d)!", g_iLoginTimerFd);
-        return (void *)-1;
+        log_error("sync timer create error(%d)!", g_iLoginSynTimerFd);
+        return -1;
     }
-
-    iRet = _add_to_epoll(stEvent, iSyncEpollFd, g_iLoginTimerFd);
+    iRet = tool_add_event_to_epoll(g_iSyncEpollFd, g_iLoginSynTimerFd);
     if(iRet < 0)
     {
-        log_error("epoll add g_iLoginTimerFd error(%d)!", iRet);
-        return (void *)-1;
+        log_error("epoll add g_iLoginSynTimerFd error(%d)!", iRet);
+        return -1;
     }
     srand((int)time(0));
-    g_cSlaveSpecifyID = (char)(rand() % 0x100);
+    g_cSlaveSpecifyID = (char)(rand() % 0x100);//生成设备识别ID
 
-    iRet = timer_start(g_iLoginTimerFd, LOGIN_TIMER_VALUE); //10s
+    iRet = timer_start(g_iLoginSynTimerFd, LOGIN_TIMER_VALUE); //10s
     if(iRet < 0)
     {
         log_error("sync timer start error(%d)!", iRet);
-        return (void *)-1;
+        return -1;
     }
     g_cSlaveSyncStatus = STATUS_LOGIN;//change status into STATUS_LOGIN
+    log_debug("timer_start g_iLoginSynTimerFd ok.");
 
-    /*
-     add g_iKeepaliveTimerFd timerfd to epoll
-     */
+    //发送一次消息则重启此定时器，用于一段时间无消息发送时做连接保活
     g_iKeepaliveTimerFd = timer_create();
     if(g_iKeepaliveTimerFd < 0)
     {
         log_error("sync timer create error(%d)!", g_iKeepaliveTimerFd);
-        return (void *)-1;
+        return -1;
     }
-
-    iRet = timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE);
-    if(iRet < 0)
-    {
-        log_error("sync timer start error(%d)!", iRet);
-        return (void *)-1;
-    }
-
-    iRet = _add_to_epoll(stEvent, iSyncEpollFd, g_iKeepaliveTimerFd);
+    iRet = tool_add_event_to_epoll(g_iSyncEpollFd, g_iKeepaliveTimerFd);
     if(iRet < 0)
     {
         log_error("epoll add g_iKeepaliveTimerFd error(%d)!", iRet);
-        return (void *)-1;
+        return -1;
     }
 
-    /*
-     add iCheckaliveTimerFd timerfd to epoll 
-     */
-    int iCheckaliveTimerFd = timer_create();
-    if(iCheckaliveTimerFd < 0)
+    //接收一次消息则重启此定时器，用于一段时间未收到消息说明对端故障
+    g_iCheckaliveTimerFd = timer_create();
+    if(g_iCheckaliveTimerFd < 0)
     {
-        log_error("sync timer create error(%d)!", iCheckaliveTimerFd);
-        return (void *)-1;
+        log_error("sync timer create error(%d)!", g_iCheckaliveTimerFd);
+        return -1;
     }
-
-    iRet = timer_start(iCheckaliveTimerFd, CHECKALIVE_TIMER_VALUE);
+    iRet = tool_add_event_to_epoll(g_iSyncEpollFd, g_iCheckaliveTimerFd);
     if(iRet < 0)
     {
-        log_error("sync timer start error(%d)!", iRet);
-        return (void *)-1;
+        log_error("epoll add g_iCheckaliveTimerFd error(%d)!", iRet);
+        return -1;
     }
 
-    iRet = _add_to_epoll(stEvent, iSyncEpollFd, iCheckaliveTimerFd);
+    return 0;
+}
+
+int _epoll_syncSocket(void)
+{
+    log_info("Get g_iSyncSockFd.");
+
+    int iRet = 0;
+    int iBufferSize = 0;
+    char *pcBuffer = (char *)malloc(MAX_BUFFER_SIZE);
+    memset(pcBuffer, 0, MAX_BUFFER_SIZE);
+    if((iBufferSize = recvFromMasterSync(g_iSyncSockFd, pcBuffer, MAX_BUFFER_SIZE)) > 0)
+    {
+        log_hex(pcBuffer, iBufferSize);
+        
+        iRet = handle_sync_msg(pcBuffer, iBufferSize);
+        if(iRet < 0)
+        {
+            log_error("handle_sync_msg error!");
+        }
+    }
+
+    free(pcBuffer);
+    return 0;
+}
+
+int _epoll_syncEvent(void)
+{
+    log_info("Get g_iSyncEventFd.");
+
+    //获取事件标志，共有64种事件，可同时触发多个
+    uint64_t uiEventsFlag;
+    int iRet = event_getEventFlags(g_iSyncEventFd, &uiEventsFlag);
     if(iRet < 0)
     {
-        log_error("epoll add iCheckaliveTimerFd error(%d)!", iRet);
+        log_error("event_getEventFlags error(%d)!", iRet);
+        return -1;
+    }
+
+    if(uiEventsFlag & SLAVE_SYNC_EVENT_NULL)
+    {
+        //
+    }
+
+    return 0;
+}
+
+int _epoll_loginSynTimer(void)
+{
+    log_info("Get g_iLoginSynTimerFd.");
+
+    if(g_cSlaveSyncStatus == STATUS_LOGIN)
+    {
+        //send login msg
+        MSG_LOGIN_REQ *req = (MSG_LOGIN_REQ *)alloc_slave_reqMsg(CMD_LOGIN);
+        if(req == NULL)
+        {
+            log_error("alloc_slave_reqMsg error!");
+            return -1;
+        }
+        req->cSynFlag = 1;//the first one in three-way handshake
+        req->cAckFlag = 0;
+        req->cSpecifyID = g_cSlaveSpecifyID;
+        if(sendToMasterSync(g_iSyncSockFd, req, sizeof(MSG_LOGIN_REQ)) < 0)
+        {
+            log_debug("Send to MASTER SYNC failed!");
+        }
+    }
+
+    int iRet = timer_start(g_iLoginSynTimerFd, LOGIN_TIMER_VALUE); //10s
+    if(iRet < 0)
+    {
+        log_error("login timer_start error(%d)!", iRet);
+        return -1;
+    }
+
+    return 0;
+}
+
+int _epoll_keepaliveTimer(void)
+{
+    log_info("Get g_iKeepaliveTimerFd.");
+
+    if(g_cSlaveSyncStatus == STATUS_NEWCFG)
+    {
+        //no msg sent for a while, send keep alive msg
+        MSG_KEEP_ALIVE_REQ *req = (MSG_KEEP_ALIVE_REQ *)alloc_slave_reqMsg(CMD_KEEP_ALIVE);
+        if(req == NULL)
+        {
+            log_error("alloc_master_reqMsg error!");
+            return -1;
+        }
+        req->cSpecifyID = g_cSlaveSpecifyID;
+
+        if(sendToMasterSync(g_iSyncSockFd, req, sizeof(MSG_KEEP_ALIVE_REQ)) < 0)
+        {
+            log_debug("Send keepalive req to SLAVE SYNC failed!");
+        }
+    }
+
+    int iRet = timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE); //3min
+    if(iRet < 0)
+    {
+        log_error("keep alive timer_start error(%d)!", iRet);
+        return -1;
+    }
+
+    return 0;
+}
+
+int _epoll_checkaliveTimer(void)
+{
+    log_info("Get g_iCheckaliveTimerFd.");
+
+    int iRet = 0;
+    if(g_cSlaveSyncStatus == STATUS_NEWCFG)
+    {
+        //no msg recived for a while, send event to main to restart
+        iRet = event_setEventFlags(g_iMainEventFd, SLAVE_MAIN_EVENT_CHECKALIVE_TIMER);
+        if(iRet < 0)
+        {
+            log_error("set g_iMainEventFd SLAVE_MAIN_EVENT_CHECKALIVE_TIMER error(%d)!", iRet);
+            return -1;
+        }
+    }
+
+    iRet = timer_start(g_iCheckaliveTimerFd, CHECKALIVE_TIMER_VALUE);
+    if(iRet < 0)
+    {
+        log_error("check alive timer_start error(%d)!", iRet);
+        return -1;
+    }
+
+    return 0;
+}
+
+void *slave_sync_thread(void *arg)
+{
+    log_info("SYNC Task Beginning.");
+
+    struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
+    g_pstInstantList = pstSyncStruct->pstInstantList;
+    g_pstWaitedList = pstSyncStruct->pstWaitedList;
+
+    int iRet = master_sync_init();
+    if(iRet < 0)
+    {
+        log_error("master_sync_init error!");
         return (void *)-1;
     }
 
-    /* memset buffer and struct */
-    int iBufferSize;
-    char acBuffer[MAX_BUFFER_SIZE];
-    memset(acBuffer, 0, MAX_BUFFER_SIZE);
-
+    struct epoll_event stEvents[MAX_EPOLL_NUM];
     while(1)
     {
         /* epoll wail */
-        int iEpollNum = epoll_wait(iSyncEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
+        int iEpollNum = epoll_wait(g_iSyncEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
-            if(stEvents[i].data.fd == g_iLoginTimerFd && stEvents[i].events & EPOLLIN)
+            if(stEvents[i].data.fd == g_iSyncSockFd && stEvents[i].events & EPOLLIN)
             {
-                log_debug("epoll event g_iLoginTimerFd.");
-                if(g_cSlaveSyncStatus == STATUS_LOGIN)
-                {
-                    //send login msg
-                    MSG_LOGIN_REQ *pLoginReq = (MSG_LOGIN_REQ *)alloc_slave_reqMsg(CMD_LOGIN, sizeof(MSG_LOGIN_REQ));
-                    if(pLoginReq == NULL)
-                    {
-                        log_error("alloc_slave_reqMsg MSG_LOGIN_REQ error!");
-                        return (void *)-1;
-                    }
-                    pLoginReq->cSynFlag = 1;//the first one in three-way handshake
-                    pLoginReq->cAckFlag = 0;
-                    pLoginReq->cSpecifyID = g_cSlaveSpecifyID;
-                    if(send2MasterSync(g_iSyncSockFd, pLoginReq, sizeof(MSG_LOGIN_REQ)) < 0)
-                    {
-                        log_debug("Send to SLAVE SYNC failed!");
-                    }
-                }
-
-                iRet = timer_get(g_iLoginTimerFd); //10s
+                //
+                iRet = _epoll_syncSocket();
                 if(iRet < 0)
                 {
-                    log_error("login timer_get error(%d)!", iRet);
-                    return (void *)-1;
+                    log_warning("_epoll_syncSocket failed!");
                 }
-            }//if g_iLoginTimerFd
-            else if(stEvents[i].data.fd == iSyncEventFd && stEvents[i].events & EPOLLIN)
+            }
+            else if(stEvents[i].data.fd == g_iSyncEventFd && stEvents[i].events & EPOLLIN)
             {
-                log_info("Get eventfd.");
-
-                /* get events from iSyncEventFd */
-                uint64_t uiEventsFlag;
-                iRet = event_getEventFlags(iSyncEventFd, &uiEventsFlag);
+                //控制台有输入，用于测试时触发下配置
+                iRet = _epoll_syncEvent();
                 if(iRet < 0)
                 {
-                    log_error("event_getEventFlags error(%d)!", iRet);
-                    return (void *)-1;
+                    log_warning("_epoll_syncEvent failed!");
                 }
-
-                if(uiEventsFlag & SLAVE_EVENT_QUEUE_PUSH) //set the flag when sync thread find no keep alive ack
+            }
+            else if(stEvents[i].data.fd == g_iLoginSynTimerFd && stEvents[i].events & EPOLLIN)
+            {
+                //
+                iRet = _epoll_loginSynTimer();
+                if(iRet < 0)
                 {
-                    log_info("Get SLAVE_EVENT_QUEUE_PUSH.");
+                    log_warning("_epoll_loginSynTimer failed!");
                 }
-
-            }//if iSyncEventFd
+            }
             else if(stEvents[i].data.fd == g_iKeepaliveTimerFd && stEvents[i].events & EPOLLIN)
             {
-                log_debug("epoll event g_iKeepaliveTimerFd.");
-
-                if(g_cSlaveSyncStatus == STATUS_NEWCFG)
-                {
-                    //no msg sent for a while, send keep alive msg
-                    MSG_KEEP_ALIVE_REQ *req = (MSG_KEEP_ALIVE_REQ *)alloc_slave_reqMsg(CMD_KEEP_ALIVE, sizeof(MSG_KEEP_ALIVE_REQ));
-                    if(req == NULL)
-                    {
-                        log_error("alloc_slave_reqMsg MSG_KEEP_ALIVE_REQ error!");
-                        return (void *)-1;
-                    }
-                    req->cSpecifyID = g_cSlaveSpecifyID;
-
-                    if(send2MasterSync(g_iSyncSockFd, req, sizeof(MSG_KEEP_ALIVE_REQ)) < 0)
-                    {
-                        log_debug("Send keepalive req to MASTER SYNC failed! To send again!");
-                    }
-                }
-
-                iRet = timer_get(g_iKeepaliveTimerFd); //3min
+                //
+                iRet = _epoll_keepaliveTimer();
                 if(iRet < 0)
                 {
-                    log_error("keep alive timer_get error(%d)!", iRet);
-                    return (void *)-1;
+                    log_warning("_epoll_keepaliveTimer failed!");
                 }
-
-            }//else if g_iKeepaliveTimerFd
-            else if(stEvents[i].data.fd == iCheckaliveTimerFd && stEvents[i].events & EPOLLIN)
+            }
+            else if(stEvents[i].data.fd == g_iCheckaliveTimerFd && stEvents[i].events & EPOLLIN)
             {
-                log_debug("epoll event iCheckaliveTimerFd.");
-
-                if(g_cSlaveSyncStatus == STATUS_NEWCFG)
-                {
-                    //no msg recived for a while, relogin
-                    srand((int)time(0));
-                    g_cSlaveSpecifyID = (char)(rand() % 0x100);
-                    g_cSlaveSyncStatus = STATUS_LOGIN;//change status into STATUS_LOGIN
-                    iRet = timer_start(g_iLoginTimerFd, 1); //right now
-                    if(iRet < 0)
-                    {
-                        log_error("sync timer start error(%d)!", iRet);
-                        return (void *)-1;
-                    }
-
-                    //send event to main to restart
-                    iRet = event_setEventFlags(g_iMainEventFd, SLAVE_EVENT_CHECKALIVE_TIMER);
-                    if(iRet < 0)
-                    {
-                        log_error("set g_iMainEventFd MASTER_EVENT_CHECKALIVE_TIMER error(%d)!", iRet);
-                        return (void *)-1;
-                    }
-                }
-
-                iRet = timer_get(iCheckaliveTimerFd);
+                //
+                iRet = _epoll_checkaliveTimer();
                 if(iRet < 0)
                 {
-                    log_error("check alive timer_get error(%d)!", iRet);
-                    return (void *)-1;
+                    log_warning("_epoll_checkaliveTimer failed!");
                 }
-
-            }//else if iCheckaliveTimerFd
-            else if(stEvents[i].data.fd == g_iSyncSockFd && stEvents[i].events & EPOLLIN)
-            {
-                log_debug("epoll event g_iSyncSockFd.");
-
-                /* wait for socket msg */
-                memset(acBuffer, 0, MAX_BUFFER_SIZE);
-                if((iBufferSize = read(g_iSyncSockFd, acBuffer, MAX_BUFFER_SIZE)) > 0) //after connect, read = recv
-                {
-                    log_hex(acBuffer, iBufferSize);
-                    handle_sync_msg(acBuffer, iBufferSize);
-
-                    //restart check alive timer
-                    iRet = timer_start(iCheckaliveTimerFd, CHECKALIVE_TIMER_VALUE);
-                    if(iRet < 0)
-                    {
-                        log_error("sync timer start error(%d)!", iRet);
-                        return (void *)-1;
-                    }
-                }
-
-            }//else if g_iSyncSockFd
+            }
         }//for
     }//while
 

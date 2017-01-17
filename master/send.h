@@ -9,6 +9,6 @@ MSG_HEADER *alloc_master_rspMsg(char cCmd, char cSeq);
 MSG_HEADER *alloc_master_reqMsg(char cCmd);
 
 MSG_NEWCFG_INSTANT_REQ *alloc_master_newCfgInstantReq(void *pData, int iDataLen, unsigned int uiInstantID);
-MSG_NEWCFG_WAITED_REQ *alloc_master_newCfgWaitedReq(int iMsgLen);
+MSG_NEWCFG_WAITED_REQ *alloc_master_newCfgWaitedReq(unsigned int uiMsgLen);
 
 #endif //_SEND_H_

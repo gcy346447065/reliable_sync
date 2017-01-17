@@ -40,17 +40,19 @@ int timer_start(int iTimerFd, int iMS)
     return 0;
 }
 
-//必须要read timerFd，否则会连续触发epoll
 int timer_get(int iTimerFd)
 {
-    unsigned long int ulExp;
-    int iRet = read(iTimerFd, &ulExp, sizeof(ulExp));
-    if(iRet != sizeof(ulExp))
+    struct itimerspec iTimerSpec;
+    memset(&iTimerSpec, 0, sizeof(struct itimerspec));
+
+    if(timerfd_gettime(iTimerFd, &iTimerSpec) < 0)
     {
+        log_error("timerfd gettime error!");
         return -1;
     }
-    
-    return 0;
+
+    int iMs = iTimerSpec.it_value.tv_sec * 1000 + iTimerSpec.it_value.tv_nsec / 1000000;
+    return iMs;
 }
 
 int timer_stop(int iTimerFd)

@@ -11,29 +11,47 @@ extern int g_iKeepaliveTimerFd;
 
 static char g_cSeq = 0;
 
-int send2MasterSync(int iSyncSockFd, const void *pMsg, int iMsgLen)
+int sendToMasterSync(int iSyncSockFd, const void *pMsg, int iMsgLen)
 {
-    int iRet = 0;
-
-    if(write(iSyncSockFd, pMsg, iMsgLen) < 0) //after connect, write = send
+    int iRet = timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE); //restart keepalive timer
+    if(iRet < 0)
     {
-        log_debug("Send to MASTER SYNC failed!");
-        iRet = -1;
+        log_error("timer_start error!");
+        return -1;
     }
 
-    timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE); //restart keepalive timer
+    if((iRet = write(iSyncSockFd, pMsg, iMsgLen)) < 0) //after connect, write = send
+    {
+        log_error("Send to MASTER SYNC error!");
+    }
+
     return iRet;
 }
 
-MSG_HEADER *alloc_slave_reqMsg(char cCmd, int iLength)
+MSG_HEADER *alloc_slave_reqMsg(char cCmd)
 {
-    MSG_HEADER *pMsgHeader = (MSG_HEADER *)malloc(iLength);
+    int iMsgLen = 0;
+    switch(cCmd)
+    {
+        case CMD_LOGIN:
+            iMsgLen = sizeof(MSG_LOGIN_REQ);
+            break;
+
+        case CMD_KEEP_ALIVE:
+            iMsgLen = sizeof(MSG_KEEP_ALIVE_REQ);
+            break;
+
+        default:
+            return NULL;
+    }
+
+    MSG_HEADER *pMsgHeader = (MSG_HEADER *)malloc(iMsgLen);
     if(pMsgHeader)
     {
         pMsgHeader->sSignature = htons(START_FLAG);
         pMsgHeader->cCmd = cCmd;
         pMsgHeader->cSeq = g_cSeq++;
-        pMsgHeader->sLength = htons(iLength - MSG_HEADER_LEN);
+        pMsgHeader->iLength = htonl(iMsgLen - MSG_HEADER_LEN);
     }
 
     return pMsgHeader;
@@ -44,10 +62,6 @@ MSG_HEADER *alloc_slave_rspMsg(char cCmd, char cSeq)
     int iMsgLen = 0;
     switch(cCmd)
     {
-        case CMD_KEEP_ALIVE:
-            iMsgLen = sizeof(MSG_KEEP_ALIVE_RSP);
-            break;
-
         case CMD_NEWCFG_INSTANT:
             iMsgLen = sizeof(MSG_NEWCFG_INSTANT_RSP);
             break;
@@ -62,8 +76,22 @@ MSG_HEADER *alloc_slave_rspMsg(char cCmd, char cSeq)
         pMsgHeader->sSignature = htons(START_FLAG);
         pMsgHeader->cCmd = cCmd;
         pMsgHeader->cSeq = cSeq;
-        pMsgHeader->sLength = htons(iMsgLen - MSG_HEADER_LEN);
+        pMsgHeader->iLength = htonl(iMsgLen - MSG_HEADER_LEN);
     }
 
     return pMsgHeader;
+}
+
+MSG_NEWCFG_WAITED_RSP *alloc_slave_newCfgWaitedRsp(char cSeq, unsigned int uiMsgLen)
+{
+    MSG_NEWCFG_WAITED_RSP *rsp = (MSG_NEWCFG_WAITED_RSP *)malloc(uiMsgLen);
+    if(rsp)
+    {
+        rsp->msgHeader.sSignature = htons(START_FLAG);
+        rsp->msgHeader.cCmd = CMD_NEWCFG_WAITED;
+        rsp->msgHeader.cSeq = cSeq;
+        rsp->msgHeader.iLength = htonl(uiMsgLen - MSG_HEADER_LEN);
+    }
+
+    return rsp;
 }

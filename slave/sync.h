@@ -1,23 +1,15 @@
 #ifndef _SYNC_H_
 #define _SYNC_H_
 
-
-enum SEND_METHOD_TO_SYNC
-{
-    SEND_NEWCFG_WAITED,
-    SEND_NEWCFG_INSTANT
-};
+#include "instantList.h"
+#include "waitedList.h"
 
 struct sync_struct
 {
-    int iMainEventFd;
-    int iSyncEventFd;
+    stInstantList *pstInstantList;
+    stWaitedList *pstWaitedList;
 };
 
-
-void *slave_sync(void *arg);
-
-
-
+void *slave_sync_thread(void *arg);
 
 #endif //_SYNC_H_

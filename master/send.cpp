@@ -95,22 +95,23 @@ MSG_NEWCFG_INSTANT_REQ *alloc_master_newCfgInstantReq(void *pData, int iDataLen,
         req->msgHeader.iLength = htonl(iMsgLen - MSG_HEADER_LEN);
 
         req->uiInstantID = htonl(uiInstantID);
+        req->sChecksum = htons(checksum((const char *)pData, iDataLen));
         memcpy(req->acData, pData, iDataLen);
     }
 
     return req;
 }
 
-MSG_NEWCFG_WAITED_REQ *alloc_master_newCfgWaitedReq(int iMsgLen)
+MSG_NEWCFG_WAITED_REQ *alloc_master_newCfgWaitedReq(unsigned int uiMsgLen)
 {
-    MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)malloc(iMsgLen);
+    MSG_NEWCFG_WAITED_REQ *req = (MSG_NEWCFG_WAITED_REQ *)malloc(uiMsgLen);
     if(req)
     {
         req->msgHeader.sSignature = htons(START_FLAG);
         req->msgHeader.cCmd = CMD_NEWCFG_WAITED;
         req->msgHeader.cSeq = ++g_cSeq;
-        req->msgHeader.iLength = htonl(iMsgLen - MSG_HEADER_LEN);
+        req->msgHeader.iLength = htonl(uiMsgLen - MSG_HEADER_LEN);
     }
 
-    return 0;
+    return req;
 }

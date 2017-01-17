@@ -8,11 +8,11 @@ SET(SRC_LIST
     event.cpp
     socket.cpp
     sync.cpp
-    instantList.cpp
-    waitedList.cpp
     checksum.cpp
     send.cpp
     recv.cpp
+    instantList.cpp
+    waitedList.cpp
     )
 ADD_EXECUTABLE(syncmaster ${SRC_LIST})
 TARGET_LINK_LIBRARIES(syncmaster pthread)

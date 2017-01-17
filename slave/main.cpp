@@ -15,106 +15,146 @@
 #include "event.h"
 #include "socket.h"
 #include "sync.h"
+#include "tool.h"
+#include "instantList.h"
+#include "waitedList.h"
 
+stInstantList *g_main_pstInstantList;
+stWaitedList *g_main_pstWaitedList;
 
-int main(int argc, char *argv[])
+int g_iMainEpollFd = 0;
+int g_iMainEventFd = 0;
+int g_iSyncEventFd = 0;
+
+int reliable_sync_init(void)
 {
-    /* log init */
-    log_init();
+    /* list init */
+    g_main_pstInstantList = instantList_create();
+    if(g_main_pstInstantList == NULL)
+    {
+        log_error("instantList_create error!");
+        return -1;
+    }
+    g_main_pstWaitedList = waitedList_create();
+    if(g_main_pstWaitedList == NULL)
+    {
+        log_error("waitedList_create error!");
+        return -1;
+    }
 
     /* epoll create */
-    int g_iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
+    g_iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
     if(g_iMainEpollFd < 0)
     {
         log_error("epoll create error(%d)!", g_iMainEpollFd);
         return -1;
     }
-    struct epoll_event stEvent, stEvents[MAX_EPOLL_NUM];
 
-    /* main eventfd init, add main eventfd to epoll */
-    int iMainEventFd = event_init(0); //0 for event flag init value
-    if(iMainEventFd < 0)
+    /* eventfd init */
+    g_iMainEventFd = event_init(0); //0 for event flag init value
+    if(g_iMainEventFd < 0)
     {
-        log_error("iMainEventFd error(%d)!", iMainEventFd);
+        log_error("event_init error(%d)!", g_iMainEventFd);
         return -1;
     }
-    log_debug("iMainEventFd(%d)", iMainEventFd);
-    memset(&stEvent, 0, sizeof(struct epoll_event));
-    stEvent.data.fd = iMainEventFd;
-    stEvent.events = EPOLLIN | EPOLLET; //epoll for read, edge triggered
-    int iRet = epoll_ctl(g_iMainEpollFd, EPOLL_CTL_ADD, iMainEventFd, &stEvent);
+    g_iSyncEventFd = event_init(0); //0 for event flag init value
+    if(g_iSyncEventFd < 0)
+    {
+        log_error("event_init error(%d)!", g_iSyncEventFd);
+        return -1;
+    }
+
+    /* add g_iMainEventFd to g_iMainEpollFd */
+    int iRet = tool_add_event_to_epoll(g_iMainEpollFd, g_iMainEventFd);
     if(iRet < 0)
     {
-        log_error("epoll add iMainEventFd error(%d)!", iRet);
-        return -1;
-    }
-
-    /* sync eventfd init, for sync read */
-    int iSyncEventFd = event_init(0); //0 for event flag init value
-    if(iSyncEventFd < 0)
-    {
-        log_error("iSyncEventFd error(%d)!", iSyncEventFd);
+        log_error("Epoll(%d) add Event(%d) error(%d)!", g_iMainEpollFd, g_iMainEventFd, iRet);
         return -1;
     }
 
     /* sync pthread create, send iMainEventFd to sync thread */
     pthread_t SyncThreadId;
     struct sync_struct stSyncStruct;
-    stSyncStruct.iMainEventFd = iMainEventFd;
-    stSyncStruct.iSyncEventFd = iSyncEventFd;
-    iRet = pthread_create(&SyncThreadId, NULL, slave_sync, (void *)&stSyncStruct);
+    stSyncStruct.pstInstantList = g_main_pstInstantList;
+    stSyncStruct.pstWaitedList = g_main_pstWaitedList;
+    iRet = pthread_create(&SyncThreadId, NULL, slave_sync_thread, (void *)&stSyncStruct);
     if(iRet != 0)
     {
         log_error("pthread create error(%d)!", iRet);
         return -1;
     }
 
-    /* log for Beginning */
-    log_info("Main Task Beginning.");
+    return 0;
+}
 
+int _epoll_mainEvent(void)
+{
+    log_info("Get iMainEventFd.");
+
+    //获取事件标志，共有64种事件，可同时触发多个
+    uint64_t uiEventsFlag;
+    int iRet = event_getEventFlags(g_iMainEventFd, &uiEventsFlag);
+    if(iRet < 0)
+    {
+        log_error("event_getEventFlags error(%d)!", iRet);
+        return -1;
+    }
+
+    if(uiEventsFlag & SLAVE_MAIN_EVENT_MASTER_RESTART) //when find specifyID different, get slave restart event
+    {
+        log_info("Get SLAVE_EVENT_MASTER_RESTART, batch backup.");
+
+        //TO DO: clean the queue and batch backup
+    }
+
+    if(uiEventsFlag & SLAVE_MAIN_EVENT_CHECKALIVE_TIMER) //when not recived msg for a while, get check alive timer event
+    {
+        log_info("Get SLAVE_EVENT_CHECKALIVE_TIMER, restart.");
+
+        /* restart */
+    }
+
+}
+
+/*
+ * 配置模块为实际主线程
+ */
+int main(int argc, char *argv[])
+{
+    //现用的是syslog输出到/var/log/local1.log文件中，如有其他打印log方式可代之
+    log_init();
+
+    log_info("MAIN Task Beginning.");
+
+    int iRet = reliable_sync_init();
+    if(iRet < 0)
+    {
+        log_error("reliable_sync_init");
+    }
+
+    struct epoll_event stEvents[MAX_EPOLL_NUM];
     while(1)
     {
-        /* main task */
-
         /* epoll wail */
         int iEpollNum = epoll_wait(g_iMainEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
-            if(stEvents[i].data.fd == iMainEventFd && stEvents[i].events & EPOLLIN)
+            if(stEvents[i].data.fd == g_iMainEventFd && stEvents[i].events & EPOLLIN)
             {
-                log_info("Get iMainEventFd.");
-
-                /* get events from iMainEventFd */
-                uint64_t uiEventsFlag;
-                iRet = event_getEventFlags(iMainEventFd, &uiEventsFlag);
+                iRet = _epoll_mainEvent();
                 if(iRet < 0)
                 {
-                    log_error("event_getEventFlags error(%d)!", iRet);
-                    return -1;
+                    log_warning("_epoll_mainEvent failed!");
                 }
-
-                if(uiEventsFlag & SLAVE_EVENT_MASTER_RESTART) //when find specifyID different, get slave restart event
-                {
-                    log_info("Get SLAVE_EVENT_MASTER_RESTART, batch backup.");
-
-                    //TO DO: clean the queue and batch backup
-                }
-
-                if(uiEventsFlag & SLAVE_EVENT_CHECKALIVE_TIMER) //when not recived msg for a while, get check alive timer event
-                {
-                    log_info("Get SLAVE_EVENT_CHECKALIVE_TIMER, restart.");
-
-                    /* restart */
-                }
-            }//else if iMainEventFd
+            }
         }//for
     }//while
 
     /* free all */
-    log_info("Main Task Ending.");
+    log_info("MAIN Task Ending.");
     log_free();
     close(g_iMainEpollFd);
-    close(iMainEventFd);
+    close(g_iMainEventFd);
     return 0;
 }
 
