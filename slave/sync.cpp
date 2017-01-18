@@ -31,9 +31,6 @@ int g_iCheckaliveTimerFd = 0;
 extern int g_iMainEventFd;
 extern int g_iSyncEventFd;
 
-stInstantList *g_pstInstantList;
-stWaitedList *g_pstWaitedList;
-
 int master_sync_init(void)
 {
     g_iSyncEpollFd = epoll_create(MAX_EPOLL_NUM);
@@ -259,8 +256,6 @@ void *slave_sync_thread(void *arg)
     log_info("SYNC Task Beginning.");
 
     struct sync_struct *pstSyncStruct = (struct sync_struct *)arg;
-    g_pstInstantList = pstSyncStruct->pstInstantList;
-    g_pstWaitedList = pstSyncStruct->pstWaitedList;
 
     int iRet = master_sync_init();
     if(iRet < 0)
@@ -278,7 +273,7 @@ void *slave_sync_thread(void *arg)
         {
             if(stEvents[i].data.fd == g_iSyncSockFd && stEvents[i].events & EPOLLIN)
             {
-                //
+                //收到数据包
                 iRet = _epoll_syncSocket();
                 if(iRet < 0)
                 {
@@ -287,7 +282,7 @@ void *slave_sync_thread(void *arg)
             }
             else if(stEvents[i].data.fd == g_iSyncEventFd && stEvents[i].events & EPOLLIN)
             {
-                //控制台有输入，用于测试时触发下配置
+                //事件
                 iRet = _epoll_syncEvent();
                 if(iRet < 0)
                 {
@@ -296,7 +291,7 @@ void *slave_sync_thread(void *arg)
             }
             else if(stEvents[i].data.fd == g_iLoginSynTimerFd && stEvents[i].events & EPOLLIN)
             {
-                //
+                //循环发送login SYN消息
                 iRet = _epoll_loginSynTimer();
                 if(iRet < 0)
                 {
@@ -305,7 +300,7 @@ void *slave_sync_thread(void *arg)
             }
             else if(stEvents[i].data.fd == g_iKeepaliveTimerFd && stEvents[i].events & EPOLLIN)
             {
-                //
+                //保活
                 iRet = _epoll_keepaliveTimer();
                 if(iRet < 0)
                 {
@@ -314,7 +309,7 @@ void *slave_sync_thread(void *arg)
             }
             else if(stEvents[i].data.fd == g_iCheckaliveTimerFd && stEvents[i].events & EPOLLIN)
             {
-                //
+                //检活
                 iRet = _epoll_checkaliveTimer();
                 if(iRet < 0)
                 {

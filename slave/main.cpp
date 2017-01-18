@@ -19,9 +19,6 @@
 #include "instantList.h"
 #include "waitedList.h"
 
-stInstantList *g_main_pstInstantList;
-stWaitedList *g_main_pstWaitedList;
-
 int g_iMainEpollFd = 0;
 int g_iMainEventFd = 0;
 int g_iSyncEventFd = 0;
@@ -29,16 +26,16 @@ int g_iSyncEventFd = 0;
 int reliable_sync_init(void)
 {
     /* list init */
-    g_main_pstInstantList = instantList_create();
-    if(g_main_pstInstantList == NULL)
+    int iRet = instantList_init();
+    if(iRet < 0)
     {
-        log_error("instantList_create error!");
+        log_error("instantList_init error!");
         return -1;
     }
-    g_main_pstWaitedList = waitedList_create();
-    if(g_main_pstWaitedList == NULL)
+    iRet = waitedList_init();
+    if(iRet < 0)
     {
-        log_error("waitedList_create error!");
+        log_error("waitedList_init error!");
         return -1;
     }
 
@@ -65,7 +62,7 @@ int reliable_sync_init(void)
     }
 
     /* add g_iMainEventFd to g_iMainEpollFd */
-    int iRet = tool_add_event_to_epoll(g_iMainEpollFd, g_iMainEventFd);
+    iRet = tool_add_event_to_epoll(g_iMainEpollFd, g_iMainEventFd);
     if(iRet < 0)
     {
         log_error("Epoll(%d) add Event(%d) error(%d)!", g_iMainEpollFd, g_iMainEventFd, iRet);
@@ -75,8 +72,6 @@ int reliable_sync_init(void)
     /* sync pthread create, send iMainEventFd to sync thread */
     pthread_t SyncThreadId;
     struct sync_struct stSyncStruct;
-    stSyncStruct.pstInstantList = g_main_pstInstantList;
-    stSyncStruct.pstWaitedList = g_main_pstWaitedList;
     iRet = pthread_create(&SyncThreadId, NULL, slave_sync_thread, (void *)&stSyncStruct);
     if(iRet != 0)
     {
@@ -98,6 +93,20 @@ int _epoll_mainEvent(void)
     {
         log_error("event_getEventFlags error(%d)!", iRet);
         return -1;
+    }
+
+    if(uiEventsFlag & SLAVE_MAIN_EVENT_NEWCFG_INSTANT)
+    {
+        log_info("Get SLAVE_MAIN_EVENT_NEWCFG_INSTANT, instant new cfg num(%d).", instantList_getListSize());
+
+        //TO DO: how to recover
+    }
+
+    if(uiEventsFlag & SLAVE_MAIN_EVENT_NEWCFG_WAITED)
+    {
+        log_info("Get SLAVE_MAIN_EVENT_NEWCFG_WAITED, waited new cfg num(%d).", waitedList_getListSize());
+
+        //TO DO: how to recover
     }
 
     if(uiEventsFlag & SLAVE_MAIN_EVENT_MASTER_RESTART) //when find specifyID different, get slave restart event

@@ -9,6 +9,8 @@
 #include "protocol.h"
 #include "send.h"
 #include "recv.h"
+#include "instantList.h"
+#include "waitedList.h"
 
 extern char g_cSlaveSyncStatus;
 extern char g_cMasterSpecifyID;
@@ -132,12 +134,27 @@ static int sync_newCfgInstant(const char *pcMsg)
     }
     rsp->uiInstantID = req->uiInstantID;//一次ntohl、一次htonl，所以省去转序
 
+    int iRet = 0;
     if(sCalChecksum == (short)ntohs(req->sChecksum))
     {
         rsp->cResult = NEWCFG_RESULT_SUCCEED;
+        
+        log_info("Get instant new cfg.");
 
-        //TODO:还原配置
-        log_debug("*****TODO*****: here is instant new cfg.");
+        //还原配置
+        iRet = instantList_push((void *)req->acData, iDataLen);
+        if(iRet != 0)
+        {
+            log_error("instantList_push error!");
+            return -1;
+        }
+
+        iRet = event_setEventFlags(g_iMainEventFd, SLAVE_MAIN_EVENT_NEWCFG_INSTANT);
+        if(iRet != 0)
+        {
+            log_error("set event flag SLAVE_MAIN_EVENT_NEWCFG_INSTANT failed!");
+            return -1;
+        }
     }
     else
     {
@@ -181,10 +198,11 @@ static int sync_newCfgWaited(const char *pcMsg)
 
     //配置包整体校验正确，逐个校验单个配置
     const DATA_NEWCFG *pDataNewcfg = req->dataNewcfg;
-    unsigned int auiSucceedID[];
-    int iLenSum = 0, iSucceedSum = 0;
+    unsigned int uiSucceedSum = 0, uiWaitedSum = ntohl(req->uiWaitedSum);
+    unsigned int auiSucceedID[uiWaitedSum];//最大也只可能是所有的配置都成功
 
-    while(iLenSum < iDataLen)//循环直到等于配置包总长度
+    int iRet = 0;
+    while(uiWaitedSum--)//循环直到等于配置包总长度
     {
         log_info("ONCE checksum in msg(%d).", ntohs(pDataNewcfg->sChecksum));
         short sOnceCalChecksum = checksum((const char *)pDataNewcfg->acData, ntohl(pDataNewcfg->iDataLen));
@@ -193,24 +211,40 @@ static int sync_newCfgWaited(const char *pcMsg)
         if(sOnceCalChecksum == (short)ntohs(pDataNewcfg->sChecksum))
         {
             //单个配置校验正确，记录下此ID
-            auiSucceedID[iSucceedSum++] = ntohl(pDataNewcfg->uiWaitedID);
+            auiSucceedID[uiSucceedSum++] = pDataNewcfg->uiWaitedID;//这里不转字节序，因为发送时还要再转成网络序
+
+            log_info("Get waited new cfg.");
+
+            //还原配置
+            iRet = waitedList_push((void *)pDataNewcfg->acData, ntohl(pDataNewcfg->iDataLen));
+            if(iRet != 0)
+            {
+                log_error("instantList_push error!");
+            }
         }
 
-        iLenSum = iLenSum + sizeof(DATA_NEWCFG) + ntohl(pDataNewcfg->iDataLen);
         pDataNewcfg = (const DATA_NEWCFG *)(((const char *)pDataNewcfg) + sizeof(DATA_NEWCFG) + ntohl(pDataNewcfg->iDataLen));
     }
 
-    MSG_NEWCFG_WAITED_RSP *rsp = alloc_slave_newCfgWaitedRsp(req->msgHeader.cSeq, sizeof(MSG_NEWCFG_WAITED_RSP) + iSucceedSum * sizeof(unsigned int));
+    MSG_NEWCFG_WAITED_RSP *rsp = alloc_slave_newCfgWaitedRsp(req->msgHeader.cSeq, sizeof(MSG_NEWCFG_WAITED_RSP) + uiSucceedSum * sizeof(unsigned int));
     if(!rsp)
     {
         log_error("msg rsp empty!");
         return -1;
     }
-    memcpy(rsp->auiSucceedID, auiSucceedID, iSucceedSum * sizeof(unsigned int));
+    memcpy(rsp->auiSucceedID, auiSucceedID, uiSucceedSum * sizeof(unsigned int));
 
-    if(sendToMasterSync(g_iSyncSockFd, rsp, sizeof(MSG_NEWCFG_WAITED_RSP) + iSucceedSum * sizeof(unsigned int)) < 0)
+    if(sendToMasterSync(g_iSyncSockFd, rsp, sizeof(MSG_NEWCFG_WAITED_RSP) + uiSucceedSum * sizeof(unsigned int)) < 0)
     {
         log_debug("Send to MASTER SYNC failed!");
+    }
+
+    //发送回应包后再触发事件，避免触发事件失败导致不回应
+    iRet = event_setEventFlags(g_iMainEventFd, SLAVE_MAIN_EVENT_NEWCFG_WAITED);
+    if(iRet != 0)
+    {
+        log_error("set event flag SLAVE_MAIN_EVENT_NEWCFG_WAITED failed!");
+        return -1;
     }
 
     return 0;
@@ -232,10 +266,10 @@ static int sync_keepAlive(const char *pcMsg)
 
     if(g_cMasterSpecifyID != req->cSpecifyID)
     {
-        int iRet = event_setEventFlags(g_iMainEventFd, SLAVE_EVENT_MASTER_RESTART);
+        int iRet = event_setEventFlags(g_iMainEventFd, SLAVE_MAIN_EVENT_MASTER_RESTART);
         if(iRet < 0)
         {
-            log_error("set g_iMainEventFd SLAVE_EVENT_MASTER_RESTART error(%d)!", iRet);
+            log_error("set g_iMainEventFd SLAVE_MAIN_EVENT_MASTER_RESTART error(%d)!", iRet);
             return -1;
         }
 

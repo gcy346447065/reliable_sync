@@ -1,5 +1,5 @@
-#ifndef _LIST_H_
-#define _LIST_H_
+#ifndef _WAITED_LIST_H_
+#define _WAITED_LIST_H_
 
 #include <pthread.h>
 #include "protocol.h"
@@ -24,12 +24,16 @@ typedef struct WaitedList
 }stWaitedList;
 
 
-stWaitedList *waitedList_create(void);
-void waitedList_free(stWaitedList *pstWaitedList);
-void waitedList_clean(stWaitedList *pstWaitedList);
+int waitedList_init(void);
+void waitedList_free(void);
+void waitedList_clean(void);
 
-int waitedList_push(stWaitedList *pstWaitedList, void *pData, int iDataLen);
-int waitedList_findAndDelete(stWaitedList *pstWaitedList, unsigned int uiTargetDataID);
-int waitedList_traverseAndPack(stWaitedList *pstWaitedList, MSG_NEWCFG_WAITED_REQ *req);//调用此接口前需要申请好MSG_NEWCFG_WAITED_REQ的内存
+int waitedList_push(void *pData, int iDataLen);
+int waitedList_findAndDelete(unsigned int uiTargetDataID);
 
-#endif //_LIST_H_
+unsigned int waitedList_getListSize(void);
+unsigned int waitedList_getMsgLen(void);
+stWaitedNode *waitedList_getFrontNode(void);
+stWaitedNode *waitedList_getRearNode(void);
+
+#endif //_WAITED_LIST_H_

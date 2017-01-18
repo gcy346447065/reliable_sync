@@ -335,6 +335,8 @@ int _epoll_mainEvent(void)
                 {
                     log_info("reliable_sync_send failed(%d)!", iRet);
                 }
+
+                close(iFileWaitedFd);
             }
         }
 

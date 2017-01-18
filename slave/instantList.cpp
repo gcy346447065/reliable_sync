@@ -9,45 +9,46 @@
 extern int g_iSyncSockFd;
 
 static unsigned int g_uiInstantID = 0;
+static stInstantList *g_pstInstantList;
 
-stInstantList *instantList_create(void)
+int instantList_init(void)
 {
-    stInstantList *pstInstantList = (stInstantList *)malloc(sizeof(stInstantList));
-    if(pstInstantList != NULL)
+    g_pstInstantList = (stInstantList *)malloc(sizeof(stInstantList));
+    if(g_pstInstantList != NULL)
     {
-        pstInstantList->pFront = NULL;
-        pstInstantList->pNew = NULL;
-        pstInstantList->pRear = NULL;
-        pstInstantList->uiListSize = 0;
-        pstInstantList->uiNewSize = 0;
-        pthread_mutex_init(&pstInstantList->pMutex, NULL);
+        g_pstInstantList->pFront = NULL;
+        g_pstInstantList->pNew = NULL;
+        g_pstInstantList->pRear = NULL;
+        g_pstInstantList->uiListSize = 0;
+        g_pstInstantList->uiNewSize = 0;
+        pthread_mutex_init(&g_pstInstantList->pMutex, NULL);
     }
 
-    return pstInstantList; 
+    return 0; 
 }
 
-void instantList_free(stInstantList *pstInstantList)
+void instantList_free(void)
 {
-    if(pstInstantList != NULL)
+    if(g_pstInstantList != NULL)
     {
-        instantList_clean(pstInstantList);
-        pthread_mutex_destroy(&pstInstantList->pMutex);  
-        free(pstInstantList);
-        pstInstantList = NULL;
+        instantList_clean();
+        pthread_mutex_destroy(&g_pstInstantList->pMutex);  
+        free(g_pstInstantList);
+        g_pstInstantList = NULL;
     }
 
     return;
 }
 
-void instantList_clean(stInstantList *pstInstantList)
+void instantList_clean(void)
 {
-    if(pstInstantList->uiListSize == 0)
+    if(g_pstInstantList->uiListSize == 0)
     {
         return;
     }
 
-    stInstantNode *pNode = pstInstantList->pFront;
-    pthread_mutex_lock(&pstInstantList->pMutex);
+    stInstantNode *pNode = g_pstInstantList->pFront;
+    pthread_mutex_lock(&g_pstInstantList->pMutex);
     while(pNode->pNext != NULL)
     {
         pNode = pNode->pNext;
@@ -58,12 +59,12 @@ void instantList_clean(stInstantList *pstInstantList)
     free(pNode->pData);
     free(pNode);
     pNode = NULL;
-    pthread_mutex_unlock(&pstInstantList->pMutex);
+    pthread_mutex_unlock(&g_pstInstantList->pMutex);
 
     return;
 }
 
-int instantList_push(stInstantList *pstInstantList, void *pData, int iDataLen)
+int instantList_push(void *pData, int iDataLen)
 {
     stInstantNode *pNode = (stInstantNode *)malloc(sizeof(stInstantNode));
     if(pNode == NULL)
@@ -71,64 +72,64 @@ int instantList_push(stInstantList *pstInstantList, void *pData, int iDataLen)
         return -1;
     }
 
-    pthread_mutex_lock(&pstInstantList->pMutex);
+    pthread_mutex_lock(&g_pstInstantList->pMutex);
     pNode->cFindTimers = 0;
     pNode->cSendTimers = 0;
     pNode->uiInstantID = ++g_uiInstantID; //每个配置的ID
     pNode->iDataLen = iDataLen;
     pNode->pData = malloc(iDataLen);
     memcpy(pNode->pData, pData, iDataLen);
-    pNode->pPrev = pstInstantList->pRear;
+    pNode->pPrev = g_pstInstantList->pRear;
     pNode->pNext = NULL;
 
-    if(pstInstantList->uiListSize == 0)
+    if(g_pstInstantList->uiListSize == 0)
     {
-        pstInstantList->pFront = pNode;
-        pstInstantList->pNew = pNode;
+        g_pstInstantList->pFront = pNode;
+        g_pstInstantList->pNew = pNode;
     }
     else
     {
-        pstInstantList->pRear->pNext = pNode;
+        g_pstInstantList->pRear->pNext = pNode;
     }
-    pstInstantList->pRear = pNode;
-    pstInstantList->uiListSize++;
-    pstInstantList->uiNewSize++;
-    pthread_mutex_unlock(&pstInstantList->pMutex);
+    g_pstInstantList->pRear = pNode;
+    g_pstInstantList->uiListSize++;
+    g_pstInstantList->uiNewSize++;
+    pthread_mutex_unlock(&g_pstInstantList->pMutex);
 
     return 0;
 }
 
 //调用此接口需要保证pNode一定在pstInstantList中！
-int instantList_delete(stInstantList *pstInstantList, stInstantNode *pNode)
+int instantList_delete(stInstantNode *pNode)
 {
-    if(pstInstantList->uiListSize == 0)
+    if(g_pstInstantList->uiListSize == 0)
     {
         return -1;
     }
 
-    pthread_mutex_lock(&pstInstantList->pMutex);
-    pstInstantList->uiListSize--;
-    if(pstInstantList->uiListSize == 0)
+    pthread_mutex_lock(&g_pstInstantList->pMutex);
+    g_pstInstantList->uiListSize--;
+    if(g_pstInstantList->uiListSize == 0)
     {
-        pstInstantList->pFront = NULL;
-        pstInstantList->pRear = NULL;
-        pstInstantList->pNew = NULL;
+        g_pstInstantList->pFront = NULL;
+        g_pstInstantList->pRear = NULL;
+        g_pstInstantList->pNew = NULL;
     }
     else
     {
-        if(pNode == pstInstantList->pFront)
+        if(pNode == g_pstInstantList->pFront)
         {
-            pstInstantList->pFront = pNode->pNext;
+            g_pstInstantList->pFront = pNode->pNext;
         }
 
-        if(pNode == pstInstantList->pRear)
+        if(pNode == g_pstInstantList->pRear)
         {
-            pstInstantList->pRear = pNode->pPrev;
+            g_pstInstantList->pRear = pNode->pPrev;
         }
 
-        if(pNode == pstInstantList->pNew)//实际上不可能是pNew，因为删除的肯定是读取过的
+        if(pNode == g_pstInstantList->pNew)//实际上不可能是pNew，因为删除的肯定是读取过的
         {
-            pstInstantList->pNew = pNode->pNext;
+            g_pstInstantList->pNew = pNode->pNext;
         }
     }
 
@@ -138,30 +139,30 @@ int instantList_delete(stInstantList *pstInstantList, stInstantNode *pNode)
         pNode->pNext->pPrev = pNode->pPrev;
     }
     free(pNode);
-    pthread_mutex_unlock(&pstInstantList->pMutex);
+    pthread_mutex_unlock(&g_pstInstantList->pMutex);
 
     return 0;
 }
 
-int instantList_moveNew(stInstantList *pstInstantList)
+int instantList_moveNew(void)
 {
-    if(pstInstantList->uiNewSize == 0)
+    if(g_pstInstantList->uiNewSize == 0)
     {
         return -1;
     }
 
-    pthread_mutex_lock(&pstInstantList->pMutex);
-    pstInstantList->uiNewSize--;
-    pstInstantList->pNew = pstInstantList->pNew->pNext;
-    pthread_mutex_unlock(&pstInstantList->pMutex);
+    pthread_mutex_lock(&g_pstInstantList->pMutex);
+    g_pstInstantList->uiNewSize--;
+    g_pstInstantList->pNew = g_pstInstantList->pNew->pNext;
+    pthread_mutex_unlock(&g_pstInstantList->pMutex);
 
     return 0;
 }
 
-stInstantNode *instantList_find(stInstantList *pstInstantList, unsigned int uiTargetDataID)
+stInstantNode *instantList_find(unsigned int uiTargetDataID)
 {
-    stInstantNode *pNode = pstInstantList->pFront;
-    pthread_mutex_lock(&pstInstantList->pMutex);
+    stInstantNode *pNode = g_pstInstantList->pFront;
+    pthread_mutex_lock(&g_pstInstantList->pMutex);
     while(pNode != NULL)
     {
         if(pNode->uiInstantID < uiTargetDataID)
@@ -184,12 +185,35 @@ stInstantNode *instantList_find(stInstantList *pstInstantList, unsigned int uiTa
             break;
         }
     }
-    pthread_mutex_unlock(&pstInstantList->pMutex);
+    pthread_mutex_unlock(&g_pstInstantList->pMutex);
 
     return pNode;
 }
 
+unsigned int instantList_getNewSize(void)
+{
+    return g_pstInstantList->uiNewSize;
+}
 
+unsigned int instantList_getListSize(void)
+{
+    return g_pstInstantList->uiListSize;
+}
+
+stInstantNode *instantList_getFrontNode(void)
+{
+    return g_pstInstantList->pFront;
+}
+
+stInstantNode *instantList_getNewNode(void)
+{
+    return g_pstInstantList->pNew;
+}
+
+stInstantNode *instantList_getRearNode(void)
+{
+    return g_pstInstantList->pRear;
+}
 
 
 

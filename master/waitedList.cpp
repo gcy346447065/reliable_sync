@@ -95,9 +95,9 @@ int waitedList_push(void *pData, int iDataLen)
     return 0;
 }
 
-//不带锁，以便waitedList_findAndDelete进行调用
 int __waitedList_delete(stWaitedNode *pNode)
 {
+    pthread_mutex_lock(&g_pstWaitedList->pMutex);
     g_pstWaitedList->uiListSize--;
     g_pstWaitedList->uiMsgLen -= (sizeof(DATA_NEWCFG) + pNode->iDataLen);
     if(g_pstWaitedList->uiListSize == 0)
@@ -124,6 +124,7 @@ int __waitedList_delete(stWaitedNode *pNode)
         pNode->pNext->pPrev = pNode->pPrev;
     }
     free(pNode);
+    pthread_mutex_unlock(&g_pstWaitedList->pMutex);
 
     return 0;
 }
@@ -131,7 +132,6 @@ int __waitedList_delete(stWaitedNode *pNode)
 int waitedList_findAndDelete(unsigned int uiTargetDataID)
 {
     stWaitedNode *pNode = g_pstWaitedList->pFront;
-    pthread_mutex_lock(&g_pstWaitedList->pMutex);
     while(pNode != NULL)
     {
         if(pNode->uiWaitedID < uiTargetDataID)
@@ -154,9 +154,8 @@ int waitedList_findAndDelete(unsigned int uiTargetDataID)
             return -1;
         }
     }
-    pthread_mutex_unlock(&g_pstWaitedList->pMutex);
 
-    return -1;
+    return 0;
 }
 
 unsigned int waitedList_getListSize(void)
@@ -212,6 +211,7 @@ int waitedList_traverseAndPack(MSG_NEWCFG_WAITED_REQ *req)
     pthread_mutex_unlock(&g_pstWaitedList->pMutex);
 
     req->sChecksum = htons(checksum((const char *)req->dataNewcfg, g_pstWaitedList->uiMsgLen - sizeof(MSG_NEWCFG_WAITED_REQ)));
+    req->uiWaitedSum = htonl(g_pstWaitedList->uiListSize);
 
     return 0;
 }

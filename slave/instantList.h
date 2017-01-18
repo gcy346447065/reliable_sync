@@ -26,14 +26,19 @@ typedef struct InstantList
 }stInstantList;
 
 
-stInstantList *instantList_create(void);
-void instantList_free(stInstantList *pstInstanList);
-void instantList_clean(stInstantList *pstInstanList);
+int instantList_init(void);
+void instantList_free(void);
+void instantList_clean(void);
 
-int instantList_push(stInstantList *pstInstanList, void *pData, int iDataLen);
-int instantList_delete(stInstantList *pstInstanList, stInstantNode *pNode);//调用此接口需要保证pNode一定在pstInstantList中！
-int instantList_moveNew(stInstantList *pstInstanList);
-stInstantNode *instantList_find(stInstantList *pstInstanList, unsigned int uiTargetDataID);
+int instantList_push(void *pData, int iDataLen);
+int instantList_delete(stInstantNode *pNode);//调用此接口需要保证pNode一定在pstInstantList中！
+int instantList_moveNew(void);
+stInstantNode *instantList_find(unsigned int uiTargetDataID);
 
+unsigned int instantList_getNewSize(void);
+unsigned int instantList_getListSize(void);
+stInstantNode *instantList_getFrontNode(void);
+stInstantNode *instantList_getRearNode(void);
+stInstantNode *instantList_getNewNode(void);
 
 #endif //_INSTANT_LIST_H_
