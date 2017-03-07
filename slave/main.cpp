@@ -9,6 +9,7 @@
 #include <errno.h> //for errno
 #include <string.h> //for memset strstr
 #include <fcntl.h> //for open
+#include <stdio.h>
 #include "macro.h"
 #include "log.h"
 #include "timer.h"
@@ -22,6 +23,7 @@
 int g_iMainEpollFd = 0;
 int g_iMainEventFd = 0;
 int g_iSyncEventFd = 0;
+extern char g_cSlaveSyncStatus;
 
 int reliable_sync_init(void)
 {
@@ -98,15 +100,55 @@ int _epoll_mainEvent(void)
     if(uiEventsFlag & SLAVE_MAIN_EVENT_NEWCFG_INSTANT)
     {
         log_info("Get SLAVE_MAIN_EVENT_NEWCFG_INSTANT, instant new cfg num(%d).", instantList_getListSize());
+        printf("haha get instantList\n");
+        log_debug("%u", instantList_getNewSize());
+        printf("listsize:%u\n", instantList_getNewSize());
+        if(g_cSlaveSyncStatus == STATUS_NEWCFG && instantList_getNewSize() > 0)
+        {printf("g_cMsterSyncStatus is OK\n");
+            stInstantNode *pstNewNode= instantList_getNewNode();
+            if(pstNewNode == NULL)
+            {
+                printf("pstNewNode is NULL\n");
+                return 0;
+            }
 
-        //TO DO: how to recover
+            if(pstNewNode->iDataLen != 0)
+            {
+                int len = pstNewNode->iDataLen, i;
+                printf("have len:%d\n", len);
+                for(i=0;i<len;i++)
+                {
+                    printf("%c", ((char *)pstNewNode->pData)[i]);
+                }
+                printf("instantList OK\n");
+                int fd;
+                if ((fd = open("file1", O_RDWR|O_CREAT, 00700)) == -1)
+                {
+                    printf("open file1 wrong\n");
+                    return -1;
+                }
+                printf("write:%d\n", write(fd, pstNewNode->pData, len));
+                close(fd);
+
+            }
+
+            printf("moveNew:%d\n", instantList_moveNew());
+            instantList_delete(pstNewNode);
+        }
+        log_debug("hehe.");
     }
 
     if(uiEventsFlag & SLAVE_MAIN_EVENT_NEWCFG_WAITED)
     {
         log_info("Get SLAVE_MAIN_EVENT_NEWCFG_WAITED, waited new cfg num(%d).", waitedList_getListSize());
+        printf("haha get WAITEDList\n");
+        log_debug("%u", waitedList_getListSize());
+        printf("listsize:%u\n", waitedList_getListSize());
+        if(g_cSlaveSyncStatus == STATUS_NEWCFG && waitedList_getListSize() > 0)
+        {printf("g_cMsterSyncStatus is OK\n");
+            waitedList_file();
+        }
 
-        //TO DO: how to recover
     }
 
     if(uiEventsFlag & SLAVE_MAIN_EVENT_MASTER_RESTART) //when find specifyID different, get slave restart event

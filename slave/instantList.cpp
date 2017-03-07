@@ -1,5 +1,6 @@
 #include <stdlib.h> //for malloc
 #include <string.h> //for memcpy
+#include <stdio.h>
 #include "log.h"
 #include "event.h"
 #include "send.h"
@@ -24,7 +25,7 @@ int instantList_init(void)
         pthread_mutex_init(&g_pstInstantList->pMutex, NULL);
     }
 
-    return 0; 
+    return 0;
 }
 
 void instantList_free(void)
@@ -32,7 +33,7 @@ void instantList_free(void)
     if(g_pstInstantList != NULL)
     {
         instantList_clean();
-        pthread_mutex_destroy(&g_pstInstantList->pMutex);  
+        pthread_mutex_destroy(&g_pstInstantList->pMutex);
         free(g_pstInstantList);
         g_pstInstantList = NULL;
     }
@@ -65,7 +66,7 @@ void instantList_clean(void)
 }
 
 int instantList_push(void *pData, int iDataLen)
-{
+{printf("push begin\n");
     stInstantNode *pNode = (stInstantNode *)malloc(sizeof(stInstantNode));
     if(pNode == NULL)
     {
@@ -83,12 +84,12 @@ int instantList_push(void *pData, int iDataLen)
     pNode->pNext = NULL;
 
     if(g_pstInstantList->uiListSize == 0)
-    {
+    {printf("uiListSize is 0\n");
         g_pstInstantList->pFront = pNode;
         g_pstInstantList->pNew = pNode;
     }
     else
-    {
+    {printf("uiListSize isn't 0\n");
         g_pstInstantList->pRear->pNext = pNode;
     }
     g_pstInstantList->pRear = pNode;
@@ -153,7 +154,9 @@ int instantList_moveNew(void)
 
     pthread_mutex_lock(&g_pstInstantList->pMutex);
     g_pstInstantList->uiNewSize--;
+    printf("uiNewSize:%d\n", g_pstInstantList->uiNewSize);
     g_pstInstantList->pNew = g_pstInstantList->pNew->pNext;
+    printf("pNew:%d\n", g_pstInstantList->pNew);
     pthread_mutex_unlock(&g_pstInstantList->pMutex);
 
     return 0;

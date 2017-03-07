@@ -2,6 +2,7 @@
 #include <stdlib.h> //for malloc rand NULL
 #include <unistd.h> //for read write
 #include <string.h> //for memset strstr memcpy
+#include <stdio.h>
 #include "log.h"
 #include "timer.h"
 #include "checksum.h"
@@ -25,6 +26,14 @@ int sendToSlaveSync(int iSyncSockFd, void *pMsg, int iMsgLen)
     {
         log_error("Send to SLAVE SYNC error!");
     }
+    printf("send start\n");
+    int i;
+    printf("send number:%d char:\n", iMsgLen);
+    for(i=0;i<iMsgLen;i++)
+    {
+        printf("%c", ((char *)pMsg)[i]);
+    }
+    printf("send end\n");
     return iRet;
 }
 

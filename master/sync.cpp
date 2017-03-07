@@ -2,6 +2,7 @@
 #include <string.h> //for memset strstr
 #include <stdlib.h> //for malloc rand
 #include <time.h> //for time
+#include <stdio.h>
 #include "sync.h"
 #include "macro.h"
 #include "log.h"
@@ -152,7 +153,7 @@ int _epoll_syncSocket(void)
     if((iBufferSize = recvFromSlaveSync(g_iSyncSockFd, pcBuffer, MAX_BUFFER_SIZE)) > 0)
     {
         log_hex(pcBuffer, iBufferSize);
-        
+
         iRet = handle_sync_msg(pcBuffer, iBufferSize);
         if(iRet < 0)
         {
@@ -183,9 +184,11 @@ int _epoll_syncEvent(void)
         log_info("Get MASTER_SYNC_EVENT_NEWCFG_INSTANT.");
         log_debug("hehe.");
         log_debug("%u", instantList_getNewSize());
+        printf("listSize:%u\n", instantList_getNewSize());
         if(g_cMasterSyncStatus == STATUS_NEWCFG && instantList_getNewSize() > 0)
         {
             stInstantNode *pstNewNode= instantList_getNewNode();
+            printf("instantList_getNewNode:%d\n", pstNewNode);
             MSG_NEWCFG_INSTANT_REQ *req = alloc_master_newCfgInstantReq(pstNewNode->pData, pstNewNode->iDataLen, pstNewNode->uiInstantID);
             if(req == NULL)
             {
@@ -200,32 +203,32 @@ int _epoll_syncEvent(void)
 
             pstNewNode->cFindTimers = 0;//查找次数清0
             pstNewNode->cSendTimers++;//发送次数累加
-            instantList_moveNew();
+            printf("moveNew:%d\n", instantList_moveNew());
         }
         log_debug("hehe.");
     }
 
     //触发waited事件，向对端sync模块发送配置消息
     if(uiEventsFlag & MASTER_SYNC_EVENT_NEWCFG_WAITED)
-    {
-        log_info("Get MASTER_SYNC_EVENT_NEWCFG_WAITED.");
+    {printf("get uiEventsFlag\n");
+        log_info("Get MASTER_SYNC_EVENT_NEWCFG_WAITED.");printf("g_cMasterSyncStatus:%d waitedList_getMsgLen:%d\n", g_cMasterSyncStatus, waitedList_getMsgLen());
 
         if(g_cMasterSyncStatus == STATUS_NEWCFG && waitedList_getMsgLen() >= MAX_PKG_LEN)
-        {
+        {printf("len is OK\n");
             MSG_NEWCFG_WAITED_REQ *req = alloc_master_newCfgWaitedReq(waitedList_getMsgLen());
             if(req == NULL)
             {
                 log_error("alloc_master_newCfgWaitedReq(%d) error!", waitedList_getMsgLen());
                 return -1;
-            }
+            }printf("req is OK\n");
 
-            waitedList_traverseAndPack(req);
+            waitedList_traverseAndPack(req);printf("have packed\n");
 
             //可能在打包过程中删除了节点，导致g_pstWaitedList->uiMsgLen变小
             if(sendToSlaveSync(g_iSyncSockFd, req, waitedList_getMsgLen()) < 0)
             {
                 log_debug("Send to SLAVE SYNC failed!");
-            }
+            }printf("send done\n");
 
             iRet = timer_start(g_iWaitedTimerFd, NEWCFG_WAITED_TIMER_VALUE);
             if(iRet < 0)

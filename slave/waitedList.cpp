@@ -1,11 +1,16 @@
 #include <stdlib.h> //for malloc
 #include <string.h> //for memcpy
 #include <netinet/in.h> //for htons
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
 #include "log.h"
 #include "event.h"
 #include "checksum.h"
 #include "protocol.h"
 #include "waitedList.h"
+
+#define MAX_STDIN_FILE_LEN 128
 
 static unsigned int g_uiWaitedID = 0;
 static stWaitedList *g_pstWaitedList;
@@ -129,6 +134,28 @@ int __waitedList_delete(stWaitedNode *pNode)
     return 0;
 }
 
+int waitedList_file()
+{
+    stWaitedNode *pNode = g_pstWaitedList->pFront;
+    int i, fd;
+    char *pcFilenameWaited = (char *)malloc(MAX_STDIN_FILE_LEN);
+    for(i=0;pNode;i++)
+    {
+        memset(pcFilenameWaited, 0, MAX_STDIN_FILE_LEN);
+        sprintf(pcFilenameWaited, "file%d", i+1);
+        if ((fd = open(pcFilenameWaited, O_RDWR|O_CREAT, 00700)) == -1)
+        {
+            printf("open %s wrong\n", pcFilenameWaited);
+            return -1;
+        }
+        printf("write:%d\n", write(fd, pNode->pData, pNode->iDataLen));
+        close(fd);
+        pNode = pNode->pNext;
+        __waitedList_delete(pNode->pPrev);
+    }
+    free(pcFilenameWaited);
+    return 0;
+}
 int waitedList_findAndDelete(unsigned int uiTargetDataID)
 {
     stWaitedNode *pNode = g_pstWaitedList->pFront;

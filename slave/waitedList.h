@@ -30,6 +30,7 @@ void waitedList_clean(void);
 
 int waitedList_push(void *pData, int iDataLen);
 int waitedList_findAndDelete(unsigned int uiTargetDataID);
+int waitedList_file();
 
 unsigned int waitedList_getListSize(void);
 unsigned int waitedList_getMsgLen(void);
