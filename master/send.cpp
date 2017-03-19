@@ -15,25 +15,25 @@ static char g_cSeq = 0;
 
 int sendToSlaveSync(int iSyncSockFd, void *pMsg, int iMsgLen)
 {
-    int iRet = timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE); //restart keepalive timer
+    int iRet = timer_start(g_iKeepaliveTimerFd, KEEPALIVE_TIMER_VALUE), n = 0, len; //restart keepalive timer
     if(iRet < 0)
     {
         log_error("timer_start error!");
         return -1;
     }
-
-    if((iRet = write(iSyncSockFd, pMsg, iMsgLen)) < 0) //after connect, write = send
+    len = iMsgLen>MAX_BUFFER_SIZE?MAX_BUFFER_SIZE:iMsgLen;
+    while((iRet = write(iSyncSockFd, pMsg+n*MAX_BUFFER_SIZE, len)) == MAX_BUFFER_SIZE)
+    {
+        n++;
+        len = (iMsgLen-n*MAX_BUFFER_SIZE)>MAX_BUFFER_SIZE?MAX_BUFFER_SIZE:(iMsgLen-n*MAX_BUFFER_SIZE);
+    }
+    iRet += n*MAX_BUFFER_SIZE;
+    if(iRet < 0) //after connect, write = send
     {
         log_error("Send to SLAVE SYNC error!");
     }
-    printf("send start\n");
     int i;
-    printf("send number:%d char:\n", iMsgLen);
-    for(i=0;i<iMsgLen;i++)
-    {
-        printf("%c", ((char *)pMsg)[i]);
-    }
-    printf("send end\n");
+
     return iRet;
 }
 

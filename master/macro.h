@@ -1,7 +1,7 @@
 #ifndef _MACRO_H_
 #define _MACRO_H_
 
-enum 
+enum
 {
     STATUS_INIT = 0,
     STATUS_LOGIN = 1,
@@ -31,6 +31,6 @@ enum SEND_METHOD_TO_LIST
 #define KEEPALIVE_TIMER_VALUE       (1000*60*3+1)
 #define CHECKALIVE_TIMER_VALUE      (1000*60*10+1)
 #define NEWCFG_INSTANT_TIMER_VALUE  (1000*60*5+1)
-#define NEWCFG_WAITED_TIMER_VALUE   (1000*60*5+1)
+#define NEWCFG_WAITED_TIMER_VALUE   (1000*60+1)
 
 #endif //_MACRO_H_

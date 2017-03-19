@@ -12,7 +12,6 @@
 
 #define MAX_STDIN_FILE_LEN 128
 
-static unsigned int g_uiWaitedID = 0;
 static stWaitedList *g_pstWaitedList;
 
 int waitedList_init(void)
@@ -67,7 +66,7 @@ void waitedList_clean(void)
     return;
 }
 
-int waitedList_push(void *pData, int iDataLen)
+int waitedList_push(void *pData, int iDataLen, unsigned int uiWaitedID)
 {
     stWaitedNode *pNode = (stWaitedNode *)malloc(sizeof(stWaitedNode));
     if(pNode == NULL)
@@ -77,7 +76,7 @@ int waitedList_push(void *pData, int iDataLen)
 
     pthread_mutex_lock(&g_pstWaitedList->pMutex);
     pNode->cSendTimers = 0;
-    pNode->uiWaitedID = ++g_uiWaitedID; //每个配置的ID
+    pNode->uiWaitedID = uiWaitedID; //每个配置的ID
     pNode->iDataLen = iDataLen;
     pNode->pData = malloc(iDataLen);
     memcpy(pNode->pData, pData, iDataLen);
@@ -137,21 +136,25 @@ int __waitedList_delete(stWaitedNode *pNode)
 int waitedList_file()
 {
     stWaitedNode *pNode = g_pstWaitedList->pFront;
-    int i, fd;
+    int i, fd, group;
     char *pcFilenameWaited = (char *)malloc(MAX_STDIN_FILE_LEN);
-    for(i=0;pNode;i++)
+    while(pNode)
     {
         memset(pcFilenameWaited, 0, MAX_STDIN_FILE_LEN);
-        sprintf(pcFilenameWaited, "file%d", i+1);
-        if ((fd = open(pcFilenameWaited, O_RDWR|O_CREAT, 00700)) == -1)
+        group = ((short *)&pNode->uiWaitedID)[0];
+        sprintf(pcFilenameWaited, "file%d", group+1);
+        if ((fd = open(pcFilenameWaited, O_RDWR|O_CREAT|O_APPEND, 00700)) == -1)
         {
-            printf("open %s wrong\n", pcFilenameWaited);
+            log_error("open %s wrong\n", pcFilenameWaited);
             return -1;
         }
-        printf("write:%d\n", write(fd, pNode->pData, pNode->iDataLen));
+        do
+        {
+            log_debug("write:%d\n", write(fd, pNode->pData, pNode->iDataLen));
+            pNode = pNode->pNext;
+            __waitedList_delete(g_pstWaitedList->pFront);
+        }while(pNode && ((short *)&pNode->uiWaitedID)[0] == group);
         close(fd);
-        pNode = pNode->pNext;
-        __waitedList_delete(pNode->pPrev);
     }
     free(pcFilenameWaited);
     return 0;

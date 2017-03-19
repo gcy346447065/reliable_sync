@@ -66,7 +66,7 @@ void instantList_clean(void)
 }
 
 int instantList_push(void *pData, int iDataLen)
-{printf("push begin\n");
+{
     stInstantNode *pNode = (stInstantNode *)malloc(sizeof(stInstantNode));
     if(pNode == NULL)
     {
@@ -84,12 +84,12 @@ int instantList_push(void *pData, int iDataLen)
     pNode->pNext = NULL;
 
     if(g_pstInstantList->uiListSize == 0)
-    {printf("uiListSize is 0\n");
+    {
         g_pstInstantList->pFront = pNode;
         g_pstInstantList->pNew = pNode;
     }
     else
-    {printf("uiListSize isn't 0\n");
+    {
         g_pstInstantList->pRear->pNext = pNode;
     }
     g_pstInstantList->pRear = pNode;
@@ -154,9 +154,9 @@ int instantList_moveNew(void)
 
     pthread_mutex_lock(&g_pstInstantList->pMutex);
     g_pstInstantList->uiNewSize--;
-    printf("uiNewSize:%d\n", g_pstInstantList->uiNewSize);
+
     g_pstInstantList->pNew = g_pstInstantList->pNew->pNext;
-    printf("pNew:%d\n", g_pstInstantList->pNew);
+
     pthread_mutex_unlock(&g_pstInstantList->pMutex);
 
     return 0;

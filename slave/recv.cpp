@@ -108,7 +108,7 @@ static int sync_login(const char *pcMsg)
 }
 
 static int sync_newCfgInstant(const char *pcMsg)
-{printf("sync_newCfgInstant begin\n");
+{
     const MSG_NEWCFG_INSTANT_REQ *req = (const MSG_NEWCFG_INSTANT_REQ *)pcMsg;
     if(!req)
     {
@@ -137,7 +137,7 @@ static int sync_newCfgInstant(const char *pcMsg)
 
     int iRet = 0;
     if(sCalChecksum == (short)ntohs(req->sChecksum))
-    {printf("sCalChecksum is OK\n");
+    {
         rsp->cResult = NEWCFG_RESULT_SUCCEED;
 
         log_info("Get instant new cfg.");
@@ -148,17 +148,17 @@ static int sync_newCfgInstant(const char *pcMsg)
         {
             log_error("instantList_push error!");
             return -1;
-        }printf("push OK\n");
+        }
 
         iRet = event_setEventFlags(g_iMainEventFd, SLAVE_MAIN_EVENT_NEWCFG_INSTANT);
         if(iRet != 0)
         {
             log_error("set event flag SLAVE_MAIN_EVENT_NEWCFG_INSTANT failed!");
             return -1;
-        }printf("set OK\n");
+        }
     }
     else
-    {printf("sCalChecksum is Wrong\n");
+    {
         rsp->cResult = NEWCFG_RESULT_CHECKSUM_ERROR;
 
         log_debug("NEWCFG_RESULT_CHECKSUM_ERROR.");
@@ -217,7 +217,7 @@ static int sync_newCfgWaited(const char *pcMsg)
             log_info("Get waited new cfg.");
 
             //还原配置
-            iRet = waitedList_push((void *)pDataNewcfg->acData, ntohl(pDataNewcfg->iDataLen));
+            iRet = waitedList_push((void *)pDataNewcfg->acData, ntohl(pDataNewcfg->iDataLen), ntohl(pDataNewcfg->uiWaitedID));
             if(iRet != 0)
             {
                 log_error("instantList_push error!");

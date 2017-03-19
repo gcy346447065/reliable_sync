@@ -184,14 +184,14 @@ int _epoll_stdin(void)
         if(open(pcFilenameBegin, O_RDONLY) > 0 && open(pcFilenameEnd, O_RDONLY) > 0)
         {
             log_info("open WAITED files ok.");
- 
+
             iRet = write(STDIN_FILENO, "Send WAITED to slave.\r\n", strlen("Send WAITED to slave.\r\n"));
             if(iRet < 0)
             {
                 log_error("write STDIN_FILENO error(%s)!", strerror(errno));
                 return -1;
             }
- 
+
             //触发waited键入事件(向sync模块发送多个文件)
             iRet = event_setEventFlags(g_iMainEventFd, MASTER_MAIN_EVENT_KEYIN_WAITED);
             if(iRet != 0)
@@ -320,22 +320,27 @@ int _epoll_mainEvent(void)
             int iFileWaitedFd;
             if((iFileWaitedFd = open(pcFilenameWaited, O_RDONLY)) > 0)
             {
-                memset(pcWaitedBuf, 0, MAX_PKG_LEN);
-                iRet = read(iFileWaitedFd, pcWaitedBuf, MAX_PKG_LEN);
-                if(iRet < 0)
+                int iBufLen, perlen;
+                do
                 {
-                    log_error("read iFileWaitedFd error(%d)!", iRet);
-                    return -1;
-                }
-                int iBufLen = iRet;
+                    memset(pcWaitedBuf, 0, MAX_PKG_LEN);
+                    perlen = MAX_PKG_LEN - (waitedList_getMsgLen()%MAX_PKG_LEN);
+                    iRet = read(iFileWaitedFd, pcWaitedBuf, perlen);printf("perlen:%d\n", perlen);
+                    if(iRet < 0)
+                    {
+                        log_error("read iFileWaitedFd error(%d)!", iRet);
+                        return -1;
+                    }
+                    waitedList_ID(iRet == perlen);
+                    iBufLen = iRet;
 
-                //向sync模块循环发送waited配置消息
-                iRet = reliable_sync_send(pcWaitedBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
-                if(iRet < 0)
-                {
-                    log_info("reliable_sync_send failed(%d)!", iRet);
-                }
-
+                    //向sync模块循环发送waited配置消息
+                    iRet = reliable_sync_send(pcWaitedBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
+                    if(iRet < 0)
+                    {
+                        log_info("reliable_sync_send failed(%d)!", iRet);
+                    }
+                }while(iBufLen == perlen);
                 close(iFileWaitedFd);
             }
         }

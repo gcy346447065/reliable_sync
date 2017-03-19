@@ -1,5 +1,6 @@
 #include <netinet/in.h> //for sockaddr_in htons
 #include <unistd.h> //for read write
+#include <stdio.h>
 #include "log.h"
 #include "timer.h"
 #include "macro.h"
@@ -191,10 +192,10 @@ static int sync_newCfgWaited(const char *pcMsg)
         return 0;
     }
 
-    unsigned int *piSucceedID = (unsigned int *)(rsp->auiSucceedID);
+    unsigned int *piSucceedID = (unsigned int *)(rsp->auiSucceedID);printf("ok1 len:%d\n", ntohl(rsp->msgHeader.iLength));
     for(int i = 0; i < ntohl(rsp->msgHeader.iLength) / sizeof(unsigned int); i++)
     {
-        waitedList_findAndDelete(ntohl(*piSucceedID));//成功节点，查找并删除
+        waitedList_findAndDelete(ntohl(*piSucceedID), 1);//成功节点，查找并删除
         piSucceedID++;
     }
 

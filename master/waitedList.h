@@ -29,10 +29,12 @@ void waitedList_free(void);
 void waitedList_clean(void);
 
 int waitedList_push(void *pData, int iDataLen);
-int waitedList_findAndDelete(unsigned int uiTargetDataID);
+int waitedList_ID(int num);
+int waitedList_findAndDelete(unsigned int uiTargetDataID, int n);
 
 unsigned int waitedList_getListSize(void);
 unsigned int waitedList_getMsgLen(void);
+unsigned int waitedList_getadeMsgLen(void);
 stWaitedNode *waitedList_getFrontNode(void);
 stWaitedNode *waitedList_getRearNode(void);
 

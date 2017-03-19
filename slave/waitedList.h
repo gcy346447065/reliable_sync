@@ -28,7 +28,7 @@ int waitedList_init(void);
 void waitedList_free(void);
 void waitedList_clean(void);
 
-int waitedList_push(void *pData, int iDataLen);
+int waitedList_push(void *pData, int iDataLen, unsigned int uiWaitedID);
 int waitedList_findAndDelete(unsigned int uiTargetDataID);
 int waitedList_file();
 

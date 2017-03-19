@@ -1,11 +1,13 @@
 #include <stdlib.h> //for malloc
 #include <string.h> //for memcpy
 #include <netinet/in.h> //for htons
+#include <stdio.h>
 #include "log.h"
 #include "event.h"
 #include "checksum.h"
 #include "protocol.h"
 #include "waitedList.h"
+#include "macro.h"
 
 static unsigned int g_uiWaitedID = 0;
 static stWaitedList *g_pstWaitedList;
@@ -72,7 +74,7 @@ int waitedList_push(void *pData, int iDataLen)
 
     pthread_mutex_lock(&g_pstWaitedList->pMutex);
     pNode->cSendTimers = 0;
-    pNode->uiWaitedID = ++g_uiWaitedID; //每个配置的ID
+    pNode->uiWaitedID = g_uiWaitedID; //每个配置的ID
     pNode->iDataLen = iDataLen;
     pNode->pData = malloc(iDataLen);
     memcpy(pNode->pData, pData, iDataLen);
@@ -95,41 +97,72 @@ int waitedList_push(void *pData, int iDataLen)
     return 0;
 }
 
-int __waitedList_delete(stWaitedNode *pNode)
+int waitedList_ID(int num)          //将g_uiWaitedID拆成两半，前半用作组序号，后半用作每组的序号
 {
-    pthread_mutex_lock(&g_pstWaitedList->pMutex);
-    g_pstWaitedList->uiListSize--;
-    g_pstWaitedList->uiMsgLen -= (sizeof(DATA_NEWCFG) + pNode->iDataLen);
-    if(g_pstWaitedList->uiListSize == 0)
+    static short next_ID[2] = {0};
+    g_uiWaitedID = *(unsigned int *)next_ID;printf("g_uiWaitedID:%u\n", g_uiWaitedID);
+    if(num)
     {
-        g_pstWaitedList->pFront = NULL;
-        g_pstWaitedList->pRear = NULL;
+        next_ID[1]++;
     }
     else
     {
-        if(pNode == g_pstWaitedList->pFront)
-        {
-            g_pstWaitedList->pFront = pNode->pNext;
-        }
-
-        if(pNode == g_pstWaitedList->pRear)
-        {
-            g_pstWaitedList->pRear = pNode->pPrev;
-        }
+        next_ID[0]++;
+        next_ID[1] = 0;
     }
+    return 0;
+}
 
-    if(pNode->pPrev != NULL && pNode->pNext != NULL)
+int __waitedList_delete(stWaitedNode *pNode, int n)
+{
+    pthread_mutex_lock(&g_pstWaitedList->pMutex);
+    if (g_pstWaitedList->uiListSize > n)
     {
-        pNode->pPrev->pNext = pNode->pNext;
-        pNode->pNext->pPrev = pNode->pPrev;
+        g_pstWaitedList->uiListSize -= n;
     }
-    free(pNode);
+    else
+    {
+        n = g_pstWaitedList->uiListSize;
+        g_pstWaitedList->uiListSize = 0;
+    }
+
+    int i;
+    stWaitedNode *bNode = pNode, *cNode;
+    unsigned int templen = 0;
+    pNode = pNode->pPrev;
+    for(i=0;i<n && bNode;i++)
+    {
+        templen += sizeof(DATA_NEWCFG) + bNode->iDataLen;
+        free(bNode->pData);
+        cNode = bNode;
+        bNode = bNode->pNext;
+        free(cNode);
+    }
+    if(pNode == NULL)
+    {
+        g_pstWaitedList->pFront = bNode;
+    }
+    else
+    {
+        pNode->pNext = bNode;
+    }
+    if(bNode == NULL)
+    {
+        g_pstWaitedList->pRear = pNode;bNode;
+    }
+    else
+    {
+        bNode->pPrev = pNode;
+        bNode->pPrev = pNode;bNode;
+    }
+
+    g_pstWaitedList->uiMsgLen -= templen;
     pthread_mutex_unlock(&g_pstWaitedList->pMutex);
 
     return 0;
 }
 
-int waitedList_findAndDelete(unsigned int uiTargetDataID)
+int waitedList_findAndDelete(unsigned int uiTargetDataID, int n)
 {
     stWaitedNode *pNode = g_pstWaitedList->pFront;
     while(pNode != NULL)
@@ -142,7 +175,7 @@ int waitedList_findAndDelete(unsigned int uiTargetDataID)
         else if(pNode->uiWaitedID == uiTargetDataID)
         {
             //found
-            __waitedList_delete(pNode);
+            __waitedList_delete(pNode, n);
 
             log_info("waitedList_findAndDelete uiTargetDataID(%u) ok.", uiTargetDataID);
             return 0;
@@ -168,6 +201,18 @@ unsigned int waitedList_getMsgLen(void)
     return g_pstWaitedList->uiMsgLen;
 }
 
+unsigned int waitedList_getadeMsgLen(void)
+{
+    unsigned int adeMsgLen = sizeof(MSG_NEWCFG_WAITED_REQ);
+    stWaitedNode *pNode = g_pstWaitedList->pFront;
+    while (pNode && adeMsgLen < MAX_PKG_LEN)
+    {
+        adeMsgLen += sizeof(DATA_NEWCFG) + pNode->iDataLen;
+        pNode = pNode->pNext;
+    }
+    return adeMsgLen;
+}
+
 stWaitedNode *waitedList_getFrontNode(void)
 {
     return g_pstWaitedList->pFront;
@@ -185,20 +230,22 @@ int waitedList_traverseAndPack(MSG_NEWCFG_WAITED_REQ *req)
     {
         return -1;
     }
-
+    unsigned int adeMsgLen = sizeof(MSG_NEWCFG_WAITED_REQ);
+    int nodenum = 0;
     DATA_NEWCFG *pDataNewcfg = (DATA_NEWCFG *)(req->dataNewcfg);
     stWaitedNode *pNode = g_pstWaitedList->pFront;
 
     pthread_mutex_lock(&g_pstWaitedList->pMutex);
-    while(pNode != NULL)
+    while(pNode && adeMsgLen < MAX_PKG_LEN)
     {
         if(pNode->cSendTimers >= 3)
         {
-            __waitedList_delete(pNode);
+            __waitedList_delete(pNode, 1);
             pNode = pNode->pNext;
             continue;
         }
-
+        nodenum++;
+        adeMsgLen += sizeof(DATA_NEWCFG) + pNode->iDataLen;
         pDataNewcfg->uiWaitedID = htonl(pNode->uiWaitedID);
         pDataNewcfg->sChecksum = htons(checksum((const char *)pNode->pData, pNode->iDataLen));
         pDataNewcfg->iDataLen = htonl(pNode->iDataLen);
@@ -210,8 +257,8 @@ int waitedList_traverseAndPack(MSG_NEWCFG_WAITED_REQ *req)
     }
     pthread_mutex_unlock(&g_pstWaitedList->pMutex);
 
-    req->sChecksum = htons(checksum((const char *)req->dataNewcfg, g_pstWaitedList->uiMsgLen - sizeof(MSG_NEWCFG_WAITED_REQ)));
-    req->uiWaitedSum = htonl(g_pstWaitedList->uiListSize);
+    req->sChecksum = htons(checksum((const char *)req->dataNewcfg, adeMsgLen - sizeof(MSG_NEWCFG_WAITED_REQ)));
+    req->uiWaitedSum = htonl(nodenum);
 
     return 0;
 }

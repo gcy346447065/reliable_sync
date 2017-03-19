@@ -4,6 +4,7 @@
 #include <unistd.h> //for read
 #include <stdlib.h> //for malloc rand
 #include <time.h> //for time
+#include <stdio.h>
 #include "sync.h"
 #include "macro.h"
 #include "log.h"
@@ -122,21 +123,27 @@ int _epoll_syncSocket(void)
 {
     log_info("Get g_iSyncSockFd.");
 
-    int iRet = 0;
+    int iRet = 0, n = 0;
     int iBufferSize = 0;
     char *pcBuffer = (char *)malloc(MAX_BUFFER_SIZE);
     memset(pcBuffer, 0, MAX_BUFFER_SIZE);
-    if((iBufferSize = recvFromMasterSync(g_iSyncSockFd, pcBuffer, MAX_BUFFER_SIZE)) > 0)
+
+    while((iBufferSize = recvFromMasterSync(g_iSyncSockFd, pcBuffer+n*MAX_BUFFER_SIZE, MAX_BUFFER_SIZE)) == MAX_BUFFER_SIZE)
+    {
+        n++;
+        pcBuffer = (char *)realloc(pcBuffer, (n+1)*MAX_BUFFER_SIZE);
+    }
+    iBufferSize += n * MAX_BUFFER_SIZE;
+
+    if(iBufferSize > 0)
     {
         log_hex(pcBuffer, iBufferSize);
-        
         iRet = handle_sync_msg(pcBuffer, iBufferSize);
         if(iRet < 0)
         {
             log_error("handle_sync_msg error!");
         }
     }
-
     free(pcBuffer);
     return 0;
 }

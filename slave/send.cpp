@@ -2,6 +2,7 @@
 #include <stdlib.h> //for malloc rand
 #include <unistd.h> //for read write
 #include <string.h> //for memset strstr memcpy
+#include <stdio.h>
 #include "log.h"
 #include "timer.h"
 #include "macro.h"
