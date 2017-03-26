@@ -320,19 +320,19 @@ int _epoll_mainEvent(void)
             int iFileWaitedFd;
             if((iFileWaitedFd = open(pcFilenameWaited, O_RDONLY)) > 0)
             {
-                int iBufLen, perlen;
+                int iBufLen;
                 do
                 {
                     memset(pcWaitedBuf, 0, MAX_PKG_LEN);
-                    perlen = MAX_PKG_LEN - (waitedList_getMsgLen()%MAX_PKG_LEN);
-                    iRet = read(iFileWaitedFd, pcWaitedBuf, perlen);printf("perlen:%d\n", perlen);
+                    iRet = read(iFileWaitedFd, pcWaitedBuf, MAX_PKG_LEN);
                     if(iRet < 0)
                     {
                         log_error("read iFileWaitedFd error(%d)!", iRet);
                         return -1;
                     }
-                    waitedList_ID(iRet == perlen);
                     iBufLen = iRet;
+                    iRet = iBufLen == MAX_PKG_LEN;
+                    waitedList_ID(iRet);
 
                     //向sync模块循环发送waited配置消息
                     iRet = reliable_sync_send(pcWaitedBuf, iBufLen, MAX_PKG_LEN, NULL, SEND_NEWCFG_WAITED);
@@ -340,7 +340,7 @@ int _epoll_mainEvent(void)
                     {
                         log_info("reliable_sync_send failed(%d)!", iRet);
                     }
-                }while(iBufLen == perlen);
+                }while(iBufLen == MAX_PKG_LEN);
                 close(iFileWaitedFd);
             }
         }

@@ -141,7 +141,7 @@ int waitedList_file()
     while(pNode)
     {
         memset(pcFilenameWaited, 0, MAX_STDIN_FILE_LEN);
-        group = ((short *)&pNode->uiWaitedID)[0];
+        group = ((char *)&pNode->uiWaitedID)[0];
         sprintf(pcFilenameWaited, "file%d", group+1);
         if ((fd = open(pcFilenameWaited, O_RDWR|O_CREAT|O_APPEND, 00700)) == -1)
         {
@@ -153,7 +153,7 @@ int waitedList_file()
             log_debug("write:%d\n", write(fd, pNode->pData, pNode->iDataLen));
             pNode = pNode->pNext;
             __waitedList_delete(g_pstWaitedList->pFront);
-        }while(pNode && ((short *)&pNode->uiWaitedID)[0] == group);
+        }while(pNode && ((char *)&pNode->uiWaitedID)[0] == group);
         close(fd);
     }
     free(pcFilenameWaited);
