@@ -97,25 +97,26 @@ int waitedList_push(void *pData, int iDataLen)
     return 0;
 }
 
-int waitedList_ID(int num)          //将g_uiWaitedID拆成三，前用作组序号，中用作每组的序号 后在出队列时填写
+int waitedList_ID(int num)          //将g_uiWaitedID拆成四，一用作组序号，二用作每组的序号，三用作结束标志，四在出队列时填写
 {
     static char next_ID[4] = {0};
     g_uiWaitedID = *(unsigned int *)next_ID;
-    if(num)
+    if(num == 1)
     {
-        (*(unsigned short*)(next_ID + sizeof(char)))++;
+        next_ID[1]++;
     }
     else
     {
+        ((char *)&g_uiWaitedID)[2] = 1;
         next_ID[0]++;
-        *(unsigned short*)(next_ID + sizeof(char)) = 0;
+        next_ID[1] = 0;
     }
     return 0;
 }
 
 int __waitedList_delete(stWaitedNode *pNode, int n)
-{
-    pthread_mutex_lock(&g_pstWaitedList->pMutex);
+{printf("get into del listsize:%d\n", g_pstWaitedList->uiListSize);
+    //pthread_mutex_lock(&g_pstWaitedList->pMutex);
     if (g_pstWaitedList->uiListSize > n)
     {
         g_pstWaitedList->uiListSize -= n;
@@ -157,14 +158,14 @@ int __waitedList_delete(stWaitedNode *pNode, int n)
     }
 
     g_pstWaitedList->uiMsgLen -= templen;
-    pthread_mutex_unlock(&g_pstWaitedList->pMutex);
+    //pthread_mutex_unlock(&g_pstWaitedList->pMutex);
 
     return 0;
 }
 
 int __waited_Add(stWaitedNode *pNode, void *pData, int iDataLen)
 {
-    pthread_mutex_lock(&g_pstWaitedList->pMutex);
+    //pthread_mutex_lock(&g_pstWaitedList->pMutex);printf("stay\n");
     stWaitedNode *nNode = (stWaitedNode *)malloc(sizeof(stWaitedNode));
     if(nNode == NULL)
     {
@@ -188,13 +189,13 @@ int __waited_Add(stWaitedNode *pNode, void *pData, int iDataLen)
     }
     g_pstWaitedList->uiListSize++;
     g_pstWaitedList->uiMsgLen += (sizeof(DATA_NEWCFG) + iDataLen);
-    pthread_mutex_unlock(&g_pstWaitedList->pMutex);
+    //pthread_mutex_unlock(&g_pstWaitedList->pMutex);printf("add4\n");
 
     return 0;
 }
 
 int waitedList_findAndDelete(unsigned int uiTargetDataID, int n)
-{
+{printf("waited find del uiID:%d, n:%d, list_size:%d\n", uiTargetDataID, n, g_pstWaitedList->uiListSize);
     stWaitedNode *pNode = g_pstWaitedList->pFront;
     while(pNode != NULL)
     {
@@ -206,7 +207,7 @@ int waitedList_findAndDelete(unsigned int uiTargetDataID, int n)
         else if(pNode->uiWaitedID == uiTargetDataID)
         {
             //found
-            __waitedList_delete(pNode, n);
+            __waitedList_delete(pNode, n);printf("waited find del list_size:%d\n", g_pstWaitedList->uiListSize);
 
             log_info("waitedList_findAndDelete uiTargetDataID(%u) ok.", uiTargetDataID);
             return 0;
@@ -217,7 +218,7 @@ int waitedList_findAndDelete(unsigned int uiTargetDataID, int n)
             log_warning("waitedList_findAndDelete uiTargetDataID(%u) failed!", uiTargetDataID);
             return -1;
         }
-    }
+    }printf("waited find del list_size:%d\n", g_pstWaitedList->uiListSize);
 
     return 0;
 }
@@ -255,19 +256,28 @@ stWaitedNode *waitedList_getRearNode(void)
 }
 
 //调用此接口前需要申请好MSG_NEWCFG_WAITED_REQ的内存
-int waitedList_traverseAndPack(MSG_NEWCFG_WAITED_REQ *req)
-{
+int waitedList_traverseAndPack(int *lenth, MSG_NEWCFG_WAITED_REQ *req)
+{printf("get into tra pack\n");
     if(g_pstWaitedList->uiListSize == 0)
     {
+        *lenth = 0;
         return -1;
     }
     unsigned int adeMsgLen = sizeof(MSG_NEWCFG_WAITED_REQ);
-    int nodenum = 0, cut_len;
+    int nodenum = 0, cut_len, eol;
     DATA_NEWCFG *pDataNewcfg = (DATA_NEWCFG *)(req->dataNewcfg);
-    stWaitedNode *pNode = g_pstWaitedList->pFront;
-
+    stWaitedNode *pNode;
+    static stWaitedNode *pnextNode;
+    if(pnextNode == NULL)
+    {
+        pNode = g_pstWaitedList->pFront;
+    }
+    else
+    {
+        pNode = pnextNode;
+    }
     pthread_mutex_lock(&g_pstWaitedList->pMutex);
-    while(pNode && adeMsgLen < MAX_PKG_LEN)
+    while(pNode && adeMsgLen < MAX_PKG_LEN )
     {
         if(pNode->cSendTimers >= 3)
         {
@@ -278,9 +288,16 @@ int waitedList_traverseAndPack(MSG_NEWCFG_WAITED_REQ *req)
         nodenum++;
         if(adeMsgLen + sizeof(DATA_NEWCFG) + pNode->iDataLen > MAX_BUFFER_SIZE)
         {
-            cut_len = MAX_BUFFER_SIZE - adeMsgLen - sizeof(DATA_NEWCFG);
-            __waited_Add(pNode, pNode->pData + cut_len, pNode->iDataLen - cut_len);
-            pNode->iDataLen = cut_len;
+            if (nodenum == 1)
+            {
+                cut_len = MAX_BUFFER_SIZE - adeMsgLen - sizeof(DATA_NEWCFG);
+                __waited_Add(pNode, pNode->pData + cut_len, pNode->iDataLen - cut_len);
+                pNode->iDataLen = cut_len;
+            }
+            else
+            {
+                break;
+            }
         }
         adeMsgLen += sizeof(DATA_NEWCFG) + pNode->iDataLen;
         pDataNewcfg->uiWaitedID = htonl(pNode->uiWaitedID);
@@ -288,16 +305,19 @@ int waitedList_traverseAndPack(MSG_NEWCFG_WAITED_REQ *req)
         pDataNewcfg->iDataLen = htonl(pNode->iDataLen);
         memcpy(pDataNewcfg->acData, pNode->pData, pNode->iDataLen);
 
-        pDataNewcfg = (DATA_NEWCFG *)((char *)pDataNewcfg + pNode->iDataLen + sizeof(DATA_NEWCFG));//偏移指针以填充下一个配置包
+        pDataNewcfg = (DATA_NEWCFG *)((char *)pDataNewcfg + pNode->iDataLen + sizeof(DATA_NEWCFG));
         pNode->cSendTimers++;
         pNode = pNode->pNext;
     }
+    pnextNode = pNode;
     pthread_mutex_unlock(&g_pstWaitedList->pMutex);
 
     req->sChecksum = htons(checksum((const char *)req->dataNewcfg, adeMsgLen - sizeof(MSG_NEWCFG_WAITED_REQ)));
     req->uiWaitedSum = htonl(nodenum);
 
-    return 0;
+    *lenth = int((char *)pDataNewcfg - (char *)req);
+    req->msgHeader.iLength = htonl(*lenth - MSG_HEADER_LEN);
+    eol = pnextNode != NULL;
 }
 
 

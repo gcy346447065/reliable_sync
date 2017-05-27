@@ -38,6 +38,6 @@ unsigned int waitedList_getadeMsgLen(void);
 stWaitedNode *waitedList_getFrontNode(void);
 stWaitedNode *waitedList_getRearNode(void);
 
-int waitedList_traverseAndPack(MSG_NEWCFG_WAITED_REQ *req);//调用此接口前需要申请好MSG_NEWCFG_WAITED_REQ的内存
+int waitedList_traverseAndPack(int *lenth, MSG_NEWCFG_WAITED_REQ *req);//调用此接口前需要申请好MSG_NEWCFG_WAITED_REQ的内存
 
 #endif //_WAITED_LIST_H_

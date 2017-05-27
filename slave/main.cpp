@@ -90,6 +90,7 @@ int _epoll_mainEvent(void)
 
     //获取事件标志，共有64种事件，可同时触发多个
     uint64_t uiEventsFlag;
+    int i;
     int iRet = event_getEventFlags(g_iMainEventFd, &uiEventsFlag);
     if(iRet < 0)
     {
@@ -132,11 +133,14 @@ int _epoll_mainEvent(void)
 
     if(uiEventsFlag & SLAVE_MAIN_EVENT_NEWCFG_WAITED)
     {
-        log_info("Get SLAVE_MAIN_EVENT_NEWCFG_WAITED, waited new cfg num(%d).", waitedList_getListSize());
-        log_debug("%u", waitedList_getListSize());
-        if(g_cSlaveSyncStatus == STATUS_NEWCFG && waitedList_getListSize() > 0)
-        {
-            waitedList_file();
+        for(i=0;i<MAX_REMAIN_FILE;i++)
+        {printf("main.cpp for %d listsize:%d\n", i, waitedList_getListSize(i));
+            log_info("Get SLAVE_MAIN_EVENT_NEWCFG_WAITED, waited(%d) new cfg num(%d).", i, waitedList_getListSize(i));
+            log_debug("list%d:%u", i, waitedList_getListSize(i));
+            if(g_cSlaveSyncStatus == STATUS_NEWCFG && waitedList_getListSize(i) > 0)
+            {
+                waitedList_file(i);
+            }
         }
 
     }

@@ -319,7 +319,7 @@ int _epoll_mainEvent(void)
             sprintf(pcFilenameWaited, "file%d", i);
             int iFileWaitedFd;
             if((iFileWaitedFd = open(pcFilenameWaited, O_RDONLY)) > 0)
-            {
+            {printf("get into %s\n", pcFilenameWaited);
                 int iBufLen;
                 do
                 {
@@ -331,7 +331,9 @@ int _epoll_mainEvent(void)
                         return -1;
                     }
                     iBufLen = iRet;
-                    iRet = iBufLen == MAX_PKG_LEN;
+
+                    iRet = (iBufLen == MAX_PKG_LEN);
+
                     waitedList_ID(iRet);
 
                     //向sync模块循环发送waited配置消息
@@ -354,7 +356,7 @@ int _epoll_mainEvent(void)
         {
             log_error("event_setEventFlags error(%d)!", iRet);
             return -1;
-        }
+        }printf("get out %s\n", pcFilenameWaited);
     }
 
     //通过sync模块的keep_alive机制检测到slave有重启，清除链表中残余配置并重新开始批量备份

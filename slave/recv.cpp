@@ -30,7 +30,7 @@ typedef struct
 } MSG_PROC_MAP;
 
 int recvFromMasterSync(int iSyncSockFd, void *pMsg, int iMaxMsgLen)
-{
+{printf("recv from\n");
     int iRet = timer_start(g_iCheckaliveTimerFd, CHECKALIVE_TIMER_VALUE);
     if(iRet < 0)
     {
@@ -173,7 +173,7 @@ static int sync_newCfgInstant(const char *pcMsg)
 }
 
 static int sync_newCfgWaited(const char *pcMsg)
-{
+{printf("get into sync_newcfgwaited\n");
     const MSG_NEWCFG_WAITED_REQ *req = (const MSG_NEWCFG_WAITED_REQ *)pcMsg;
     if(!req)
     {
@@ -214,10 +214,10 @@ static int sync_newCfgWaited(const char *pcMsg)
             //单个配置校验正确，记录下此ID
             auiSucceedID[uiSucceedSum++] = pDataNewcfg->uiWaitedID;//这里不转字节序，因为发送时还要再转成网络序
 
-            log_info("Get waited new cfg.");
+            log_info("Get waited new cfg.");printf("before waited push\n");
 
             //还原配置
-            iRet = waitedList_push((void *)pDataNewcfg->acData, ntohl(pDataNewcfg->iDataLen), ntohl(pDataNewcfg->uiWaitedID));
+            iRet = waitedList_push((void *)pDataNewcfg->acData, ntohl(pDataNewcfg->iDataLen), ntohl(pDataNewcfg->uiWaitedID));printf("after waited push\n");
             if(iRet != 0)
             {
                 log_error("instantList_push error!");
@@ -289,7 +289,7 @@ static MSG_PROC_MAP g_msgProcs[] =
 };
 
 int handle_one_msg(const char *pcMsg)
-{
+{printf("get into handle one msg\n");
     const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;
 
     if(g_cSlaveSyncStatus == STATUS_LOGIN)//只接受CMD_LOGIN消息
@@ -318,28 +318,28 @@ int handle_one_msg(const char *pcMsg)
 }
 
 int handle_sync_msg(const char *pcMsg, int iMsgLen)
-{
-    const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;
+{printf("get into handle sync msg\n");
+    const MSG_HEADER *pcMsgHeader = (const MSG_HEADER *)pcMsg;printf("ok\n");
 
     if(iMsgLen < MSG_HEADER_LEN)
-    {
+    {printf("ok1\n");
         log_error("sync message length not enough(%u<%u)", iMsgLen, MSG_HEADER_LEN);
         return -1;
     }
 
-    int iLeftLen = iMsgLen;
+    int iLeftLen = iMsgLen;printf("ok2\n");printf("ileftlen:%d, ilength:%d, hearlen:%d\n", iLeftLen, ntohl(pcMsgHeader->iLength), MSG_HEADER_LEN);
     while(iLeftLen >= ntohl(pcMsgHeader->iLength) + MSG_HEADER_LEN)
-    {
+    {printf("ok3\n");
         const unsigned char *status = (const unsigned char *)(&(pcMsgHeader->sSignature));
         if((status[0] != START_FLAG / 0x100) || (status[1] != START_FLAG % 0x100))
-        {
+        {printf("ok4\n");
             log_error("receive message header sSignature error:%x", (unsigned)ntohs(pcMsgHeader->sSignature));
             return -1;
         }
-        handle_one_msg((const char *)pcMsgHeader);
+        handle_one_msg((const char *)pcMsgHeader);printf("ok5\n");
         iLeftLen = iLeftLen - MSG_HEADER_LEN - ntohl(pcMsgHeader->iLength);
         pcMsgHeader = (const MSG_HEADER *)(pcMsg + iMsgLen - iLeftLen);
-    }
+    }printf("ok6\n");
 
     return 0;
 }
