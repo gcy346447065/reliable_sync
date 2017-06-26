@@ -1,0 +1,1 @@
+/usr/bin/c++       CMakeFiles/reliableSync.dir/main.cpp.o CMakeFiles/reliableSync.dir/event.cpp.o CMakeFiles/reliableSync.dir/list_instant.cpp.o CMakeFiles/reliableSync.dir/list_waited.cpp.o CMakeFiles/reliableSync.dir/mbufer.cpp.o CMakeFiles/reliableSync.dir/timer.cpp.o CMakeFiles/reliableSync.dir/vos.cpp.o  -o reliableSync -rdynamic -lpthread 
