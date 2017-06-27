@@ -1,80 +1,75 @@
-#include <sys/timerfd.h> //for timerfd
+#include <sys/timerfd.h>
 #include <string.h> //for memset
 #include <unistd.h> //for close
 #include "timer.h"
 #include "log.h"
 
-DWORD timer::init()
+int timer_create(void)
 {
-    INT iRet = timerfd_create(CLOCK_MONOTONIC, 0); //absolute time from when the system on
-    if(iRet < 0)
+    int iTimerFd = timerfd_create(CLOCK_MONOTONIC, 0); //absolute time from when the system on
+    if(iTimerFd < 0)
     {
         log_error("timerfd create error!");
-        return FAILE;
+        return -1;
     }
 
-    g_dwTimerFd = iRet;
-
-    log_info("timerfd(%d) create ok.", g_dwTimerFd);
-    return SUCCESS;
+    return iTimerFd;
 }
 
-DWORD timer::start(DWORD dwMS)
+int timer_start(int iTimerFd, int iMS)
 {
-    if(dwMS == 0) 
+    if(iMS <= 0)
     {
-        log_error("timer start dwMS(%lu) error!", dwMS);
-        return FAILE;
+        log_error("timer start iMS(%d) error!", iMS);
+        return -1;
     }
 
-    struct itimerspec stTimerSpec;
-    memset(&stTimerSpec, 0, sizeof(struct itimerspec));
-    stTimerSpec.it_value.tv_sec = dwMS / 1000; // tv_sec 最大值 0x7fffffff
-    stTimerSpec.it_value.tv_nsec = dwMS % 1000 * 1000000;
-    stTimerSpec.it_interval.tv_sec = 0;
-    stTimerSpec.it_interval.tv_nsec = 0;
+    struct itimerspec iNewTimerSpec;
+    memset(&iNewTimerSpec, 0, sizeof(struct itimerspec));
+    iNewTimerSpec.it_value.tv_sec = iMS/1000;
+    iNewTimerSpec.it_value.tv_nsec = iMS%1000*1000000;
+    iNewTimerSpec.it_interval.tv_sec = 0;
+    iNewTimerSpec.it_interval.tv_nsec = 0;
 
-    if(timerfd_settime(g_dwTimerFd, 0, &stTimerSpec, NULL) < 0) //0 for a time relative to the current value of the clock
+    if(timerfd_settime(iTimerFd, 0, &iNewTimerSpec, NULL) < 0) //0 for a time relative to the current value of the clock
     {
         log_error("timerfd settime error!");
-        return FAILE;
+        return -2;
     }
 
-    log_info("timerfd(%d) settime ok.", g_dwTimerFd);
-    return SUCCESS;
+    return 0;
 }
 
-DWORD timer::stop()
+int timer_get(int iTimerFd)
 {
-    struct itimerspec stTimerSpec;
-    memset(&stTimerSpec, 0, sizeof(struct itimerspec));
-    if(timerfd_settime(g_dwTimerFd, 0, &stTimerSpec, NULL) < 0)
-    {
-        log_error("timerfd settime error!");
-        return FAILE;
-    }
+    struct itimerspec iTimerSpec;
+    memset(&iTimerSpec, 0, sizeof(struct itimerspec));
 
-    return SUCCESS;
-}
-
-DWORD timer::get(DWORD *pdwMS)
-{
-    struct itimerspec stTimerSpec;
-    memset(&stTimerSpec, 0, sizeof(struct itimerspec));
-
-    if(timerfd_gettime(g_dwTimerFd, &stTimerSpec) < 0)
+    if(timerfd_gettime(iTimerFd, &iTimerSpec) < 0)
     {
         log_error("timerfd gettime error!");
-        return FAILE;
+        return -1;
     }
 
-    *pdwMS = stTimerSpec.it_value.tv_sec * 1000 + stTimerSpec.it_value.tv_nsec / 1000000;
-    return SUCCESS;
+    int iMs = iTimerSpec.it_value.tv_sec * 1000 + iTimerSpec.it_value.tv_nsec / 1000000;
+    return iMs;
 }
 
-DWORD timer::free()
+int timer_stop(int iTimerFd)
 {
-    close(g_dwTimerFd);
+    struct itimerspec iNewTimerSpec;
+    memset(&iNewTimerSpec, 0, sizeof(struct itimerspec));
+    if(timerfd_settime(iTimerFd, 0, &iNewTimerSpec, NULL) < 0)
+    {
+        log_error("timerfd settime error!");
+        return -1;
+    }
 
-    return SUCCESS;
+    return 0;
+}
+
+int timer_close(int iTimerFd)
+{
+    close(iTimerFd);
+    return 0;
 }

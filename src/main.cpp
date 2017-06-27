@@ -1,220 +1,170 @@
-#include <unistd.h> //for read STDIN_FILENO
-#include <stdio.h> //for sscanf sprintf
-#include <stdlib.h> //for malloc
-#include <string.h> //for strcmp memset strstr
-#include <fcntl.h> //for open
+#include <netinet/in.h> //for sockaddr_in
+#include <sys/socket.h> //for recvfrom
+#include <arpa/inet.h> //for inet_addr
+#include <pthread.h> //for pthread
 #include <sys/epoll.h> //for epoll
+#include <stdlib.h> //for malloc
+#include <stdint.h> //for unit64_t
+#include <unistd.h> //for read
 #include <errno.h> //for errno
+#include <string.h> //for memset strstr
+#include <fcntl.h> //for open
 #include "macro.h"
 #include "log.h"
-#include "event.h"
 #include "timer.h"
-#include "vos.h"
-#include "mbufer.h"
+#include "event.h"
+#include "socket.h"
+#include "sync.h"
+#include "tool.h"
+#include "instantList.h"
+#include "waitedList.h"
 
-DWORD master_MonitorFromSlave();
-DWORD slave_RegisterToMaster();
+int g_iMainEpollFd = 0;
+int g_iMainEventFd = 0;
+int g_iSyncEventFd = 0;
+
+int reliable_sync_init(void)
+{
+    /* list init */
+    int iRet = instantList_init();
+    if(iRet < 0)
+    {
+        log_error("instantList_init error!");
+        return -1;
+    }
+    iRet = waitedList_init();
+    if(iRet < 0)
+    {
+        log_error("waitedList_init error!");
+        return -1;
+    }
+
+    /* epoll create */
+    g_iMainEpollFd = epoll_create(MAX_EPOLL_NUM);
+    if(g_iMainEpollFd < 0)
+    {
+        log_error("epoll create error(%d)!", g_iMainEpollFd);
+        return -1;
+    }
+
+    /* eventfd init */
+    g_iMainEventFd = event_init(0); //0 for event flag init value
+    if(g_iMainEventFd < 0)
+    {
+        log_error("event_init error(%d)!", g_iMainEventFd);
+        return -1;
+    }
+    g_iSyncEventFd = event_init(0); //0 for event flag init value
+    if(g_iSyncEventFd < 0)
+    {
+        log_error("event_init error(%d)!", g_iSyncEventFd);
+        return -1;
+    }
+
+    /* add g_iMainEventFd to g_iMainEpollFd */
+    iRet = tool_add_event_to_epoll(g_iMainEpollFd, g_iMainEventFd);
+    if(iRet < 0)
+    {
+        log_error("Epoll(%d) add Event(%d) error(%d)!", g_iMainEpollFd, g_iMainEventFd, iRet);
+        return -1;
+    }
+
+    /* sync pthread create, send iMainEventFd to sync thread */
+    pthread_t SyncThreadId;
+    struct sync_struct stSyncStruct;
+    iRet = pthread_create(&SyncThreadId, NULL, slave_sync_thread, (void *)&stSyncStruct);
+    if(iRet != 0)
+    {
+        log_error("pthread create error(%d)!", iRet);
+        return -1;
+    }
+
+    return 0;
+}
+
+int _epoll_mainEvent(void)
+{
+    log_info("Get iMainEventFd.");
+
+    //获取事件标志，共有64种事件，可同时触发多个
+    uint64_t uiEventsFlag;
+    int iRet = event_getEventFlags(g_iMainEventFd, &uiEventsFlag);
+    if(iRet < 0)
+    {
+        log_error("event_getEventFlags error(%d)!", iRet);
+        return -1;
+    }
+
+    if(uiEventsFlag & SLAVE_MAIN_EVENT_NEWCFG_INSTANT)
+    {
+        log_info("Get SLAVE_MAIN_EVENT_NEWCFG_INSTANT, instant new cfg num(%d).", instantList_getListSize());
+
+        //TO DO: how to recover
+    }
+
+    if(uiEventsFlag & SLAVE_MAIN_EVENT_NEWCFG_WAITED)
+    {
+        log_info("Get SLAVE_MAIN_EVENT_NEWCFG_WAITED, waited new cfg num(%d).", waitedList_getListSize());
+
+        //TO DO: how to recover
+    }
+
+    if(uiEventsFlag & SLAVE_MAIN_EVENT_MASTER_RESTART) //when find specifyID different, get slave restart event
+    {
+        log_info("Get SLAVE_EVENT_MASTER_RESTART, batch backup.");
+
+        //TO DO: clean the queue and batch backup
+    }
+
+    if(uiEventsFlag & SLAVE_MAIN_EVENT_CHECKALIVE_TIMER) //when not recived msg for a while, get check alive timer event
+    {
+        log_info("Get SLAVE_EVENT_CHECKALIVE_TIMER, restart.");
+
+        /* restart */
+    }
+
+}
 
 /*
- * 主备服务的主线程，主要负责监听创建具体服务的请求
+ * 配置模块为实际主线程
  */
-INT main(INT argc, CHAR *argv[])
+int main(int argc, char *argv[])
 {
-    //现在用的是syslog输出到/var/log/local1.log文件中，如有其他打印log方式可代之
-    log_init("");
-    log_info("Task Beginning.");
+    //现用的是syslog输出到/var/log/local1.log文件中，如有其他打印log方式可代之
+    log_init();
 
-    if(argc != 2)
+    log_info("MAIN Task Beginning.");
+
+    int iRet = reliable_sync_init();
+    if(iRet < 0)
     {
-        log_error("main arg error!");
-        log_free();
-        return FAILE;
+        log_error("reliable_sync_init");
     }
 
-    DWORD dwRet;
-    if(strcmp(argv[1], "master") == SUCCESS)
+    struct epoll_event stEvents[MAX_EPOLL_NUM];
+    while(1)
     {
-        log_init("MASTER MAIN");
-        log_info("MASTER MAIN Task.");
-
-        //一直监听备机发来的创建主服务子线程的请求，成功后创建主服务子线程与备服务进行通讯
-        master_MonitorFromSlave();
-    }
-    else if(strcmp(argv[1], "slave") == SUCCESS)
-    {
-        log_init("SLAVE MAIN");
-        log_info("SLAVE MAIN Task.");
-
-        //循环向主机发送注册包，成功后与主服务子线程进行通讯
-        slave_RegisterToMaster();
-    }
-    else
-    {
-        log_error("main arg error!");
-        log_free();
-        return FAILE;
-    }
+        /* epoll wail */
+        int iEpollNum = epoll_wait(g_iMainEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
+        for(int i = 0; i < iEpollNum; i++)
+        {
+            if(stEvents[i].data.fd == g_iMainEventFd && stEvents[i].events & EPOLLIN)
+            {
+                iRet = _epoll_mainEvent();
+                if(iRet < 0)
+                {
+                    log_warning("_epoll_mainEvent failed!");
+                }
+            }
+        }//for
+    }//while
 
     /* free all */
-    log_info("Task Ending.");
+    log_info("MAIN Task Ending.");
     log_free();
-    return FAILE;
+    close(g_iMainEpollFd);
+    close(g_iMainEventFd);
+    return 0;
 }
 
-DWORD master_mailboxProc(void *pObj)
-{
-    DWORD dwRet = SUCCESS;
-
-    log_debug("master_mailboxProc()");
-
-    return dwRet;
-}
-
-DWORD master_MonitorFromSlave()
-{
-    DWORD dwRet = SUCCESS;
-
-    vos *pMasterVos = new vos;//vos相当于是epoll
-    dwRet = pMasterVos->VOS_Init();
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_Init error!");
-        return FAILE;
-    }
-
-    mbufer *pMasterMbufer = new mbufer;
-    MSG_ADDR MailboxAddr    = {0};
-    MailboxAddr.dwNeID      = 1;
-    MailboxAddr.wCardID     = 2;
-    MailboxAddr.wSoftwareID = 3;
-    MailboxAddr.byEntryID   = ADDR_1;//实际只使用该位对应ip加端口号
-
-    dmm *pMasterDmm = new dmm;//实际上在create_mailbox中确定mbufer中的g_dwMbuferFd，也就是对应vos中的dwTaskEventFd
-    dwRet = pMasterDmm->create_mailbox(&pMasterMbufer, MailboxAddr);
-    if(dwRet != SUCCESS)
-    {
-        log_error("create_mailbox error!");
-        return FAILE;
-    }
-
-    dwRet = pMasterVos->VOS_RegTaskEventFd(VOS_TASK_MASTER_MAILBOX, pMasterMbufer->g_dwMbuferFd);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskEventFd error!");
-        return FAILE;
-    }
-
-    dwRet = pMasterVos->VOS_RegTaskFunc(VOS_TASK_MASTER_MAILBOX, master_mailboxProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskFunc error!");
-        return FAILE;
-    }
-
-    pMasterVos->VOS_EpollWait(); //while(1)!!!
-
-    return dwRet;
-}
-
-DWORD slave_mailboxProc(void *pObj)
-{
-    DWORD dwRet = SUCCESS;
-
-    log_debug("slave_mailboxProc()");
-
-    return dwRet;
-}
-
-DWORD slave_registerTimerProc(void *pObj)
-{
-    DWORD dwRet = SUCCESS;
-
-    log_debug("slave_registerTimerProc()");
-
-    return dwRet;
-}
-
-DWORD slave_RegisterToMaster()
-{
-    DWORD dwRet = SUCCESS;
-
-    vos *pSlaveVos = new vos;
-    dwRet = pSlaveVos->VOS_Init();
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_Init error!");
-        return FAILE;
-    }
-
-    /* 备机邮箱添加到vos */
-    mbufer *pSlaveMbufer = new mbufer;
-    MSG_ADDR MailboxAddr    = {0};
-    MailboxAddr.dwNeID      = 1;
-    MailboxAddr.wCardID     = 2;
-    MailboxAddr.wSoftwareID = 3;
-    MailboxAddr.byEntryID   = ADDR_2;//实际只使用该位对应ip加端口号
-
-    dmm *pSlaveDmm = new dmm;//实际上在create_mailbox中确定mbufer中的g_dwMbuferFd，也就是记录vos中的EventFd
-    dwRet = pSlaveDmm->create_mailbox(&pSlaveMbufer, MailboxAddr);
-    if(dwRet != SUCCESS)
-    {
-        log_error("create_mailbox error!");
-        return FAILE;
-    }
-
-    dwRet = pSlaveVos->VOS_RegTaskEventFd(VOS_TASK_SLAVE_MAILBOX, pSlaveMbufer->g_dwMbuferFd);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskEventFd error!");
-        return FAILE;
-    }
-
-    dwRet = pSlaveVos->VOS_RegTaskFunc(VOS_TASK_SLAVE_MAILBOX, slave_mailboxProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskFunc error!");
-        return FAILE;
-    }
-
-    /* 备机注册定时器添加到vos */
-    timer *pRegisterTimer = new timer;
-    dwRet = pRegisterTimer->init();
-    if(dwRet != SUCCESS)
-    {
-        log_error("pRegisterTimer->init error!");
-        return FAILE;
-    }
-    
-    //log_debug("pRegisterTimer->g_dwTimerFd(%lu)", pRegisterTimer->g_dwTimerFd);
-    pRegisterTimer->get(&dwRet);
-    log_debug("pRegisterTimer->get(%lu)", dwRet);
-    
-    dwRet = pSlaveVos->VOS_RegTaskEventFd(VOS_TASK_SLAVE_REGISTER_TIMER, pRegisterTimer->g_dwTimerFd);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskEventFd error!");
-        return FAILE;
-    }
-
-    dwRet = pSlaveVos->VOS_RegTaskFunc(VOS_TASK_SLAVE_REGISTER_TIMER, slave_registerTimerProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskFunc error!");
-        return FAILE;
-    }
-
-    dwRet = pRegisterTimer->start(1000*60*2);//2min
-    if(dwRet != SUCCESS)
-    {
-        log_error("pRegisterTimer->start error!");
-        return FAILE;
-    }
-
-    pRegisterTimer->get(&dwRet);
-    log_debug("pRegisterTimer->get(%lu)", dwRet);
-
-    pSlaveVos->VOS_EpollWait(); //while(1)!!!
-
-    return dwRet;
-}
 

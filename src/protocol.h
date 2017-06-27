@@ -51,8 +51,7 @@ typedef struct
 typedef struct
 {
     MSG_HEADER msgHeader;
-    
-    unsigned int uiNewcfgID;
+    unsigned int uiInstantID;
     short sChecksum;
     char acData[];
 }__attribute__((__packed__)) MSG_NEWCFG_INSTANT_REQ;
@@ -67,7 +66,7 @@ enum
 typedef struct
 {
     MSG_HEADER msgHeader;
-    unsigned int uiNewcfgID;
+    unsigned int uiInstantID;
     char cResult;
 }__attribute__((__packed__)) MSG_NEWCFG_INSTANT_RSP;
 
@@ -76,7 +75,7 @@ typedef struct
  */
 typedef struct
 {
-    unsigned int uiNewcfgID;
+    unsigned int uiWaitedID;
     short sChecksum;
     int iDataLen;
     char acData[];
@@ -93,7 +92,7 @@ typedef struct
 typedef struct
 {
     MSG_HEADER msgHeader;
-    unsigned int auiNewcfgID[];
+    unsigned int auiSucceedID[];
 }__attribute__((__packed__)) MSG_NEWCFG_WAITED_RSP;
 
 /*

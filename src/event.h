@@ -1,30 +1,22 @@
 #ifndef _EVENT_H_
 #define _EVENT_H_
 
-#include "macro.h"
+#include <stdint.h> //for unit64_t
 
 /* g_iMainEventFd 对应的事件 */
-#define MASTER_MAIN_EVENT_NULL                  0x0000
-#define MASTER_MAIN_EVENT_KEYIN_INSTANT         0x0001
-#define MASTER_MAIN_EVENT_KEYIN_WAITED          0x0002
-#define MASTER_MAIN_EVENT_SLAVE_RESTART         0x0004
-#define MASTER_MAIN_EVENT_CHECKALIVE_TIMER      0x0008
+#define SLAVE_MAIN_EVENT_NULL                   0x0000
+#define SLAVE_MAIN_EVENT_NEWCFG_INSTANT         0x0001
+#define SLAVE_MAIN_EVENT_NEWCFG_WAITED          0x0002
+#define SLAVE_MAIN_EVENT_MASTER_RESTART         0x0004
+#define SLAVE_MAIN_EVENT_CHECKALIVE_TIMER       0x0008
 
 /* g_iSyncEventFd 对应的事件 */
-#define MASTER_SYNC_EVENT_NULL                  0x0000
-#define MASTER_SYNC_EVENT_NEWCFG_INSTANT        0x0001
-#define MASTER_SYNC_EVENT_NEWCFG_WAITED         0x0002
+#define SLAVE_SYNC_EVENT_NULL                   0x0000
 
-class event
-{
+int event_init(unsigned int iInitVal);
 
-public:
-    DWORD g_dwEventFd;
-
-    DWORD init(DWORD dwInitVal);
-    DWORD getEventFlags(QWORD *pqwEventFlag);
-    DWORD setEventFlags(QWORD qwEventFlag);
-    DWORD resetEventFlags(QWORD qwEventFlag);
-};
+int event_getEventFlags(int iEventFd, uint64_t *puiEventRead);
+int event_setEventFlags(int iEventFd, uint64_t uiEventFlag);
+int event_resetEventFlags(int iEventFd, uint64_t uiEventFlag);
 
 #endif //_EVENT_H_
