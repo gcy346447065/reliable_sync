@@ -1,6 +1,6 @@
-#include "list_instant.h"
+#include "list.h"
 
-DWORD list_instant::init(DWORD dwLclAddr, DWORD dwOppAddr)
+DWORD list::init()
 {
     return SUCCESS;
 }

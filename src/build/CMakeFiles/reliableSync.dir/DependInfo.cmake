@@ -4,11 +4,17 @@ SET(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 SET(CMAKE_DEPENDS_CHECK_CXX
+  "/home/guochengying/reliable_sync/src/checksum.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/checksum.cpp.o"
   "/home/guochengying/reliable_sync/src/event.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/event.cpp.o"
-  "/home/guochengying/reliable_sync/src/list_instant.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/list_instant.cpp.o"
-  "/home/guochengying/reliable_sync/src/list_waited.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/list_waited.cpp.o"
+  "/home/guochengying/reliable_sync/src/list.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/list.cpp.o"
   "/home/guochengying/reliable_sync/src/main.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/main.cpp.o"
+  "/home/guochengying/reliable_sync/src/master.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/master.cpp.o"
+  "/home/guochengying/reliable_sync/src/master_recv.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/master_recv.cpp.o"
+  "/home/guochengying/reliable_sync/src/master_send.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/master_send.cpp.o"
   "/home/guochengying/reliable_sync/src/mbufer.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/mbufer.cpp.o"
+  "/home/guochengying/reliable_sync/src/slave.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/slave.cpp.o"
+  "/home/guochengying/reliable_sync/src/slave_recv.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/slave_recv.cpp.o"
+  "/home/guochengying/reliable_sync/src/slave_send.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/slave_send.cpp.o"
   "/home/guochengying/reliable_sync/src/timer.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/timer.cpp.o"
   "/home/guochengying/reliable_sync/src/vos.cpp" "/home/guochengying/reliable_sync/src/build/CMakeFiles/reliableSync.dir/vos.cpp.o"
   )

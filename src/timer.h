@@ -1,10 +1,23 @@
 #ifndef _TIMER_H_
 #define _TIMER_H_
 
-int timer_create(void);
-int timer_start(int iTimerFd, int iMS);
-int timer_get(int iTimerFd);
-int timer_stop(int iTimerFd);
-int timer_close(int iTimerFd);
+#include "macro.h"
+
+/*
+ * 
+ */
+class timer
+{
+
+public:
+    DWORD g_dwTimerFd;
+
+    DWORD init();
+    DWORD start(DWORD dwMS);
+    DWORD stop();
+    DWORD get(DWORD *pdwMS);
+    DWORD free();
+
+};
 
 #endif //_TIMER_H_

@@ -75,9 +75,147 @@ CMakeFiles/reliableSync.dir/main.cpp.o.provides: CMakeFiles/reliableSync.dir/mai
 
 CMakeFiles/reliableSync.dir/main.cpp.o.provides.build: CMakeFiles/reliableSync.dir/main.cpp.o
 
+CMakeFiles/reliableSync.dir/master.cpp.o: CMakeFiles/reliableSync.dir/flags.make
+CMakeFiles/reliableSync.dir/master.cpp.o: ../master.cpp
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_2)
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/master.cpp.o"
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/master.cpp.o -c /home/guochengying/reliable_sync/src/master.cpp
+
+CMakeFiles/reliableSync.dir/master.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/master.cpp.i"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/master.cpp > CMakeFiles/reliableSync.dir/master.cpp.i
+
+CMakeFiles/reliableSync.dir/master.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/master.cpp.s"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/master.cpp -o CMakeFiles/reliableSync.dir/master.cpp.s
+
+CMakeFiles/reliableSync.dir/master.cpp.o.requires:
+.PHONY : CMakeFiles/reliableSync.dir/master.cpp.o.requires
+
+CMakeFiles/reliableSync.dir/master.cpp.o.provides: CMakeFiles/reliableSync.dir/master.cpp.o.requires
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master.cpp.o.provides.build
+.PHONY : CMakeFiles/reliableSync.dir/master.cpp.o.provides
+
+CMakeFiles/reliableSync.dir/master.cpp.o.provides.build: CMakeFiles/reliableSync.dir/master.cpp.o
+
+CMakeFiles/reliableSync.dir/master_send.cpp.o: CMakeFiles/reliableSync.dir/flags.make
+CMakeFiles/reliableSync.dir/master_send.cpp.o: ../master_send.cpp
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_3)
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/master_send.cpp.o"
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/master_send.cpp.o -c /home/guochengying/reliable_sync/src/master_send.cpp
+
+CMakeFiles/reliableSync.dir/master_send.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/master_send.cpp.i"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/master_send.cpp > CMakeFiles/reliableSync.dir/master_send.cpp.i
+
+CMakeFiles/reliableSync.dir/master_send.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/master_send.cpp.s"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/master_send.cpp -o CMakeFiles/reliableSync.dir/master_send.cpp.s
+
+CMakeFiles/reliableSync.dir/master_send.cpp.o.requires:
+.PHONY : CMakeFiles/reliableSync.dir/master_send.cpp.o.requires
+
+CMakeFiles/reliableSync.dir/master_send.cpp.o.provides: CMakeFiles/reliableSync.dir/master_send.cpp.o.requires
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master_send.cpp.o.provides.build
+.PHONY : CMakeFiles/reliableSync.dir/master_send.cpp.o.provides
+
+CMakeFiles/reliableSync.dir/master_send.cpp.o.provides.build: CMakeFiles/reliableSync.dir/master_send.cpp.o
+
+CMakeFiles/reliableSync.dir/master_recv.cpp.o: CMakeFiles/reliableSync.dir/flags.make
+CMakeFiles/reliableSync.dir/master_recv.cpp.o: ../master_recv.cpp
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_4)
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/master_recv.cpp.o"
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/master_recv.cpp.o -c /home/guochengying/reliable_sync/src/master_recv.cpp
+
+CMakeFiles/reliableSync.dir/master_recv.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/master_recv.cpp.i"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/master_recv.cpp > CMakeFiles/reliableSync.dir/master_recv.cpp.i
+
+CMakeFiles/reliableSync.dir/master_recv.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/master_recv.cpp.s"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/master_recv.cpp -o CMakeFiles/reliableSync.dir/master_recv.cpp.s
+
+CMakeFiles/reliableSync.dir/master_recv.cpp.o.requires:
+.PHONY : CMakeFiles/reliableSync.dir/master_recv.cpp.o.requires
+
+CMakeFiles/reliableSync.dir/master_recv.cpp.o.provides: CMakeFiles/reliableSync.dir/master_recv.cpp.o.requires
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master_recv.cpp.o.provides.build
+.PHONY : CMakeFiles/reliableSync.dir/master_recv.cpp.o.provides
+
+CMakeFiles/reliableSync.dir/master_recv.cpp.o.provides.build: CMakeFiles/reliableSync.dir/master_recv.cpp.o
+
+CMakeFiles/reliableSync.dir/slave.cpp.o: CMakeFiles/reliableSync.dir/flags.make
+CMakeFiles/reliableSync.dir/slave.cpp.o: ../slave.cpp
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_5)
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/slave.cpp.o"
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/slave.cpp.o -c /home/guochengying/reliable_sync/src/slave.cpp
+
+CMakeFiles/reliableSync.dir/slave.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/slave.cpp.i"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/slave.cpp > CMakeFiles/reliableSync.dir/slave.cpp.i
+
+CMakeFiles/reliableSync.dir/slave.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/slave.cpp.s"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/slave.cpp -o CMakeFiles/reliableSync.dir/slave.cpp.s
+
+CMakeFiles/reliableSync.dir/slave.cpp.o.requires:
+.PHONY : CMakeFiles/reliableSync.dir/slave.cpp.o.requires
+
+CMakeFiles/reliableSync.dir/slave.cpp.o.provides: CMakeFiles/reliableSync.dir/slave.cpp.o.requires
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave.cpp.o.provides.build
+.PHONY : CMakeFiles/reliableSync.dir/slave.cpp.o.provides
+
+CMakeFiles/reliableSync.dir/slave.cpp.o.provides.build: CMakeFiles/reliableSync.dir/slave.cpp.o
+
+CMakeFiles/reliableSync.dir/slave_send.cpp.o: CMakeFiles/reliableSync.dir/flags.make
+CMakeFiles/reliableSync.dir/slave_send.cpp.o: ../slave_send.cpp
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_6)
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/slave_send.cpp.o"
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/slave_send.cpp.o -c /home/guochengying/reliable_sync/src/slave_send.cpp
+
+CMakeFiles/reliableSync.dir/slave_send.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/slave_send.cpp.i"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/slave_send.cpp > CMakeFiles/reliableSync.dir/slave_send.cpp.i
+
+CMakeFiles/reliableSync.dir/slave_send.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/slave_send.cpp.s"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/slave_send.cpp -o CMakeFiles/reliableSync.dir/slave_send.cpp.s
+
+CMakeFiles/reliableSync.dir/slave_send.cpp.o.requires:
+.PHONY : CMakeFiles/reliableSync.dir/slave_send.cpp.o.requires
+
+CMakeFiles/reliableSync.dir/slave_send.cpp.o.provides: CMakeFiles/reliableSync.dir/slave_send.cpp.o.requires
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave_send.cpp.o.provides.build
+.PHONY : CMakeFiles/reliableSync.dir/slave_send.cpp.o.provides
+
+CMakeFiles/reliableSync.dir/slave_send.cpp.o.provides.build: CMakeFiles/reliableSync.dir/slave_send.cpp.o
+
+CMakeFiles/reliableSync.dir/slave_recv.cpp.o: CMakeFiles/reliableSync.dir/flags.make
+CMakeFiles/reliableSync.dir/slave_recv.cpp.o: ../slave_recv.cpp
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_7)
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/slave_recv.cpp.o"
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/slave_recv.cpp.o -c /home/guochengying/reliable_sync/src/slave_recv.cpp
+
+CMakeFiles/reliableSync.dir/slave_recv.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/slave_recv.cpp.i"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/slave_recv.cpp > CMakeFiles/reliableSync.dir/slave_recv.cpp.i
+
+CMakeFiles/reliableSync.dir/slave_recv.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/slave_recv.cpp.s"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/slave_recv.cpp -o CMakeFiles/reliableSync.dir/slave_recv.cpp.s
+
+CMakeFiles/reliableSync.dir/slave_recv.cpp.o.requires:
+.PHONY : CMakeFiles/reliableSync.dir/slave_recv.cpp.o.requires
+
+CMakeFiles/reliableSync.dir/slave_recv.cpp.o.provides: CMakeFiles/reliableSync.dir/slave_recv.cpp.o.requires
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave_recv.cpp.o.provides.build
+.PHONY : CMakeFiles/reliableSync.dir/slave_recv.cpp.o.provides
+
+CMakeFiles/reliableSync.dir/slave_recv.cpp.o.provides.build: CMakeFiles/reliableSync.dir/slave_recv.cpp.o
+
 CMakeFiles/reliableSync.dir/event.cpp.o: CMakeFiles/reliableSync.dir/flags.make
 CMakeFiles/reliableSync.dir/event.cpp.o: ../event.cpp
-	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_2)
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_8)
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/event.cpp.o"
 	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/event.cpp.o -c /home/guochengying/reliable_sync/src/event.cpp
 
@@ -98,55 +236,32 @@ CMakeFiles/reliableSync.dir/event.cpp.o.provides: CMakeFiles/reliableSync.dir/ev
 
 CMakeFiles/reliableSync.dir/event.cpp.o.provides.build: CMakeFiles/reliableSync.dir/event.cpp.o
 
-CMakeFiles/reliableSync.dir/list_instant.cpp.o: CMakeFiles/reliableSync.dir/flags.make
-CMakeFiles/reliableSync.dir/list_instant.cpp.o: ../list_instant.cpp
-	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_3)
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/list_instant.cpp.o"
-	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/list_instant.cpp.o -c /home/guochengying/reliable_sync/src/list_instant.cpp
+CMakeFiles/reliableSync.dir/list.cpp.o: CMakeFiles/reliableSync.dir/flags.make
+CMakeFiles/reliableSync.dir/list.cpp.o: ../list.cpp
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_9)
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/list.cpp.o"
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/list.cpp.o -c /home/guochengying/reliable_sync/src/list.cpp
 
-CMakeFiles/reliableSync.dir/list_instant.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/list_instant.cpp.i"
-	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/list_instant.cpp > CMakeFiles/reliableSync.dir/list_instant.cpp.i
+CMakeFiles/reliableSync.dir/list.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/list.cpp.i"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/list.cpp > CMakeFiles/reliableSync.dir/list.cpp.i
 
-CMakeFiles/reliableSync.dir/list_instant.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/list_instant.cpp.s"
-	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/list_instant.cpp -o CMakeFiles/reliableSync.dir/list_instant.cpp.s
+CMakeFiles/reliableSync.dir/list.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/list.cpp.s"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/list.cpp -o CMakeFiles/reliableSync.dir/list.cpp.s
 
-CMakeFiles/reliableSync.dir/list_instant.cpp.o.requires:
-.PHONY : CMakeFiles/reliableSync.dir/list_instant.cpp.o.requires
+CMakeFiles/reliableSync.dir/list.cpp.o.requires:
+.PHONY : CMakeFiles/reliableSync.dir/list.cpp.o.requires
 
-CMakeFiles/reliableSync.dir/list_instant.cpp.o.provides: CMakeFiles/reliableSync.dir/list_instant.cpp.o.requires
-	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list_instant.cpp.o.provides.build
-.PHONY : CMakeFiles/reliableSync.dir/list_instant.cpp.o.provides
+CMakeFiles/reliableSync.dir/list.cpp.o.provides: CMakeFiles/reliableSync.dir/list.cpp.o.requires
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list.cpp.o.provides.build
+.PHONY : CMakeFiles/reliableSync.dir/list.cpp.o.provides
 
-CMakeFiles/reliableSync.dir/list_instant.cpp.o.provides.build: CMakeFiles/reliableSync.dir/list_instant.cpp.o
-
-CMakeFiles/reliableSync.dir/list_waited.cpp.o: CMakeFiles/reliableSync.dir/flags.make
-CMakeFiles/reliableSync.dir/list_waited.cpp.o: ../list_waited.cpp
-	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_4)
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/list_waited.cpp.o"
-	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/list_waited.cpp.o -c /home/guochengying/reliable_sync/src/list_waited.cpp
-
-CMakeFiles/reliableSync.dir/list_waited.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/list_waited.cpp.i"
-	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/list_waited.cpp > CMakeFiles/reliableSync.dir/list_waited.cpp.i
-
-CMakeFiles/reliableSync.dir/list_waited.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/list_waited.cpp.s"
-	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/list_waited.cpp -o CMakeFiles/reliableSync.dir/list_waited.cpp.s
-
-CMakeFiles/reliableSync.dir/list_waited.cpp.o.requires:
-.PHONY : CMakeFiles/reliableSync.dir/list_waited.cpp.o.requires
-
-CMakeFiles/reliableSync.dir/list_waited.cpp.o.provides: CMakeFiles/reliableSync.dir/list_waited.cpp.o.requires
-	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list_waited.cpp.o.provides.build
-.PHONY : CMakeFiles/reliableSync.dir/list_waited.cpp.o.provides
-
-CMakeFiles/reliableSync.dir/list_waited.cpp.o.provides.build: CMakeFiles/reliableSync.dir/list_waited.cpp.o
+CMakeFiles/reliableSync.dir/list.cpp.o.provides.build: CMakeFiles/reliableSync.dir/list.cpp.o
 
 CMakeFiles/reliableSync.dir/mbufer.cpp.o: CMakeFiles/reliableSync.dir/flags.make
 CMakeFiles/reliableSync.dir/mbufer.cpp.o: ../mbufer.cpp
-	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_5)
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_10)
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/mbufer.cpp.o"
 	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/mbufer.cpp.o -c /home/guochengying/reliable_sync/src/mbufer.cpp
 
@@ -169,7 +284,7 @@ CMakeFiles/reliableSync.dir/mbufer.cpp.o.provides.build: CMakeFiles/reliableSync
 
 CMakeFiles/reliableSync.dir/timer.cpp.o: CMakeFiles/reliableSync.dir/flags.make
 CMakeFiles/reliableSync.dir/timer.cpp.o: ../timer.cpp
-	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_6)
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_11)
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/timer.cpp.o"
 	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/timer.cpp.o -c /home/guochengying/reliable_sync/src/timer.cpp
 
@@ -190,9 +305,32 @@ CMakeFiles/reliableSync.dir/timer.cpp.o.provides: CMakeFiles/reliableSync.dir/ti
 
 CMakeFiles/reliableSync.dir/timer.cpp.o.provides.build: CMakeFiles/reliableSync.dir/timer.cpp.o
 
+CMakeFiles/reliableSync.dir/checksum.cpp.o: CMakeFiles/reliableSync.dir/flags.make
+CMakeFiles/reliableSync.dir/checksum.cpp.o: ../checksum.cpp
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_12)
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/checksum.cpp.o"
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/checksum.cpp.o -c /home/guochengying/reliable_sync/src/checksum.cpp
+
+CMakeFiles/reliableSync.dir/checksum.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/reliableSync.dir/checksum.cpp.i"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/guochengying/reliable_sync/src/checksum.cpp > CMakeFiles/reliableSync.dir/checksum.cpp.i
+
+CMakeFiles/reliableSync.dir/checksum.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/reliableSync.dir/checksum.cpp.s"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/guochengying/reliable_sync/src/checksum.cpp -o CMakeFiles/reliableSync.dir/checksum.cpp.s
+
+CMakeFiles/reliableSync.dir/checksum.cpp.o.requires:
+.PHONY : CMakeFiles/reliableSync.dir/checksum.cpp.o.requires
+
+CMakeFiles/reliableSync.dir/checksum.cpp.o.provides: CMakeFiles/reliableSync.dir/checksum.cpp.o.requires
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/checksum.cpp.o.provides.build
+.PHONY : CMakeFiles/reliableSync.dir/checksum.cpp.o.provides
+
+CMakeFiles/reliableSync.dir/checksum.cpp.o.provides.build: CMakeFiles/reliableSync.dir/checksum.cpp.o
+
 CMakeFiles/reliableSync.dir/vos.cpp.o: CMakeFiles/reliableSync.dir/flags.make
 CMakeFiles/reliableSync.dir/vos.cpp.o: ../vos.cpp
-	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_7)
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/guochengying/reliable_sync/src/build/CMakeFiles $(CMAKE_PROGRESS_13)
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/reliableSync.dir/vos.cpp.o"
 	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/reliableSync.dir/vos.cpp.o -c /home/guochengying/reliable_sync/src/vos.cpp
 
@@ -216,22 +354,34 @@ CMakeFiles/reliableSync.dir/vos.cpp.o.provides.build: CMakeFiles/reliableSync.di
 # Object files for target reliableSync
 reliableSync_OBJECTS = \
 "CMakeFiles/reliableSync.dir/main.cpp.o" \
+"CMakeFiles/reliableSync.dir/master.cpp.o" \
+"CMakeFiles/reliableSync.dir/master_send.cpp.o" \
+"CMakeFiles/reliableSync.dir/master_recv.cpp.o" \
+"CMakeFiles/reliableSync.dir/slave.cpp.o" \
+"CMakeFiles/reliableSync.dir/slave_send.cpp.o" \
+"CMakeFiles/reliableSync.dir/slave_recv.cpp.o" \
 "CMakeFiles/reliableSync.dir/event.cpp.o" \
-"CMakeFiles/reliableSync.dir/list_instant.cpp.o" \
-"CMakeFiles/reliableSync.dir/list_waited.cpp.o" \
+"CMakeFiles/reliableSync.dir/list.cpp.o" \
 "CMakeFiles/reliableSync.dir/mbufer.cpp.o" \
 "CMakeFiles/reliableSync.dir/timer.cpp.o" \
+"CMakeFiles/reliableSync.dir/checksum.cpp.o" \
 "CMakeFiles/reliableSync.dir/vos.cpp.o"
 
 # External object files for target reliableSync
 reliableSync_EXTERNAL_OBJECTS =
 
 reliableSync: CMakeFiles/reliableSync.dir/main.cpp.o
+reliableSync: CMakeFiles/reliableSync.dir/master.cpp.o
+reliableSync: CMakeFiles/reliableSync.dir/master_send.cpp.o
+reliableSync: CMakeFiles/reliableSync.dir/master_recv.cpp.o
+reliableSync: CMakeFiles/reliableSync.dir/slave.cpp.o
+reliableSync: CMakeFiles/reliableSync.dir/slave_send.cpp.o
+reliableSync: CMakeFiles/reliableSync.dir/slave_recv.cpp.o
 reliableSync: CMakeFiles/reliableSync.dir/event.cpp.o
-reliableSync: CMakeFiles/reliableSync.dir/list_instant.cpp.o
-reliableSync: CMakeFiles/reliableSync.dir/list_waited.cpp.o
+reliableSync: CMakeFiles/reliableSync.dir/list.cpp.o
 reliableSync: CMakeFiles/reliableSync.dir/mbufer.cpp.o
 reliableSync: CMakeFiles/reliableSync.dir/timer.cpp.o
+reliableSync: CMakeFiles/reliableSync.dir/checksum.cpp.o
 reliableSync: CMakeFiles/reliableSync.dir/vos.cpp.o
 reliableSync: CMakeFiles/reliableSync.dir/build.make
 reliableSync: CMakeFiles/reliableSync.dir/link.txt
@@ -243,11 +393,17 @@ CMakeFiles/reliableSync.dir/build: reliableSync
 .PHONY : CMakeFiles/reliableSync.dir/build
 
 CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/main.cpp.o.requires
+CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/master.cpp.o.requires
+CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/master_send.cpp.o.requires
+CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/master_recv.cpp.o.requires
+CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/slave.cpp.o.requires
+CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/slave_send.cpp.o.requires
+CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/slave_recv.cpp.o.requires
 CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/event.cpp.o.requires
-CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/list_instant.cpp.o.requires
-CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/list_waited.cpp.o.requires
+CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/list.cpp.o.requires
 CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/mbufer.cpp.o.requires
 CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/timer.cpp.o.requires
+CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/checksum.cpp.o.requires
 CMakeFiles/reliableSync.dir/requires: CMakeFiles/reliableSync.dir/vos.cpp.o.requires
 .PHONY : CMakeFiles/reliableSync.dir/requires
 

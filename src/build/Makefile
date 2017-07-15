@@ -114,6 +114,30 @@ reliableSync/fast:
 	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/build
 .PHONY : reliableSync/fast
 
+checksum.o: checksum.cpp.o
+.PHONY : checksum.o
+
+# target to build an object file
+checksum.cpp.o:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/checksum.cpp.o
+.PHONY : checksum.cpp.o
+
+checksum.i: checksum.cpp.i
+.PHONY : checksum.i
+
+# target to preprocess a source file
+checksum.cpp.i:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/checksum.cpp.i
+.PHONY : checksum.cpp.i
+
+checksum.s: checksum.cpp.s
+.PHONY : checksum.s
+
+# target to generate assembly for a file
+checksum.cpp.s:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/checksum.cpp.s
+.PHONY : checksum.cpp.s
+
 event.o: event.cpp.o
 .PHONY : event.o
 
@@ -138,53 +162,29 @@ event.cpp.s:
 	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/event.cpp.s
 .PHONY : event.cpp.s
 
-list_instant.o: list_instant.cpp.o
-.PHONY : list_instant.o
+list.o: list.cpp.o
+.PHONY : list.o
 
 # target to build an object file
-list_instant.cpp.o:
-	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list_instant.cpp.o
-.PHONY : list_instant.cpp.o
+list.cpp.o:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list.cpp.o
+.PHONY : list.cpp.o
 
-list_instant.i: list_instant.cpp.i
-.PHONY : list_instant.i
-
-# target to preprocess a source file
-list_instant.cpp.i:
-	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list_instant.cpp.i
-.PHONY : list_instant.cpp.i
-
-list_instant.s: list_instant.cpp.s
-.PHONY : list_instant.s
-
-# target to generate assembly for a file
-list_instant.cpp.s:
-	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list_instant.cpp.s
-.PHONY : list_instant.cpp.s
-
-list_waited.o: list_waited.cpp.o
-.PHONY : list_waited.o
-
-# target to build an object file
-list_waited.cpp.o:
-	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list_waited.cpp.o
-.PHONY : list_waited.cpp.o
-
-list_waited.i: list_waited.cpp.i
-.PHONY : list_waited.i
+list.i: list.cpp.i
+.PHONY : list.i
 
 # target to preprocess a source file
-list_waited.cpp.i:
-	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list_waited.cpp.i
-.PHONY : list_waited.cpp.i
+list.cpp.i:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list.cpp.i
+.PHONY : list.cpp.i
 
-list_waited.s: list_waited.cpp.s
-.PHONY : list_waited.s
+list.s: list.cpp.s
+.PHONY : list.s
 
 # target to generate assembly for a file
-list_waited.cpp.s:
-	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list_waited.cpp.s
-.PHONY : list_waited.cpp.s
+list.cpp.s:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/list.cpp.s
+.PHONY : list.cpp.s
 
 main.o: main.cpp.o
 .PHONY : main.o
@@ -210,6 +210,78 @@ main.cpp.s:
 	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/main.cpp.s
 .PHONY : main.cpp.s
 
+master.o: master.cpp.o
+.PHONY : master.o
+
+# target to build an object file
+master.cpp.o:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master.cpp.o
+.PHONY : master.cpp.o
+
+master.i: master.cpp.i
+.PHONY : master.i
+
+# target to preprocess a source file
+master.cpp.i:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master.cpp.i
+.PHONY : master.cpp.i
+
+master.s: master.cpp.s
+.PHONY : master.s
+
+# target to generate assembly for a file
+master.cpp.s:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master.cpp.s
+.PHONY : master.cpp.s
+
+master_recv.o: master_recv.cpp.o
+.PHONY : master_recv.o
+
+# target to build an object file
+master_recv.cpp.o:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master_recv.cpp.o
+.PHONY : master_recv.cpp.o
+
+master_recv.i: master_recv.cpp.i
+.PHONY : master_recv.i
+
+# target to preprocess a source file
+master_recv.cpp.i:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master_recv.cpp.i
+.PHONY : master_recv.cpp.i
+
+master_recv.s: master_recv.cpp.s
+.PHONY : master_recv.s
+
+# target to generate assembly for a file
+master_recv.cpp.s:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master_recv.cpp.s
+.PHONY : master_recv.cpp.s
+
+master_send.o: master_send.cpp.o
+.PHONY : master_send.o
+
+# target to build an object file
+master_send.cpp.o:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master_send.cpp.o
+.PHONY : master_send.cpp.o
+
+master_send.i: master_send.cpp.i
+.PHONY : master_send.i
+
+# target to preprocess a source file
+master_send.cpp.i:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master_send.cpp.i
+.PHONY : master_send.cpp.i
+
+master_send.s: master_send.cpp.s
+.PHONY : master_send.s
+
+# target to generate assembly for a file
+master_send.cpp.s:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/master_send.cpp.s
+.PHONY : master_send.cpp.s
+
 mbufer.o: mbufer.cpp.o
 .PHONY : mbufer.o
 
@@ -233,6 +305,78 @@ mbufer.s: mbufer.cpp.s
 mbufer.cpp.s:
 	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/mbufer.cpp.s
 .PHONY : mbufer.cpp.s
+
+slave.o: slave.cpp.o
+.PHONY : slave.o
+
+# target to build an object file
+slave.cpp.o:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave.cpp.o
+.PHONY : slave.cpp.o
+
+slave.i: slave.cpp.i
+.PHONY : slave.i
+
+# target to preprocess a source file
+slave.cpp.i:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave.cpp.i
+.PHONY : slave.cpp.i
+
+slave.s: slave.cpp.s
+.PHONY : slave.s
+
+# target to generate assembly for a file
+slave.cpp.s:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave.cpp.s
+.PHONY : slave.cpp.s
+
+slave_recv.o: slave_recv.cpp.o
+.PHONY : slave_recv.o
+
+# target to build an object file
+slave_recv.cpp.o:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave_recv.cpp.o
+.PHONY : slave_recv.cpp.o
+
+slave_recv.i: slave_recv.cpp.i
+.PHONY : slave_recv.i
+
+# target to preprocess a source file
+slave_recv.cpp.i:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave_recv.cpp.i
+.PHONY : slave_recv.cpp.i
+
+slave_recv.s: slave_recv.cpp.s
+.PHONY : slave_recv.s
+
+# target to generate assembly for a file
+slave_recv.cpp.s:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave_recv.cpp.s
+.PHONY : slave_recv.cpp.s
+
+slave_send.o: slave_send.cpp.o
+.PHONY : slave_send.o
+
+# target to build an object file
+slave_send.cpp.o:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave_send.cpp.o
+.PHONY : slave_send.cpp.o
+
+slave_send.i: slave_send.cpp.i
+.PHONY : slave_send.i
+
+# target to preprocess a source file
+slave_send.cpp.i:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave_send.cpp.i
+.PHONY : slave_send.cpp.i
+
+slave_send.s: slave_send.cpp.s
+.PHONY : slave_send.s
+
+# target to generate assembly for a file
+slave_send.cpp.s:
+	$(MAKE) -f CMakeFiles/reliableSync.dir/build.make CMakeFiles/reliableSync.dir/slave_send.cpp.s
+.PHONY : slave_send.cpp.s
 
 timer.o: timer.cpp.o
 .PHONY : timer.o
@@ -291,21 +435,39 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... reliableSync"
+	@echo "... checksum.o"
+	@echo "... checksum.i"
+	@echo "... checksum.s"
 	@echo "... event.o"
 	@echo "... event.i"
 	@echo "... event.s"
-	@echo "... list_instant.o"
-	@echo "... list_instant.i"
-	@echo "... list_instant.s"
-	@echo "... list_waited.o"
-	@echo "... list_waited.i"
-	@echo "... list_waited.s"
+	@echo "... list.o"
+	@echo "... list.i"
+	@echo "... list.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"
+	@echo "... master.o"
+	@echo "... master.i"
+	@echo "... master.s"
+	@echo "... master_recv.o"
+	@echo "... master_recv.i"
+	@echo "... master_recv.s"
+	@echo "... master_send.o"
+	@echo "... master_send.i"
+	@echo "... master_send.s"
 	@echo "... mbufer.o"
 	@echo "... mbufer.i"
 	@echo "... mbufer.s"
+	@echo "... slave.o"
+	@echo "... slave.i"
+	@echo "... slave.s"
+	@echo "... slave_recv.o"
+	@echo "... slave_recv.i"
+	@echo "... slave_recv.s"
+	@echo "... slave_send.o"
+	@echo "... slave_send.i"
+	@echo "... slave_send.s"
 	@echo "... timer.o"
 	@echo "... timer.i"
 	@echo "... timer.s"

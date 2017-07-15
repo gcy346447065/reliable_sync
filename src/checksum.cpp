@@ -1,4 +1,3 @@
-
 #include "checksum.h"
 #include "log.h"
 

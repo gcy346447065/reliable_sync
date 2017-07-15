@@ -6,10 +6,6 @@
 
 #IncludeRegexTransform: 
 
-/home/guochengying/reliable_sync/src/event.h
-macro.h
-/home/guochengying/reliable_sync/src/macro.h
-
 /home/guochengying/reliable_sync/src/log.h
 syslog.h
 -
@@ -18,41 +14,31 @@ libgen.h
 
 /home/guochengying/reliable_sync/src/macro.h
 
-/home/guochengying/reliable_sync/src/mbufer.cpp
-sys/socket.h
--
-netinet/in.h
--
-arpa/inet.h
--
-sys/ioctl.h
+/home/guochengying/reliable_sync/src/mbufer.h
+macro.h
+/home/guochengying/reliable_sync/src/macro.h
+
+/home/guochengying/reliable_sync/src/protocol.h
+macro.h
+/home/guochengying/reliable_sync/src/macro.h
+
+/home/guochengying/reliable_sync/src/slave_recv.cpp
+stdlib.h
 -
 string.h
 -
-errno.h
+netinet/in.h
 -
+slave_recv.h
+/home/guochengying/reliable_sync/src/slave_recv.h
+protocol.h
+/home/guochengying/reliable_sync/src/protocol.h
 mbufer.h
 /home/guochengying/reliable_sync/src/mbufer.h
 log.h
 /home/guochengying/reliable_sync/src/log.h
 
-/home/guochengying/reliable_sync/src/mbufer.h
-macro.h
-/home/guochengying/reliable_sync/src/macro.h
-
-/home/guochengying/reliable_sync/src/vos.cpp
-sys/epoll.h
--
-string.h
--
-log.h
-/home/guochengying/reliable_sync/src/log.h
-event.h
-/home/guochengying/reliable_sync/src/event.h
-vos.h
-/home/guochengying/reliable_sync/src/vos.h
-
-/home/guochengying/reliable_sync/src/vos.h
+/home/guochengying/reliable_sync/src/slave_recv.h
 macro.h
 /home/guochengying/reliable_sync/src/macro.h
 

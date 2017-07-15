@@ -4,8 +4,6 @@
 #include "event.h"
 #include "vos.h"
 
-
-
 DWORD vos::VOS_Init()
 {
     /* epoll create */
@@ -20,7 +18,7 @@ DWORD vos::VOS_Init()
     g_dwMapCount = 0;
     g_dwTaskMacros = 0;
 
-    log_info("VOS_Init(%d) ok.", g_dwEpollFd);
+    log_info("VOS_Init ok, EpollFd(%d).", g_dwEpollFd);
     return SUCCESS;
 }
 
@@ -36,7 +34,7 @@ DWORD __add_event(DWORD dwEpollFd, DWORD dwEventFd)
         return FAILE;
     }
 
-    log_info("__add_event(%d, %d) ok.", dwEpollFd, dwEventFd);
+    log_info("__add_event ok, EpollFd(%d), EventFd(%d).", dwEpollFd, dwEventFd);
     return SUCCESS;
 }
 
@@ -52,8 +50,8 @@ DWORD vos::VOS_RegTaskEventFd(DWORD dwTaskMacro, DWORD dwTaskEventFd)
         g_dwMapCount++;
     }
     
-    log_debug("dwTaskMacro(%lu), g_dwTaskMacros(%lu)", dwTaskMacro, g_dwTaskMacros);
-    log_debug("g_dwMapCount(%lu)", g_dwMapCount);
+    //log_debug("dwTaskMacro(%lu), g_dwTaskMacros(%lu)", dwTaskMacro, g_dwTaskMacros);
+    //log_debug("g_dwMapCount(%lu)", g_dwMapCount);
     //log_debug("VOS_RegTaskEventFd ok.");
     return SUCCESS;
 }
@@ -61,7 +59,7 @@ DWORD vos::VOS_RegTaskEventFd(DWORD dwTaskMacro, DWORD dwTaskEventFd)
 //本来是第一个参数是const CHAR *pszTaskName，为了方便比对，故而修改成宏定义
 DWORD vos::VOS_RegTaskFunc(DWORD dwTaskMacro, TASK_FUNC taskFunc, void *pArg)
 {
-    DWORD dwTaskEventFd;
+    DWORD dwTaskEventFd = 0;
 
     if(dwTaskMacro & g_dwTaskMacros)//该位上的task已注册过
     {
@@ -80,7 +78,7 @@ DWORD vos::VOS_RegTaskFunc(DWORD dwTaskMacro, TASK_FUNC taskFunc, void *pArg)
         __add_event(g_dwEpollFd, dwTaskEventFd);
     }
 
-    log_debug("dwTaskMacro(%lu), g_dwTaskMacros(%lu)", dwTaskMacro, g_dwTaskMacros);
+    //log_debug("dwTaskMacro(%lu), g_dwTaskMacros(%lu)", dwTaskMacro, g_dwTaskMacros);
     //log_debug("VOS_RegTaskFunc ok.");
     return SUCCESS;
 }
@@ -95,7 +93,7 @@ DWORD vos::VOS_ReceiveEvent(DWORD dwTargetEvents, DWORD dwEvAny,
 
 DWORD vos::VOS_EpollWait()
 {
-    log_info("VOS_EpollWait(%d) begin...", g_dwEpollFd);
+    log_info("epoll_wait begin, EpollFd(%d)...", g_dwEpollFd);
 
     struct epoll_event stEvents[MAX_EPOLL_NUM];
     while(1)
@@ -103,12 +101,13 @@ DWORD vos::VOS_EpollWait()
         int iEpollNum = epoll_wait(g_dwEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(int i = 0; i < iEpollNum; i++)
         {
-            log_debug("stEvents[i].data.fd(%d).", stEvents[i].data.fd);
+            //log_debug("stEvents[i].data.fd(%d).", stEvents[i].data.fd);
             for(int j = 0; j < g_dwMapCount; j++)
             {
-                log_debug("g_vosTaskMap[j].dwTaskEventFd(%d).", g_vosTaskMap[j].dwTaskEventFd);
+                //log_debug("g_vosTaskMap[j].dwTaskEventFd(%d).", g_vosTaskMap[j].dwTaskEventFd);
                 if(stEvents[i].data.fd == g_vosTaskMap[j].dwTaskEventFd && stEvents[i].events & EPOLLIN)
                 {
+                    log_debug("epoll_wait find EventFd(%d).", g_vosTaskMap[j].dwTaskEventFd);
                     g_vosTaskMap[j].func(NULL);
                 }
             }

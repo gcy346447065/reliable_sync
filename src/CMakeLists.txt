@@ -1,19 +1,21 @@
 cmake_minimum_required(VERSION 2.8)
-PROJECT(syncslave)
+PROJECT(reliableSync)
 
 SET(SRC_LIST
     main.cpp
-    tool.cpp
-    timer.cpp
+    master.cpp
+    master_send.cpp
+    master_recv.cpp
+    slave.cpp
+    slave_send.cpp
+    slave_recv.cpp
     event.cpp
-    socket.cpp
-    sync.cpp
+    list.cpp
+    mbufer.cpp
+    timer.cpp
     checksum.cpp
-    send.cpp
-    recv.cpp
-    instantList.cpp
-    waitedList.cpp
+    vos.cpp
     )
-ADD_EXECUTABLE(syncslave ${SRC_LIST})
-TARGET_LINK_LIBRARIES(syncslave pthread)
 
+ADD_EXECUTABLE(reliableSync ${SRC_LIST})
+TARGET_LINK_LIBRARIES(reliableSync pthread)

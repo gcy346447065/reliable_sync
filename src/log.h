@@ -75,9 +75,9 @@
 #endif
 
 //it will return true for all time
-#define log_init() \
+#define log_init(label) \
     do { \
-        openlog("SLAVE", 0, LOG_LOCAL1); \
+        openlog(label, 0, LOG_LOCAL1); \
     } while (0)
 
 #define log_free() \

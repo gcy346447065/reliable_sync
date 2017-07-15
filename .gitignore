@@ -1,9 +1,7 @@
 !.gitignore
 !README.md
-!/master/*.cpp
-!/master/*.h
-!/slave/*.cpp
-!/slave/*.h
+!/src/*.cpp
+!/src/*.h
+!/src/CMakeLists.txt
 
-/master/build
-/slave/build
+/src/build

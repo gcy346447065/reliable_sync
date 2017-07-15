@@ -1,84 +1,81 @@
-#include <sys/eventfd.h>
+#include <sys/eventfd.h> //for eventfd
 #include <unistd.h> //for read
 #include <errno.h> //for errno
-#include <string.h>
+#include <string.h> //for strerror
 #include "event.h"
 #include "log.h"
 
-int event_init(unsigned int iInitVal)
+DWORD event::init(DWORD dwInitVal)
 {
-    int iEventFd = eventfd(iInitVal, EFD_NONBLOCK); //iInitVal(0) for event flag init value, EFD_NONBLOCK for reading zero no block
-    if(iEventFd < 0)
+    INT iRet = eventfd(dwInitVal, EFD_NONBLOCK); //iInitVal(0) for event flag init value, EFD_NONBLOCK for reading zero no block
+    if(iRet < 0)
     {
-        log_error("eventfd error(%d)!", iEventFd);
-        return -1;
+        log_error("eventfd error(%d)!", iRet);
+        return FAILE;
     }
 
-    return iEventFd;
+    g_dwEventFd = iRet;
+    return SUCCESS;
 }
 
-int event_getEventFlags(int iEventFd, uint64_t *puiEventRead)
+DWORD event::getEventFlags(QWORD *pqwEventFlag)
 {
-    int iRet = read(iEventFd, puiEventRead, sizeof(uint64_t));
-    if(iRet == EAGAIN) 
+    INT iRet = read(g_dwEventFd, pqwEventFlag, sizeof(QWORD));
+    if(iRet != sizeof(QWORD))
     {
-        *puiEventRead = 0;
-    }
-    else if(iRet != sizeof(uint64_t))
-    {
-        if(errno == EAGAIN) //EAGAIN for puiEventRead zero
+        if(errno == EAGAIN) //EAGAIN for pqwEventFlag zero
         {
-            *puiEventRead = 0;
-            return 0;
+            *pqwEventFlag = 0;
+            return SUCCESS;
         }
         else
         {
-            log_error("read iEventFd error(%d,%s)!", errno, strerror(errno)); 
-            return -1;
+            log_error("read g_dwEventFd error(%d,%s)!", errno, strerror(errno)); 
+            return FAILE;
         }
     }
+
+    return SUCCESS;
 }
 
-int event_setEventFlags(int iEventFd, uint64_t uiEventFlag)
+DWORD event::setEventFlags(QWORD qwEventFlag)
 {
-    uint64_t uiEventRead;
-    int iRet = event_getEventFlags(iEventFd, &uiEventRead);
+    QWORD qwEventRead;
+    INT iRet = getEventFlags(&qwEventRead);
     if(iRet < 0)
     {
-        log_error("event_getEventFlags error(%d)!", iRet);
-        return -1;
+        log_error("getEventFlags error(%d)!", iRet);
+        return FAILE;
     }
     
-    uint64_t uiEventWrite = uiEventRead | uiEventFlag;
-    iRet = write(iEventFd, &uiEventWrite, sizeof(uint64_t));
-    if(iRet != sizeof(uint64_t))
+    QWORD qwEventWrite = qwEventRead | qwEventFlag;
+    iRet = write(g_dwEventFd, &qwEventWrite, sizeof(QWORD));
+    if(iRet != sizeof(QWORD))
     {
-        log_error("write iEventFd error(%s)!", strerror(errno));
-        return -2;
+        log_error("write g_dwEventFd error(%s)!", strerror(errno));
+        return FAILE;
     }
 
-    return 0;
+    return SUCCESS;
 }
 
-int event_resetEventFlags(int iEventFd, uint64_t uiEventFlag)
+DWORD event::resetEventFlags(QWORD qwEventFlag)
 {
-    uint64_t uiEventRead;
-    int iRet = event_getEventFlags(iEventFd, &uiEventRead);
+    QWORD qwEventRead;
+    INT iRet = getEventFlags(&qwEventRead);
     if(iRet < 0)
     {
-        log_error("event_getEventFlags error(%d)!", iRet);
-        return -1;
+        log_error("getEventFlags error(%d)!", iRet);
+        return FAILE;
     }
-
-    uint64_t uiEventWrite = uiEventRead & ~uiEventFlag;
-    iRet = write(iEventFd, &uiEventWrite, sizeof(uint64_t));
-    if(iRet != sizeof(uint64_t))
+    
+    QWORD qwEventWrite = qwEventRead & ~qwEventFlag;
+    iRet = write(g_dwEventFd, &qwEventWrite, sizeof(QWORD));
+    if(iRet != sizeof(QWORD))
     {
-        log_error("write iEventFd error(%s)!", strerror(errno));
-        return -2;
+        log_error("write g_dwEventFd error(%s)!", strerror(errno));
+        return FAILE;
     }
 
-    return 0;
+    return SUCCESS;
 }
-
-
