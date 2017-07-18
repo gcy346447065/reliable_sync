@@ -107,7 +107,7 @@ DWORD vos::VOS_EpollWait()
                 //log_debug("g_vosTaskMap[j].dwTaskEventFd(%d).", g_vosTaskMap[j].dwTaskEventFd);
                 if(stEvents[i].data.fd == g_vosTaskMap[j].dwTaskEventFd && stEvents[i].events & EPOLLIN)
                 {
-                    log_debug("epoll_wait find EventFd(%d).", g_vosTaskMap[j].dwTaskEventFd);
+                    //log_debug("epoll_wait find EventFd(%d).", g_vosTaskMap[j].dwTaskEventFd);
                     g_vosTaskMap[j].func(NULL);
                 }
             }

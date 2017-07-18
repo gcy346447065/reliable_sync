@@ -25,6 +25,7 @@ typedef char                *PCHAR;
 #define DMM_SUCCESS               0
 #define ERR_CRM_SUCCESS           0
 #define VOS_OK                    0
+#define MBUFER_SLAVE_MAX_NUM      32
 
 enum 
 {
@@ -67,7 +68,7 @@ enum SEND_METHOD_TO_LIST
 #define PORT_5      8765
 
 #define REGISTER_TIMER_VALUE        (1000*30+1) //30s
-#define KEEPALIVE_TIMER_VALUE       (1000*60*3+1)
+#define KEEPALIVE_TIMER_VALUE       (1000*60*3+1) //3min
 #define CHECKALIVE_TIMER_VALUE      (1000*60*10+1)
 #define NEWCFG_INSTANT_TIMER_VALUE  (1000*60*5+1)
 #define NEWCFG_WAITED_TIMER_VALUE   (1000*60*5+1)

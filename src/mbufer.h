@@ -40,10 +40,10 @@ class mbufer
 {
 
 public:
+    DWORD g_dwSocketFd;
     BYTE g_byMstAddr;
     BYTE g_bySlvAddr;
-    BYTE g_abySlvAddrs[32];
-    DWORD g_dwSocketFd;
+    SLV_LIST_S *pstSlvAddrList;
 
     DWORD alloc_msg(void **ppSendBuf, WORD wMsgLen);
     DWORD free_msg(void *pSendBuf);

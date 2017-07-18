@@ -10,7 +10,8 @@ SET(SRC_LIST
     slave_send.cpp
     slave_recv.cpp
     event.cpp
-    list.cpp
+    list_data.cpp
+    list_slv.cpp
     mbufer.cpp
     timer.cpp
     checksum.cpp

@@ -120,7 +120,7 @@ DWORD mbufer::add_to_packet(void *pSendBuf, CMD_S *pstCmdHeader, WORD *pwOffset)
 DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset)
 {
     INT iRet = 0;
-    log_debug("byDstMsgAddr(%d).", byDstMsgAddr);
+    //log_debug("byDstMsgAddr(%d).", byDstMsgAddr);
     struct sockaddr_in stDstAddr;
     memset(&stDstAddr, 0, sizeof(stDstAddr));
     stDstAddr.sin_family = AF_INET;
@@ -156,7 +156,7 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
             return FAILE;
     }
 
-    log_debug("g_dwSocketFd(%d).", g_dwSocketFd);
+    //log_debug("g_dwSocketFd(%d).", g_dwSocketFd);
     BYTE *pbySendBuf = (BYTE *)(stMsgInfo.dwMsgBuf);
     if((iRet = sendto(g_dwSocketFd, pbySendBuf, wOffset, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {

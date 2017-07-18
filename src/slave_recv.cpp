@@ -2,11 +2,14 @@
 #include <string.h> //for strcmp memset strstr
 #include <netinet/in.h> //for htons
 #include "slave_recv.h"
+#include "slave_send.h"
 #include "protocol.h"
 #include "mbufer.h"
+#include "timer.h"
 #include "log.h"
 
 extern mbufer *g_pSlvMbufer;
+extern timer *g_pSlvRegTimer;
 
 BYTE *slave_alloc_RecvBuffer(WORD wBufLen)
 {
@@ -42,7 +45,36 @@ DWORD slave_recv(BYTE *pbyRecvBuf, WORD *pwBufLen)
 
 static WORD slave_login(const BYTE *pbyMsg)
 {
+    DWORD dwRet = SUCCESS;
     log_debug("slave_login.");
+
+    const MSG_LOGIN_RSP_S *pstRsp = (const MSG_LOGIN_RSP_S *)pbyMsg;
+    if(!pstRsp)
+    {
+        log_error("msg handle empty!");
+        return FAILE;
+    }
+    if(ntohs(pstRsp->stMsgHeader.wLen) < sizeof(MSG_LOGIN_RSP_S) - MSG_HEADER_LEN)
+    {
+        log_error("msg length not enough!");
+        return FAILE;
+    }
+
+    log_debug("bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHeader.byDstAddr, pstRsp->byLoginResult);
+    
+    if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
+    {
+        //收到登录成功回复包
+        log_info("This bySlvAddr(%d) logged success.", pstRsp->stMsgHeader.byDstAddr);
+
+        dwRet = g_pSlvRegTimer->stop();
+        if(dwRet != SUCCESS)
+        {
+            log_error("g_pSlvRegTimer->stop error!");
+            return FAILE;
+        }
+    }
+
     return SUCCESS;
 }
 
@@ -105,6 +137,12 @@ DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
     if(wMsgLen < MSG_HEADER_LEN)
     {
         log_error("sync message length not enough(%u<%u)", wMsgLen, MSG_HEADER_LEN);
+        return FAILE;
+    }
+
+    if(pstMsgHeader->bySrcAddr != g_pSlvMbufer->g_byMstAddr)
+    {
+        log_error("bySrcAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHeader->bySrcAddr, g_pSlvMbufer->g_byMstAddr);
         return FAILE;
     }
 

@@ -33,19 +33,12 @@ typedef struct
 
 #define MSG_HEADER_LEN sizeof(MSG_HEADER_S)
 
-enum
-{
-    LOGIN_END_FLAG_DISABLED = 0,
-    LOGIN_END_FLAG_ENABLED = 1
-};
-
 /*
  * message login structure
  */
 typedef struct
 {
     MSG_HEADER_S stMsgHeader;
-    BYTE byEndFlag;
 }__attribute__((__packed__)) MSG_LOGIN_REQ_S;
 
 enum

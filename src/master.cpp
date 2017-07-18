@@ -16,6 +16,7 @@
 static vos *g_pMasterVos;
 static dmm *g_pMasterDmm;
 mbufer *g_pMstMbufer;
+timer *g_pKeepaliveTimer;
 
 DWORD master_stdinProc(void *pObj)
 {
@@ -58,6 +59,37 @@ DWORD master_mailboxProc(void *pObj)
     return dwRet;
 }
 
+DWORD master_keepaliveTimerProc(void *pObj)
+{
+    DWORD dwRet = SUCCESS;
+    log_debug("master_keepaliveTimerProc()");
+
+    //查看备机注册表中各备机的keepalive发送次数，如大于3次则解注册该备机
+    for(INT i = 0; i < g_pMstMbufer->g_bySlvNums; i++)//可能出现备机过多注册不上的情况
+    {
+        if(g_pMstMbufer->g_abySlvKeepailveSendTimes[i] < 3)
+        {
+            //发送次数未超三次，向该备机地址发送保活消息
+            log_info("Send keepailve msg to bySlvAddr(%d).", g_pMstMbufer->g_abySlvAddrs[i]);
+            g_pMstMbufer->g_abySlvKeepailveSendTimes[i]++;
+        }
+        else
+        {
+            //发送次数超过三次，解注册该备机地址
+
+        }
+    }
+
+    dwRet = g_pKeepaliveTimer->start(KEEPALIVE_TIMER_VALUE);//3min
+    if(dwRet != SUCCESS)
+    {
+        log_error("g_pKeepaliveTimer->start error!");
+        return FAILE;
+    }
+    
+    return dwRet;
+}
+
 DWORD master_InitAndLoop(BYTE byMasterAddr)
 {
     DWORD dwRet = SUCCESS;
@@ -65,7 +97,9 @@ DWORD master_InitAndLoop(BYTE byMasterAddr)
 
     g_pMstMbufer = new mbufer;
     g_pMstMbufer->g_byMstAddr = byMasterAddr;//实际只使用该位对应ip加端口号
+    g_pMstMbufer->g_bySlvNums = 0;
     memset(g_pMstMbufer->g_abySlvAddrs, 0, sizeof(g_pMstMbufer->g_abySlvAddrs));
+    memset(g_pMstMbufer->g_abySlvKeepailveSendTimes, 0, sizeof(g_pMstMbufer->g_abySlvKeepailveSendTimes));
 
     /* 初始化事件调用机制vos（用epoll模拟实现） */
     g_pMasterVos = new vos;
@@ -110,6 +144,35 @@ DWORD master_InitAndLoop(BYTE byMasterAddr)
     if(dwRet != SUCCESS)
     {
         log_error("VOS_RegTaskFunc error!");
+        return FAILE;
+    }
+
+    g_pKeepaliveTimer = new timer;
+    dwRet = g_pKeepaliveTimer->init();
+    if(dwRet != SUCCESS)
+    {
+        log_error("g_pKeepaliveTimer->init error!");
+        return FAILE;
+    }
+    
+    /* 将pRegisterTimer添加到vos中，需要利用Macro关联EventFd和Func */
+    dwRet = g_pMasterVos->VOS_RegTaskEventFd(VOS_TASK_MASTER_KEEPAILVE_TIMER, g_pKeepaliveTimer->g_dwTimerFd);
+    if(dwRet != SUCCESS)
+    {
+        log_error("VOS_RegTaskEventFd error!");
+        return FAILE;
+    }
+    dwRet = g_pMasterVos->VOS_RegTaskFunc(VOS_TASK_MASTER_KEEPAILVE_TIMER, master_keepaliveTimerProc, NULL);
+    if(dwRet != SUCCESS)
+    {
+        log_error("VOS_RegTaskFunc error!");
+        return FAILE;
+    }
+
+    dwRet = g_pKeepaliveTimer->start(KEEPALIVE_TIMER_VALUE);
+    if(dwRet != SUCCESS)
+    {
+        log_error("g_pKeepaliveTimer->start error!");
         return FAILE;
     }
 

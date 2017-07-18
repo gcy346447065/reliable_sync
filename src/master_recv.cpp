@@ -58,49 +58,46 @@ static WORD master_login(const BYTE *pbyMsg)
         log_error("msg length not enough!");
         return FAILE;
     }
-
-
-    log_debug("bySlvAddr(%d), byEndFlag(%d).", pstReq->stMsgHeader.bySrcAddr, pstReq->byEndFlag);
+    BYTE bySlvAddr = pstReq->stMsgHeader.bySrcAddr;
+    log_debug("bySlvAddr(%d).", bySlvAddr);
     
-    if(pstReq->byEndFlag == LOGIN_END_FLAG_DISABLED)
+    MSG_LOGIN_RSP_S *pstRsp = (MSG_LOGIN_RSP_S *)master_alloc_rspMsg(bySlvAddr, pstReq->stMsgHeader.bySeq, CMD_LOGIN);
+    if(!pstRsp)
     {
-        //说明是收到的第一个登录包，可立即准备第二个登录结果包
-        MSG_LOGIN_RSP_S *pstRsp = (MSG_LOGIN_RSP_S *)master_alloc_rspMsg(pstReq->stMsgHeader.bySrcAddr, pstReq->stMsgHeader.bySeq, CMD_LOGIN);
-        if(!pstRsp)
-        {
-            log_error("master_alloc_rspMsg error!");
-            return FAILE;
-        }
+        log_error("master_alloc_rspMsg error!");
+        return FAILE;
+    }
 
-        for(INT i = 0; i < sizeof(g_pMstMbufer->g_abySlvAddrs); i++)//可能出现备机过多注册不上的情况
+    BYTE byLoginResult = LOGIN_RESULT_SUCCEED;
+    for(INT i = 0; i < g_pMstMbufer->g_bySlvNums; i++)//可能出现备机过多注册不上的情况
+    {
+        if(g_pMstMbufer->g_abySlvAddrs[i] == bySlvAddr)
         {
-            if(g_pMstMbufer->g_abySlvAddrs[i] == pstReq->stMsgHeader.bySrcAddr)
-            {
-                //说明这个备机已经登录过
-                log_info("This bySlvAddr(%d) has been logged.", pstReq->stMsgHeader.bySrcAddr);
-                pstRsp->byLoginResult = LOGIN_RESULT_ERROR;
-            }
-            else if(g_pMstMbufer->g_abySlvAddrs[i] == 0)
-            {
-                //说明这个备机即将登录
-                g_pMstMbufer->g_abySlvAddrs[i] = pstReq->stMsgHeader.bySrcAddr;
-
-                //返回第二个登录成功包
-                log_info("This bySlvAddr(%d) has been logged.", pstReq->stMsgHeader.bySrcAddr);
-                pstRsp->byLoginResult = LOGIN_RESULT_SUCCEED;
-            }
-        }
-
-        dwRet = master_sendToOne(pstReq->stMsgHeader.bySrcAddr, (BYTE *)pstRsp, sizeof(MSG_LOGIN_RSP_S));
-        if(dwRet != SUCCESS)
-        {
-            log_error("master_sendToOne error!");
-            return FAILE;
+            //说明这个备机已经登录过
+            log_info("This bySlvAddr(%d) has been logged.", bySlvAddr);
+            byLoginResult = LOGIN_RESULT_ERROR;
+            break;
         }
     }
-    else if(pstReq->byEndFlag == LOGIN_END_FLAG_ENABLED)
+    //说明没有找到重复的备机地址，而且备机个数没有达到上限
+    if(byLoginResult == LOGIN_RESULT_SUCCEED && g_pMstMbufer->g_bySlvNums < MBUFER_SLAVE_MAX_NUM)
     {
-        //说明是收到的第三个登录结束包
+        g_pMstMbufer->g_abySlvAddrs[g_pMstMbufer->g_bySlvNums] = bySlvAddr;
+        g_pMstMbufer->g_bySlvNums++;
+        log_info("This bySlvAddr(%d) is logging.", bySlvAddr);
+    }
+    else if(byLoginResult == LOGIN_RESULT_SUCCEED && g_pMstMbufer->g_bySlvNums == MBUFER_SLAVE_MAX_NUM)
+    {
+        byLoginResult = LOGIN_RESULT_ERROR;
+        log_info("g_abySlvAddrs is not enough for bySlvAddr(%d).", bySlvAddr);
+    }
+
+    pstRsp->byLoginResult = byLoginResult;
+    dwRet = master_sendToOne(bySlvAddr, (BYTE *)pstRsp, sizeof(MSG_LOGIN_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error("master_sendToOne error!");
+        return FAILE;
     }
     
     return SUCCESS;

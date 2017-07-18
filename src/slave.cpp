@@ -52,7 +52,6 @@ DWORD slave_mailboxProc(void *pObj)
 DWORD slave_registerTimerProc(void *pObj)
 {
     DWORD dwRet = SUCCESS;
-
     log_debug("slave_registerTimerProc()");
 
     /* 拼接主备模块消息体 */
@@ -62,7 +61,6 @@ DWORD slave_registerTimerProc(void *pObj)
         log_error("alloc_slave_reqMsg error!");
         return FAILE;
     }
-    pstReq->byEndFlag = LOGIN_END_FLAG_DISABLED;
 
     dwRet = slave_send((BYTE *)pstReq, sizeof(MSG_LOGIN_REQ_S));
     if(dwRet != SUCCESS)
@@ -71,13 +69,12 @@ DWORD slave_registerTimerProc(void *pObj)
         return FAILE;
     }
 
-    /*
     dwRet = g_pSlvRegTimer->start(REGISTER_TIMER_VALUE);
     if(dwRet != SUCCESS)
     {
         log_error("g_pSlvRegTimer->start error!");
         return FAILE;
-    }*/
+    }
     
     return dwRet;
 }
