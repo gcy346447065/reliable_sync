@@ -3,7 +3,7 @@
 
 #include "macro.h"
 
-DWORD master_sendToOne(BYTE bySlvMsgAddr, BYTE *pbyMsg, WORD wMsgLen);
+DWORD master_sendToOne(BYTE bySlvAddr, BYTE *pbyMsg, WORD wMsgLen);
 DWORD master_sendToMany(BYTE abySlvMsgAddrs[], BYTE *pbyMsg, WORD wMsgLen);
 
 VOID *master_alloc_reqMsg(BYTE bySlvAddr, BYTE byCmd);

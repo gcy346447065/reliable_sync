@@ -16,8 +16,9 @@ typedef unsigned int        *PUINT;
 typedef char                CHAR;
 typedef char                *PCHAR;
 
-#define SUCCESS 0
-#define FAILE   1
+#define SUCCESS             0
+#define FAILE               1
+#define SLV_HAS_REGED       2
 
 //设置命令包的命令包头信息，被SetCmdHeadFlag和GetCmdHeadFlag
 #define CRM_HEADINFO_REQCMD       1        //有响应的请求命令
@@ -25,7 +26,6 @@ typedef char                *PCHAR;
 #define DMM_SUCCESS               0
 #define ERR_CRM_SUCCESS           0
 #define VOS_OK                    0
-#define MBUFER_SLAVE_MAX_NUM      32
 
 enum 
 {
@@ -67,8 +67,16 @@ enum SEND_METHOD_TO_LIST
 #define IP_5        "192.168.11.114"
 #define PORT_5      8765
 
+#define ADDR_6      6
+#define IP_6        "192.168.11.114"
+#define PORT_6      8766
+
+#define ADDR_7      7
+#define IP_7        "192.168.11.114"
+#define PORT_7      8767
+
 #define REGISTER_TIMER_VALUE        (1000*30+1) //30s
-#define KEEPALIVE_TIMER_VALUE       (1000*60*3+1) //3min
+#define KEEPALIVE_TIMER_VALUE       (1000*60*1+1) //3min-1min
 #define CHECKALIVE_TIMER_VALUE      (1000*60*10+1)
 #define NEWCFG_INSTANT_TIMER_VALUE  (1000*60*5+1)
 #define NEWCFG_WAITED_TIMER_VALUE   (1000*60*5+1)

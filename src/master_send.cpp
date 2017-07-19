@@ -10,7 +10,7 @@ extern mbufer *g_pMstMbufer;
 
 static BYTE g_bySeq = 0;
 
-DWORD master_sendToOne(BYTE bySlvMsgAddr, BYTE *pbyMsg, WORD wMsgLen)
+DWORD master_sendToOne(BYTE bySlvAddr, BYTE *pbyMsg, WORD wMsgLen)
 {
     DWORD dwRet = SUCCESS;
 
@@ -48,7 +48,7 @@ DWORD master_sendToOne(BYTE bySlvMsgAddr, BYTE *pbyMsg, WORD wMsgLen)
 
     /* 将mbufer发送消息体发送出去 */
     MSG_INFO_S stSendMsgInfo = {0, (DWORD)pbySendBuf, 0, 0};
-    dwRet = g_pMstMbufer->send_message(bySlvMsgAddr, stSendMsgInfo, wOffset);//对所有的slave执行发送
+    dwRet = g_pMstMbufer->send_message(bySlvAddr, stSendMsgInfo, wOffset);//对所有的slave执行发送
     if (dwRet != SUCCESS)
     {
         log_error("send_message error!");

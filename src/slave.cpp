@@ -1,3 +1,4 @@
+#include <unistd.h> //for STDIN_FILENO
 #include <stdlib.h> //for malloc
 #include <string.h> //for strcmp memset strstr
 #include <sys/socket.h> //for recv
@@ -16,6 +17,14 @@ vos *g_pSlaveVos;
 dmm *g_pSlaveDmm;
 mbufer *g_pSlvMbufer;
 timer *g_pSlvRegTimer;
+
+DWORD slave_stdinProc(void *pObj)
+{
+    DWORD dwRet = SUCCESS;
+    log_debug("slave_stdinProc()");
+
+    return dwRet;
+}
 
 DWORD slave_mailboxProc(void *pObj)
 {
@@ -46,6 +55,7 @@ DWORD slave_mailboxProc(void *pObj)
         return FAILE;
     }
 
+    free(pbyRecvBuf);
     return dwRet;
 }
 
@@ -68,6 +78,8 @@ DWORD slave_registerTimerProc(void *pObj)
         log_error("slave_send error!");
         return FAILE;
     }
+
+    free(pstReq);
 
     dwRet = g_pSlvRegTimer->start(REGISTER_TIMER_VALUE);
     if(dwRet != SUCCESS)
@@ -97,12 +109,26 @@ DWORD slave_InitAndLoop(BYTE byMasterAddr, BYTE bySlaveAddr)
     g_pSlvMbufer = new mbufer;
     g_pSlvMbufer->g_byMstAddr = byMasterAddr;//实际只使用该位对应ip加端口号
     g_pSlvMbufer->g_bySlvAddr = bySlaveAddr;//实际只使用该位对应ip加端口号
+    g_pSlvMbufer->g_pSlvList = NULL;//备机中用不到
 
     g_pSlaveDmm = new dmm;//实际上在create_mailbox中确定mbufer中的g_dwSocketFd，也就是记录vos中的EventFd
     dwRet = g_pSlaveDmm->create_mailbox(&g_pSlvMbufer, bySlaveAddr);
     if(dwRet != SUCCESS)
     {
         log_error("create_mailbox error!");
+        return FAILE;
+    }
+
+    dwRet = g_pSlaveVos->VOS_RegTaskEventFd(VOS_TASK_SLAVE_STDIN, STDIN_FILENO);
+    if(dwRet != SUCCESS)
+    {
+        log_error("VOS_RegTaskEventFd error!");
+        return FAILE;
+    }
+    dwRet = g_pSlaveVos->VOS_RegTaskFunc(VOS_TASK_SLAVE_STDIN, slave_stdinProc, NULL);
+    if(dwRet != SUCCESS)
+    {
+        log_error("VOS_RegTaskFunc error!");
         return FAILE;
     }
 

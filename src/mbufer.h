@@ -2,6 +2,7 @@
 #define _MBUFER_H_
 
 #include "macro.h"
+#include "list_slv.h"
 
 typedef struct tagCMD
 {
@@ -43,7 +44,7 @@ public:
     DWORD g_dwSocketFd;
     BYTE g_byMstAddr;
     BYTE g_bySlvAddr;
-    SLV_LIST_S *pstSlvAddrList;
+    list_slv *g_pSlvList;
 
     DWORD alloc_msg(void **ppSendBuf, WORD wMsgLen);
     DWORD free_msg(void *pSendBuf);

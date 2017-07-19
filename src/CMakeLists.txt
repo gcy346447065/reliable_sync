@@ -20,3 +20,10 @@ SET(SRC_LIST
 
 ADD_EXECUTABLE(reliableSync ${SRC_LIST})
 TARGET_LINK_LIBRARIES(reliableSync pthread)
+
+
+SET(TEST_LIST
+    test.cpp
+    )
+
+ADD_EXECUTABLE(test ${TEST_LIST})

@@ -68,31 +68,23 @@ static WORD master_login(const BYTE *pbyMsg)
         return FAILE;
     }
 
-    BYTE byLoginResult = LOGIN_RESULT_SUCCEED;
-    for(INT i = 0; i < g_pMstMbufer->g_bySlvNums; i++)//可能出现备机过多注册不上的情况
+    dwRet = g_pMstMbufer->g_pSlvList->slv_insert(bySlvAddr);
+    if(dwRet == FAILE)
     {
-        if(g_pMstMbufer->g_abySlvAddrs[i] == bySlvAddr)
-        {
-            //说明这个备机已经登录过
-            log_info("This bySlvAddr(%d) has been logged.", bySlvAddr);
-            byLoginResult = LOGIN_RESULT_ERROR;
-            break;
-        }
+        pstRsp->byLoginResult = LOGIN_RESULT_ERROR;
+        log_info("This bySlvAddr(%d) register failed.", bySlvAddr);
     }
-    //说明没有找到重复的备机地址，而且备机个数没有达到上限
-    if(byLoginResult == LOGIN_RESULT_SUCCEED && g_pMstMbufer->g_bySlvNums < MBUFER_SLAVE_MAX_NUM)
+    else if(dwRet == SLV_HAS_REGED)
     {
-        g_pMstMbufer->g_abySlvAddrs[g_pMstMbufer->g_bySlvNums] = bySlvAddr;
-        g_pMstMbufer->g_bySlvNums++;
-        log_info("This bySlvAddr(%d) is logging.", bySlvAddr);
+        pstRsp->byLoginResult = LOGIN_RESULT_REGED;
+        log_info("This bySlvAddr(%d) has registered.", bySlvAddr);
     }
-    else if(byLoginResult == LOGIN_RESULT_SUCCEED && g_pMstMbufer->g_bySlvNums == MBUFER_SLAVE_MAX_NUM)
+    else if(dwRet == SUCCESS)
     {
-        byLoginResult = LOGIN_RESULT_ERROR;
-        log_info("g_abySlvAddrs is not enough for bySlvAddr(%d).", bySlvAddr);
+        pstRsp->byLoginResult = LOGIN_RESULT_SUCCEED;
+        log_info("This bySlvAddr(%d) is registering.", bySlvAddr);
     }
 
-    pstRsp->byLoginResult = byLoginResult;
     dwRet = master_sendToOne(bySlvAddr, (BYTE *)pstRsp, sizeof(MSG_LOGIN_RSP_S));
     if(dwRet != SUCCESS)
     {
@@ -100,12 +92,35 @@ static WORD master_login(const BYTE *pbyMsg)
         return FAILE;
     }
     
+    free(pstRsp);
     return SUCCESS;
 }
 
 static WORD master_keepAlive(const BYTE *pbyMsg)
 {
     log_debug("master_keepAlive.");
+
+    const MSG_KEEP_ALIVE_RSP_S *pstRsp = (const MSG_KEEP_ALIVE_RSP_S *)pbyMsg;
+    if(!pstRsp)
+    {
+        log_error("msg handle empty!");
+        return FAILE;
+    }
+    if(ntohs(pstRsp->stMsgHeader.wLen) < sizeof(MSG_KEEP_ALIVE_RSP_S) - MSG_HEADER_LEN)
+    {
+        log_error("msg length not enough!");
+        return FAILE;
+    }
+    BYTE bySlvAddr = pstRsp->stMsgHeader.bySrcAddr;
+    log_debug("bySlvAddr(%d).", bySlvAddr);
+
+    DWORD dwRet = g_pMstMbufer->g_pSlvList->slv_resetKeepaliveSendTimes(bySlvAddr);
+    if(dwRet != SUCCESS)
+    {
+        log_error("slv_resetKeepaliveSendTimes error!");
+        return FAILE;
+    }
+
     return SUCCESS;
 }
 

@@ -21,7 +21,6 @@ timer *g_pKeepaliveTimer;
 DWORD master_stdinProc(void *pObj)
 {
     DWORD dwRet = SUCCESS;
-
     log_debug("master_stdinProc()");
 
     return dwRet;
@@ -63,22 +62,42 @@ DWORD master_keepaliveTimerProc(void *pObj)
 {
     DWORD dwRet = SUCCESS;
     log_debug("master_keepaliveTimerProc()");
+    log_debug("slv_getSlvNum(%d)", g_pMstMbufer->g_pSlvList->slv_getSlvNum());
 
-    //查看备机注册表中各备机的keepalive发送次数，如大于3次则解注册该备机
-    for(INT i = 0; i < g_pMstMbufer->g_bySlvNums; i++)//可能出现备机过多注册不上的情况
+    MSG_KEEP_ALIVE_REQ_S *pstReq = (MSG_KEEP_ALIVE_REQ_S *)master_alloc_reqMsg(0, CMD_KEEP_ALIVE);//！这里没有写入备机地址以方便复用
+    if(!pstReq)
     {
-        if(g_pMstMbufer->g_abySlvKeepailveSendTimes[i] < 3)
-        {
-            //发送次数未超三次，向该备机地址发送保活消息
-            log_info("Send keepailve msg to bySlvAddr(%d).", g_pMstMbufer->g_abySlvAddrs[i]);
-            g_pMstMbufer->g_abySlvKeepailveSendTimes[i]++;
-        }
-        else
-        {
-            //发送次数超过三次，解注册该备机地址
+        log_error("master_alloc_reqMsg error!");
+        return FAILE;
+    }
 
+    //查看备机注册表中各备机的保活发送次数，如大于3次则解注册该备机，否则发送保活包
+    BYTE *pbyRetSlvAddrs = (BYTE *)malloc(sizeof(BYTE) * g_pMstMbufer->g_pSlvList->slv_getSlvNum());
+    dwRet = g_pMstMbufer->g_pSlvList->slv_traverseAndRetSlvAddr(pbyRetSlvAddrs);//slv_getSlvNum该值会在其中更新
+    if(dwRet != SUCCESS)
+    {
+        log_error("slv_traverseAndRetSlvAddr error!");
+        free(pstReq);
+        return FAILE;
+    }
+
+    log_debug("slv_getSlvNum(%d)", g_pMstMbufer->g_pSlvList->slv_getSlvNum());
+    for(INT i = 0; i < g_pMstMbufer->g_pSlvList->slv_getSlvNum(); i++)
+    {
+        pstReq->stMsgHeader.byDstAddr = pbyRetSlvAddrs[i];
+
+        dwRet = master_sendToOne(pbyRetSlvAddrs[i], (BYTE *)pstReq, sizeof(MSG_KEEP_ALIVE_REQ_S));
+        if(dwRet != SUCCESS)
+        {
+            log_error("master_sendToOne error!");
+            free(pbyRetSlvAddrs);
+            free(pstReq);
+            return FAILE;
         }
     }
+
+    free(pbyRetSlvAddrs);
+    free(pstReq);
 
     dwRet = g_pKeepaliveTimer->start(KEEPALIVE_TIMER_VALUE);//3min
     if(dwRet != SUCCESS)
@@ -97,9 +116,14 @@ DWORD master_InitAndLoop(BYTE byMasterAddr)
 
     g_pMstMbufer = new mbufer;
     g_pMstMbufer->g_byMstAddr = byMasterAddr;//实际只使用该位对应ip加端口号
-    g_pMstMbufer->g_bySlvNums = 0;
-    memset(g_pMstMbufer->g_abySlvAddrs, 0, sizeof(g_pMstMbufer->g_abySlvAddrs));
-    memset(g_pMstMbufer->g_abySlvKeepailveSendTimes, 0, sizeof(g_pMstMbufer->g_abySlvKeepailveSendTimes));
+    g_pMstMbufer->g_bySlvAddr = 0;//主机中用不到
+    g_pMstMbufer->g_pSlvList = new list_slv;//使用备机地址链表进行管理
+    dwRet = g_pMstMbufer->g_pSlvList->slv_init();
+    if(dwRet != SUCCESS)
+    {
+        log_error("slv_init error!");
+        return FAILE;
+    }
 
     /* 初始化事件调用机制vos（用epoll模拟实现） */
     g_pMasterVos = new vos;
@@ -184,6 +208,9 @@ DWORD master_InitAndLoop(BYTE byMasterAddr)
 
 DWORD master_Free()
 {
+    g_pMstMbufer->g_pSlvList->slv_free();
+    delete g_pMstMbufer->g_pSlvList;
+
     delete g_pMasterVos;
     delete g_pMstMbufer;
     delete g_pMasterDmm;

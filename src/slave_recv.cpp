@@ -61,7 +61,6 @@ static WORD slave_login(const BYTE *pbyMsg)
     }
 
     log_debug("bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHeader.byDstAddr, pstRsp->byLoginResult);
-    
     if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
     {
         //收到登录成功回复包
@@ -81,6 +80,34 @@ static WORD slave_login(const BYTE *pbyMsg)
 static WORD slave_keepAlive(const BYTE *pbyMsg)
 {
     log_debug("slave_keepAlive.");
+
+    const MSG_KEEP_ALIVE_REQ_S *pstReq = (const MSG_KEEP_ALIVE_REQ_S *)pbyMsg;
+    if(!pstReq)
+    {
+        log_error("msg handle empty!");
+        return FAILE;
+    }
+    if(ntohs(pstReq->stMsgHeader.wLen) < sizeof(MSG_KEEP_ALIVE_REQ_S) - MSG_HEADER_LEN)
+    {
+        log_error("msg length not enough!");
+        return FAILE;
+    }
+    
+    MSG_KEEP_ALIVE_RSP_S *pstRsp = (MSG_KEEP_ALIVE_RSP_S *)slave_alloc_rspMsg(pstReq->stMsgHeader.bySeq, CMD_KEEP_ALIVE);
+    if(!pstRsp)
+    {
+        log_error("slave_alloc_rspMsg error!");
+        return FAILE;
+    }
+
+    DWORD dwRet = slave_send((BYTE *)pstRsp, sizeof(MSG_KEEP_ALIVE_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error("slave_send error!");
+        return FAILE;
+    }
+    free(pstRsp);
+
     return SUCCESS;
 }
 

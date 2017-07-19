@@ -60,6 +60,16 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr)
             stLclAddr.sin_port = htons(PORT_5);
             break;
 
+        case ADDR_6:
+            stLclAddr.sin_addr.s_addr = inet_addr(IP_6);
+            stLclAddr.sin_port = htons(PORT_6);
+            break;
+
+        case ADDR_7:
+            stLclAddr.sin_addr.s_addr = inet_addr(IP_7);
+            stLclAddr.sin_port = htons(PORT_7);
+            break;
+
         default:
             log_error("byMsgAddr error(%d)!", byMsgAddr);
             return FAILE;
@@ -149,6 +159,16 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
         case ADDR_5:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_5);
             stDstAddr.sin_port = htons(PORT_5);
+            break;
+
+        case ADDR_6:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_6);
+            stDstAddr.sin_port = htons(PORT_6);
+            break;
+
+        case ADDR_7:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_7);
+            stDstAddr.sin_port = htons(PORT_7);
             break;
 
         default:

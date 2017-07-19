@@ -94,6 +94,10 @@ VOID *slave_alloc_rspMsg(BYTE bySeq, BYTE byCmd)
     WORD wMsgLen = 0;
     switch(byCmd)
     {
+        case CMD_KEEP_ALIVE:
+            wMsgLen = sizeof(MSG_KEEP_ALIVE_RSP_S);
+            break;
+            
         case CMD_DATA_INSTANT:
             wMsgLen = sizeof(MSG_DATA_INSTANT_RSP_S);
             break;

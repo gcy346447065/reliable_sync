@@ -44,7 +44,8 @@ typedef struct
 enum
 {
     LOGIN_RESULT_SUCCEED = 0,
-    LOGIN_RESULT_ERROR = 1
+    LOGIN_RESULT_ERROR = 1,
+    LOGIN_RESULT_REGED = 2
 };
 
 typedef struct
