@@ -13,6 +13,8 @@
 #include "slave_recv.h"
 #include "protocol.h"
 
+DWORD dwSlaveHEHE = 0;
+
 vos *g_pSlaveVos;
 dmm *g_pSlaveDmm;
 mbufer *g_pSlvMbufer;
@@ -21,7 +23,7 @@ timer *g_pSlvRegTimer;
 DWORD slave_stdinProc(void *pObj)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("slave_stdinProc()");
+    log_debug("slave_stdinProc(), dwSlaveHEHE(%lu)", dwSlaveHEHE);
 
     return dwRet;
 }
@@ -188,6 +190,7 @@ DWORD slave_InitAndLoop(BYTE byMasterAddr, BYTE bySlaveAddr)
 DWORD slave_Free()
 {
     delete g_pSlaveVos;
+    g_pSlaveDmm->delete_mailbox(g_pSlvMbufer);
     delete g_pSlvMbufer;
     delete g_pSlaveDmm;
 

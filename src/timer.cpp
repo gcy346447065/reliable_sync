@@ -15,7 +15,7 @@ DWORD timer::init()
 
     g_dwTimerFd = iRet;
 
-    log_info("timerfd(%d) create ok.", g_dwTimerFd);
+    log_info("timerfd(%lu) create ok.", g_dwTimerFd);
     return SUCCESS;
 }
 
@@ -40,7 +40,7 @@ DWORD timer::start(DWORD dwMS)
         return FAILE;
     }
 
-    log_info("timerfd(%d) settime ok.", g_dwTimerFd);
+    log_info("timerfd(%lu) settime ok.", g_dwTimerFd);
     return SUCCESS;
 }
 

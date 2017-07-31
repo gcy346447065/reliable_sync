@@ -28,13 +28,12 @@ INT main(INT argc, CHAR *argv[])
         return FAILE;
     }
 
-    DWORD dwRet = 0;
     INT iMasterAddr = 0;
     INT iSlaveAddr = 0;
     if(strcmp(argv[1], "master") == SUCCESS)
     {
         log_init("MASTER");
-        log_info("MASTER Task.");
+        log_debug("MASTER Task.");
 
         if(sscanf(argv[2], "%d", &iMasterAddr) != 1)
         {

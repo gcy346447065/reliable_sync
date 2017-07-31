@@ -8,7 +8,7 @@
 
 extern mbufer *g_pSlvMbufer;
 
-static BYTE g_bySeq = 0;
+static WORD g_wSeq = 0;
 
 DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen)
 {
@@ -52,16 +52,18 @@ DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen)
     if (dwRet != SUCCESS)
     {
         log_error("send_message error!");
+        g_pSlvMbufer->free_msg(pbySendBuf);
         return dwRet;
     }
 
+    g_pSlvMbufer->free_msg(pbySendBuf);
     return dwRet;
 }
 
-VOID *slave_alloc_reqMsg(BYTE byCmd)
+VOID *slave_alloc_reqMsg(WORD wCmd)
 {
     WORD wMsgLen = 0;
-    switch(byCmd)
+    switch(wCmd)
     {
         case CMD_LOGIN:
             wMsgLen = sizeof(MSG_LOGIN_REQ_S);
@@ -81,18 +83,18 @@ VOID *slave_alloc_reqMsg(BYTE byCmd)
         pstMsgHeader->wSig  = htons(START_FLAG_1);
         pstMsgHeader->bySrcAddr = g_pSlvMbufer->g_bySlvAddr;
         pstMsgHeader->byDstAddr = g_pSlvMbufer->g_byMstAddr;
-        pstMsgHeader->bySeq = g_bySeq++;
-        pstMsgHeader->byCmd = byCmd;
+        pstMsgHeader->wSeq = g_wSeq++;
+        pstMsgHeader->wCmd = wCmd;
         pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
     }
 
     return (VOID *)pstMsgHeader;
 }
 
-VOID *slave_alloc_rspMsg(BYTE bySeq, BYTE byCmd)
+VOID *slave_alloc_rspMsg(WORD wSeq, WORD wCmd)
 {
     WORD wMsgLen = 0;
-    switch(byCmd)
+    switch(wCmd)
     {
         case CMD_KEEP_ALIVE:
             wMsgLen = sizeof(MSG_KEEP_ALIVE_RSP_S);
@@ -112,15 +114,15 @@ VOID *slave_alloc_rspMsg(BYTE bySeq, BYTE byCmd)
         pstMsgHeader->wSig  = htons(START_FLAG_1);
         pstMsgHeader->bySrcAddr = g_pSlvMbufer->g_bySlvAddr;
         pstMsgHeader->byDstAddr = g_pSlvMbufer->g_byMstAddr;
-        pstMsgHeader->bySeq = bySeq;
-        pstMsgHeader->byCmd = byCmd;
+        pstMsgHeader->wSeq = wSeq;
+        pstMsgHeader->wCmd = wCmd;
         pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
     }
 
     return (VOID *)pstMsgHeader;
 }
 
-VOID *slave_alloc_dataWaitedRspMsg(BYTE bySeq, WORD wDataQty)
+VOID *slave_alloc_dataWaitedRspMsg(WORD wSeq, WORD wDataQty)
 {
     WORD wMsgLen = sizeof(MSG_DATA_INSTANT_RSP_S) + wDataQty * sizeof(DATA_RESULT_S);
 
@@ -130,8 +132,8 @@ VOID *slave_alloc_dataWaitedRspMsg(BYTE bySeq, WORD wDataQty)
         pstMsgHeader->wSig  = htons(START_FLAG_1);
         pstMsgHeader->bySrcAddr = g_pSlvMbufer->g_bySlvAddr;
         pstMsgHeader->byDstAddr = g_pSlvMbufer->g_byMstAddr;
-        pstMsgHeader->bySeq = bySeq;
-        pstMsgHeader->byCmd = CMD_DATA_WAITED;
+        pstMsgHeader->wSeq = wSeq;
+        pstMsgHeader->wCmd = CMD_DATA_WAITED;
         pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
     }
 

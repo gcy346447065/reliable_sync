@@ -2,7 +2,7 @@
 #define _MACRO_H_
 
 typedef unsigned long long  QWORD;
-typedef unsigned long       DWORD;
+typedef unsigned long       DWORD;//long在32位机长度为4，在64位机长度为8
 typedef int                 BOOL;
 typedef unsigned char       BYTE;
 typedef unsigned short      WORD;
@@ -27,25 +27,16 @@ typedef char                *PCHAR;
 #define ERR_CRM_SUCCESS           0
 #define VOS_OK                    0
 
-enum 
-{
-    STATUS_INIT = 0,
-    STATUS_LOGIN = 1,
-    STATUS_NEWCFG = 2
-};
 
-enum SEND_METHOD_TO_LIST
-{
-    SEND_NEWCFG_WAITED,
-    SEND_NEWCFG_INSTANT
-};
-
-#define MAX_PKG_LEN 900
+//包的最小值61853288/65535=943
+#define MAX_PKG_LEN 1000
 //#define MAX_PKG_LEN 1024
+//MAX_BUFFER_SIZE一定要比MAX_PKG_LEN大
+#define MAX_BUFFER_SIZE 1024
 
 #define MAX_STDIN_FILE_LEN 128
-#define MAX_EPOLL_NUM 1024
-#define MAX_BUFFER_SIZE 1024
+#define MAX_EPOLL_NUM 64
+
 
 #define ADDR_1      1
 #define IP_1        "192.168.11.114"
@@ -75,8 +66,13 @@ enum SEND_METHOD_TO_LIST
 #define IP_7        "192.168.11.114"
 #define PORT_7      8767
 
+//该地址用于下发备份数据的测试程序
+#define ADDR_10     10
+#define IP_10       "192.168.11.114"
+#define PORT_10     8770
+
 #define REGISTER_TIMER_VALUE        (1000*30+1) //30s
-#define KEEPALIVE_TIMER_VALUE       (1000*60*1+1) //3min-1min
+#define KEEPALIVE_TIMER_VALUE       (1000*60*3+1) //3min-1min
 #define CHECKALIVE_TIMER_VALUE      (1000*60*10+1)
 #define NEWCFG_INSTANT_TIMER_VALUE  (1000*60*5+1)
 #define NEWCFG_WAITED_TIMER_VALUE   (1000*60*5+1)

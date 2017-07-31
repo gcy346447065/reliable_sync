@@ -13,6 +13,8 @@
 #include "master_recv.h"
 #include "protocol.h"
 
+DWORD dwMasterHEHE = 0;
+
 static vos *g_pMasterVos;
 static dmm *g_pMasterDmm;
 mbufer *g_pMstMbufer;
@@ -21,7 +23,8 @@ timer *g_pKeepaliveTimer;
 DWORD master_stdinProc(void *pObj)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("master_stdinProc()");
+    log_debug("master_stdinProc(), dwMasterHEHE(%lu)", dwMasterHEHE);
+    dwMasterHEHE = 0;//用于统计短时间收到的消息包的数目
 
     return dwRet;
 }
@@ -29,7 +32,7 @@ DWORD master_stdinProc(void *pObj)
 DWORD master_mailboxProc(void *pObj)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("master_mailboxProc()");
+    //log_debug("master_mailboxProc()");
 
     BYTE *pbyRecvBuf = master_alloc_RecvBuffer(MAX_BUFFER_SIZE);
     if(pbyRecvBuf == NULL)
@@ -45,13 +48,17 @@ DWORD master_mailboxProc(void *pObj)
         log_error("master_recv error!");
         return FAILE;
     }
+    if(pbyRecvBuf == NULL || wBufLen == 0)
+    {
+        log_error("pbyRecvBuf or wBufLen error!");
+        return FAILE;
+    }
 
-    log_hex(pbyRecvBuf, wBufLen);
-
+    //log_hex(pbyRecvBuf, wBufLen);
     dwRet = master_msgHandle(pbyRecvBuf, wBufLen);
     if(dwRet != SUCCESS)
     {
-        log_error("master_MsgHandle error!");
+        log_error("master_msgHandle error!");
         return FAILE;
     }
 
@@ -62,7 +69,7 @@ DWORD master_keepaliveTimerProc(void *pObj)
 {
     DWORD dwRet = SUCCESS;
     log_debug("master_keepaliveTimerProc()");
-    log_debug("slv_getSlvNum(%d)", g_pMstMbufer->g_pSlvList->slv_getSlvNum());
+    //log_debug("slv_getSlvNum(%d)", g_pMstMbufer->g_pSlvList->slv_getSlvNum());
 
     MSG_KEEP_ALIVE_REQ_S *pstReq = (MSG_KEEP_ALIVE_REQ_S *)master_alloc_reqMsg(0, CMD_KEEP_ALIVE);//！这里没有写入备机地址以方便复用
     if(!pstReq)
@@ -81,8 +88,8 @@ DWORD master_keepaliveTimerProc(void *pObj)
         return FAILE;
     }
 
-    log_debug("slv_getSlvNum(%d)", g_pMstMbufer->g_pSlvList->slv_getSlvNum());
-    for(INT i = 0; i < g_pMstMbufer->g_pSlvList->slv_getSlvNum(); i++)
+    //log_debug("slv_getSlvNum(%d)", g_pMstMbufer->g_pSlvList->slv_getSlvNum());
+    for(UINT i = 0; i < g_pMstMbufer->g_pSlvList->slv_getSlvNum(); i++)
     {
         pstReq->stMsgHeader.byDstAddr = pbyRetSlvAddrs[i];
 
@@ -212,6 +219,7 @@ DWORD master_Free()
     delete g_pMstMbufer->g_pSlvList;
 
     delete g_pMasterVos;
+    g_pMasterDmm->delete_mailbox(g_pMstMbufer);
     delete g_pMstMbufer;
     delete g_pMasterDmm;
 

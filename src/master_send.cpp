@@ -8,7 +8,7 @@
 
 extern mbufer *g_pMstMbufer;
 
-static BYTE g_bySeq = 0;
+static WORD g_wSeq = 0;
 
 DWORD master_sendToOne(BYTE bySlvAddr, BYTE *pbyMsg, WORD wMsgLen)
 {
@@ -52,9 +52,11 @@ DWORD master_sendToOne(BYTE bySlvAddr, BYTE *pbyMsg, WORD wMsgLen)
     if (dwRet != SUCCESS)
     {
         log_error("send_message error!");
+        g_pMstMbufer->free_msg(pbySendBuf);
         return dwRet;
     }
 
+    g_pMstMbufer->free_msg(pbySendBuf);
     return dwRet;
 }
 
@@ -96,7 +98,7 @@ DWORD master_sendToMany(BYTE abySlvMsgAddrs[], BYTE *pbyMsg, WORD wMsgLen)
 
     /* 将mbufer发送消息体发送出去 */
     MSG_INFO_S stSendMsgInfo = {0, (DWORD)pbySendBuf, 0, 0};
-    for(INT i = 0; i < sizeof(abySlvMsgAddrs); i++)//可能出现备机过多注册不上的情况
+    for(UINT i = 0; i < sizeof(abySlvMsgAddrs); i++)//可能出现备机过多注册不上的情况
     {
         if(abySlvMsgAddrs[i] == 0)
         {
@@ -114,10 +116,10 @@ DWORD master_sendToMany(BYTE abySlvMsgAddrs[], BYTE *pbyMsg, WORD wMsgLen)
     return dwRet;
 }
 
-VOID *master_alloc_reqMsg(BYTE bySlvAddr, BYTE byCmd)
+VOID *master_alloc_reqMsg(BYTE bySlvAddr, WORD wCmd)
 {
     WORD wMsgLen = 0;
-    switch(byCmd)
+    switch(wCmd)
     {
         case CMD_LOGIN:
             wMsgLen = sizeof(MSG_LOGIN_REQ_S);
@@ -137,18 +139,18 @@ VOID *master_alloc_reqMsg(BYTE bySlvAddr, BYTE byCmd)
         pstMsgHeader->wSig  = htons(START_FLAG_1);
         pstMsgHeader->bySrcAddr = g_pMstMbufer->g_byMstAddr;
         pstMsgHeader->byDstAddr = bySlvAddr;
-        pstMsgHeader->bySeq = g_bySeq++;
-        pstMsgHeader->byCmd = byCmd;
+        pstMsgHeader->wSeq = g_wSeq++;
+        pstMsgHeader->wCmd = wCmd;
         pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
     }
 
     return (VOID *)pstMsgHeader;
 }
 
-VOID *master_alloc_rspMsg(BYTE bySlvAddr, BYTE bySeq, BYTE byCmd)
+VOID *master_alloc_rspMsg(BYTE bySlvAddr, WORD wSeq, WORD wCmd)
 {
     WORD wMsgLen = 0;
-    switch(byCmd)
+    switch(wCmd)
     {
         case CMD_LOGIN:
             wMsgLen = sizeof(MSG_LOGIN_RSP_S);
@@ -168,8 +170,8 @@ VOID *master_alloc_rspMsg(BYTE bySlvAddr, BYTE bySeq, BYTE byCmd)
         pstMsgHeader->wSig  = htons(START_FLAG_1);
         pstMsgHeader->bySrcAddr = g_pMstMbufer->g_byMstAddr;
         pstMsgHeader->byDstAddr = bySlvAddr;
-        pstMsgHeader->bySeq = bySeq;
-        pstMsgHeader->byCmd = byCmd;
+        pstMsgHeader->wSeq = wSeq;
+        pstMsgHeader->wCmd = wCmd;
         pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
     }
 

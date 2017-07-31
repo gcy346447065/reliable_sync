@@ -26,8 +26,8 @@ typedef struct
     WORD wSig;  //消息包起始标志signature
     BYTE bySrcAddr; //消息包起点地址source address
     BYTE byDstAddr; //消息包终点地址destination address
-    BYTE bySeq; //消息包序列号sequence
-    BYTE byCmd; //消息包命令字command
+    WORD wSeq; //消息包序列号sequence
+    WORD wCmd; //消息包命令字command
     WORD wLen;  //消息包长度length
 }__attribute__((__packed__)) MSG_HEADER_S;
 
@@ -70,20 +70,30 @@ typedef struct
 /*
  * message data instant structure
  */
+enum
+{
+    DATA_TYPE_BATCH = 1,
+    DATA_TYPE_INSTANT = 2,
+    DATA_TYPE_WAITED = 3
+};
+
 typedef struct
 {
-    WORD wDataSig;  //数据起始标志signature
-    WORD wDataSeq;  //数据序列号sequence
-    DWORD dwDataID; //数据识别号identity
-    WORD wDataLen;
-    BYTE abyData[];
+    WORD wDataSig;      //数据起始标志signature
+    WORD wDataSeq;      //数据序列号sequence
+    BYTE byDataType;    //数据类型：BATCH，INSTANT、WAITED
+    WORD wDataID;       //数据ID，60M/1K=60K < 65535
+    WORD wBatchStart;   //起始ID，Batch数据才会用到
+    WORD wBatchEnd;     //终止ID，Batch数据才会用到
+    WORD wDataLen;      //数据长度
+    WORD wDataChecksum; //数据校验和，在主机中才会填入，在备机中用于检验
+    BYTE abyData[];     //数据消息
 }__attribute__((__packed__)) MSG_DATA_S;
 
 typedef struct
 {
     MSG_HEADER_S stMsgHeader;
     MSG_DATA_S stData;
-    WORD wChecksum;
 }__attribute__((__packed__)) MSG_DATA_INSTANT_REQ_S;
 
 enum
@@ -95,10 +105,16 @@ enum
 
 typedef struct
 {
-    MSG_HEADER_S stMsgHeader;
     WORD wDataSeq;
-    DWORD dwDataID;
+    BYTE byDataType;
+    WORD wDataID;
     BYTE byResult;
+}__attribute__((__packed__)) DATA_RESULT_S;
+
+typedef struct
+{
+    MSG_HEADER_S stMsgHeader;
+    DATA_RESULT_S stDataResult;
 }__attribute__((__packed__)) MSG_DATA_INSTANT_RSP_S;
 
 /*
@@ -106,28 +122,15 @@ typedef struct
  */
 typedef struct
 {
-    MSG_DATA_S stData;
-    WORD wChecksum;
-}__attribute__((__packed__)) DATA_WITH_CHECKSUM_S;
-
-typedef struct
-{
     MSG_HEADER_S stMsgHeader;
-    WORD wDataQty; //数据数量quantity
-    DATA_WITH_CHECKSUM_S astDataWithChecksum[];
+    WORD wDataCount;
+    MSG_DATA_S astDatas[];
 }__attribute__((__packed__)) MSG_DATA_WAITED_REQ_S;
 
 typedef struct
 {
-    WORD wDataSeq;
-    DWORD dwDataID;
-    BYTE byResult;
-}__attribute__((__packed__)) DATA_RESULT_S;
-
-typedef struct
-{
     MSG_HEADER_S stMsgHeader;
-    WORD wDataQty;
+    WORD wDataCount;
     DATA_RESULT_S astDataResults[];
 }__attribute__((__packed__)) MSG_DATA_WAITED_RSP_S;
 

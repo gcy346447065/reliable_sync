@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 2.8)
 PROJECT(reliableSync)
 
+SET(CMAKE_BUILD_TYPE "Debug")  
+SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")  
+SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall") 
+
 SET(SRC_LIST
     main.cpp
     master.cpp
@@ -24,6 +28,9 @@ TARGET_LINK_LIBRARIES(reliableSync pthread)
 
 SET(TEST_LIST
     test.cpp
+    vos.cpp
+    mbufer.cpp
+    timer.cpp
     )
 
 ADD_EXECUTABLE(test ${TEST_LIST})

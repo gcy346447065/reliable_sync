@@ -22,13 +22,18 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr)
     }
 
     /* 将socket设置为非阻塞模式 */
-    INT iMode= 1; 
+    INT iMode = 1; 
     INT iCtlRet = ioctl(iSockFd, FIONBIO, &iMode);
     if(iCtlRet < 0)
     {
         log_error("Set socket no block error!");
         return FAILE;
     }
+
+    INT iSendValue = 500 * 1024;//缓冲区大小为此值2倍
+    INT iRecvValue = 500 * 1024;//缓冲区大小为此值2倍
+    setsockopt(iSockFd, SOL_SOCKET, SO_SNDBUF, (const CHAR*)&iSendValue, sizeof(INT));
+    setsockopt(iSockFd, SOL_SOCKET, SO_RCVBUF, (const CHAR*)&iRecvValue, sizeof(INT));
 
     struct sockaddr_in stLclAddr;
     memset(&stLclAddr, 0, sizeof(stLclAddr));
@@ -70,6 +75,11 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr)
             stLclAddr.sin_port = htons(PORT_7);
             break;
 
+        case ADDR_10:
+            stLclAddr.sin_addr.s_addr = inet_addr(IP_10);
+            stLclAddr.sin_port = htons(PORT_10);
+            break;
+
         default:
             log_error("byMsgAddr error(%d)!", byMsgAddr);
             return FAILE;
@@ -80,9 +90,13 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr)
         log_error("socket bind error(%d)!", errno);
         return FAILE;
     }
+
+    socklen_t optlen;
+    getsockopt(iSockFd, SOL_SOCKET, SO_SNDBUF, &iSendValue, &optlen);
+    getsockopt(iSockFd, SOL_SOCKET, SO_RCVBUF, &iRecvValue, &optlen);
+    log_debug("SO_SNDBUF(%d), SO_RCVBUF(%d)", iSendValue, iRecvValue);
     
     (*ppMbufer)->g_dwSocketFd = iSockFd;//将socket句柄记录在邮箱mbufer中
-
     return SUCCESS;
 }
 
@@ -114,7 +128,7 @@ DWORD mbufer::free_msg(void *pSendBuf)
 
 DWORD mbufer::set_cmd_head_flag(void *pSendBuf, DWORD dwSendFlag)
 {
-    DWORD dwRet = 0;
+    DWORD dwRet = SUCCESS;
 
     return dwRet;
 }
@@ -176,12 +190,23 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
             return FAILE;
     }
 
+    
+    /*getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
+    log_debug("SO_SNDBUF(%d)", iValue);*/
+
     //log_debug("g_dwSocketFd(%d).", g_dwSocketFd);
     BYTE *pbySendBuf = (BYTE *)(stMsgInfo.dwMsgBuf);
     if((iRet = sendto(g_dwSocketFd, pbySendBuf, wOffset, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {
-        log_error("send_message error(%d)!", iRet);
+        log_error("send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
+        return FAILE;
     }
+    //log_debug("sendto(%d).", iRet);
+
+    /*INT iValue = 0;
+    socklen_t optlen = 0;
+    getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
+    log_debug("SO_SNDBUF(%d), sendto(%d)", iValue, iRet);*/
     
     /*if((iRet = sendto(g_dwSocketFd, "test", 4, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {
@@ -193,17 +218,25 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
 
 DWORD mbufer::receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime)
 {
-    INT iBufferSize = 0;
-    if((iBufferSize = recv(g_dwSocketFd, pbyRecvBuf, MAX_BUFFER_SIZE, 0)) > 0)
+    /*INT iValue;
+    socklen_t optlen;
+    getsockopt(g_dwSocketFd, SOL_SOCKET, SO_RCVBUF, &iValue, &optlen);
+    log_debug("SO_RCVBUF(%d)", iValue);*/
+
+    INT iRet = 0;
+    if((iRet = recv(g_dwSocketFd, pbyRecvBuf, MAX_BUFFER_SIZE, 0)) < 0)
     {
-        //log_hex(pRecvBuf, iBufferSize);
-        *pwBufLen = (WORD)iBufferSize;
-        return SUCCESS;
-    }
-    else if(iBufferSize < 0)
-    {
+        log_error("recv error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
         return FAILE;
     }
+    *pwBufLen = (DWORD)iRet;
+
+    //log_debug("recv(%d).", iRet);
+
+    /*INT iValue = 0;
+    socklen_t optlen = 0;
+    getsockopt(g_dwSocketFd, SOL_SOCKET, SO_RCVBUF, &iValue, &optlen);
+    log_debug("SO_RCVBUF(%d), recv(%d)", iValue, iRet);*/
 
     return SUCCESS;
 }

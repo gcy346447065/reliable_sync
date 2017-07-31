@@ -43,7 +43,7 @@ DWORD slave_recv(BYTE *pbyRecvBuf, WORD *pwBufLen)
     return SUCCESS;
 }
 
-static WORD slave_login(const BYTE *pbyMsg)
+static DWORD slave_login(const BYTE *pbyMsg)
 {
     DWORD dwRet = SUCCESS;
     log_debug("slave_login.");
@@ -77,7 +77,7 @@ static WORD slave_login(const BYTE *pbyMsg)
     return SUCCESS;
 }
 
-static WORD slave_keepAlive(const BYTE *pbyMsg)
+static DWORD slave_keepAlive(const BYTE *pbyMsg)
 {
     log_debug("slave_keepAlive.");
 
@@ -93,7 +93,7 @@ static WORD slave_keepAlive(const BYTE *pbyMsg)
         return FAILE;
     }
     
-    MSG_KEEP_ALIVE_RSP_S *pstRsp = (MSG_KEEP_ALIVE_RSP_S *)slave_alloc_rspMsg(pstReq->stMsgHeader.bySeq, CMD_KEEP_ALIVE);
+    MSG_KEEP_ALIVE_RSP_S *pstRsp = (MSG_KEEP_ALIVE_RSP_S *)slave_alloc_rspMsg(pstReq->stMsgHeader.wSeq, CMD_KEEP_ALIVE);
     if(!pstRsp)
     {
         log_error("slave_alloc_rspMsg error!");
@@ -111,22 +111,22 @@ static WORD slave_keepAlive(const BYTE *pbyMsg)
     return SUCCESS;
 }
 
-static WORD slave_dataInstant(const BYTE *pbyMsg)
+static DWORD slave_dataInstant(const BYTE *pbyMsg)
 {
     log_debug("slave_dataInstant.");
     return SUCCESS;
 }
 
-static WORD slave_dataWaited(const BYTE *pbyMsg)
+static DWORD slave_dataWaited(const BYTE *pbyMsg)
 {
     log_debug("slave_dataWaited.");
     return SUCCESS;
 }
 
-typedef WORD (*MSG_PROC)(const BYTE *pbyMsg);
+typedef DWORD (*MSG_PROC)(const BYTE *pbyMsg);
 typedef struct
 {
-    BYTE byCmd;
+    WORD wCmd;
     MSG_PROC pfn;
 } MSG_PROC_MAP;
 
@@ -141,9 +141,9 @@ static MSG_PROC_MAP g_msgProcs[] =
 static DWORD slave_msgHandleOne(const BYTE *pbyMsg)
 {
     const MSG_HEADER_S *pstMsgHeader = (const MSG_HEADER_S *)pbyMsg;
-    for(INT i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
+    for(UINT i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
     {
-        if(g_msgProcs[i].byCmd == pstMsgHeader->byCmd)
+        if(g_msgProcs[i].wCmd == pstMsgHeader->wCmd)
         {
             MSG_PROC pfn = g_msgProcs[i].pfn;
             if(pfn)
@@ -163,7 +163,7 @@ DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
 
     if(wMsgLen < MSG_HEADER_LEN)
     {
-        log_error("sync message length not enough(%u<%u)", wMsgLen, MSG_HEADER_LEN);
+        log_error("sync message length not enough(%u<%lu)", wMsgLen, MSG_HEADER_LEN);
         return FAILE;
     }
 

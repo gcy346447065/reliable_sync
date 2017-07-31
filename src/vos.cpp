@@ -18,11 +18,11 @@ DWORD vos::VOS_Init()
     g_dwMapCount = 0;
     g_dwTaskMacros = 0;
 
-    log_info("VOS_Init ok, EpollFd(%d).", g_dwEpollFd);
+    log_info("VOS_Init ok, EpollFd(%lu).", g_dwEpollFd);
     return SUCCESS;
 }
 
-DWORD __add_event(DWORD dwEpollFd, DWORD dwEventFd)
+static DWORD __add_event_ET(DWORD dwEpollFd, DWORD dwEventFd)
 {
     struct epoll_event stEvent;
     memset(&stEvent, 0, sizeof(struct epoll_event));
@@ -34,7 +34,23 @@ DWORD __add_event(DWORD dwEpollFd, DWORD dwEventFd)
         return FAILE;
     }
 
-    log_info("__add_event ok, EpollFd(%d), EventFd(%d).", dwEpollFd, dwEventFd);
+    //log_info("__add_event_ET ok, EpollFd(%d), EventFd(%d).", dwEpollFd, dwEventFd);
+    return SUCCESS;
+}
+
+static DWORD __add_event_LT(DWORD dwEpollFd, DWORD dwEventFd)
+{
+    struct epoll_event stEvent;
+    memset(&stEvent, 0, sizeof(struct epoll_event));
+    stEvent.data.fd = dwEventFd;
+    stEvent.events = EPOLLIN; //epoll for read, level triggered
+    INT iRet = epoll_ctl(dwEpollFd, EPOLL_CTL_ADD, dwEventFd, &stEvent);
+    if(iRet < 0)
+    {
+        return FAILE;
+    }
+
+    //log_info("__add_event_LT ok, EpollFd(%d), EventFd(%d).", dwEpollFd, dwEventFd);
     return SUCCESS;
 }
 
@@ -64,7 +80,7 @@ DWORD vos::VOS_RegTaskFunc(DWORD dwTaskMacro, TASK_FUNC taskFunc, void *pArg)
     if(dwTaskMacro & g_dwTaskMacros)//该位上的task已注册过
     {
         //log_debug("g_dwMapCount(%lu)", g_dwMapCount);
-        for(int i = 0; i < g_dwMapCount; i++)
+        for(UINT i = 0; i < g_dwMapCount; i++)
         {
             //log_debug("dwTaskMacro(%lu), dwTaskEventFd(%lu)", g_vosTaskMap[i].dwTaskMacro, g_vosTaskMap[i].dwTaskEventFd);
             if(g_vosTaskMap[i].dwTaskMacro == dwTaskMacro)
@@ -75,7 +91,14 @@ DWORD vos::VOS_RegTaskFunc(DWORD dwTaskMacro, TASK_FUNC taskFunc, void *pArg)
         }
 
         //添加此条pTaskEvent到g_dwEpollFd
-        __add_event(g_dwEpollFd, dwTaskEventFd);
+        if(dwTaskMacro == VOS_TASK_MASTER_MAILBOX || dwTaskMacro == VOS_TASK_SLAVE_MAILBOX)
+        {
+            __add_event_LT(g_dwEpollFd, dwTaskEventFd);//level triggered
+        }
+        else
+        {
+            __add_event_ET(g_dwEpollFd, dwTaskEventFd);//edge triggered
+        }
     }
 
     //log_debug("dwTaskMacro(%lu), g_dwTaskMacros(%lu)", dwTaskMacro, g_dwTaskMacros);
@@ -93,19 +116,19 @@ DWORD vos::VOS_ReceiveEvent(DWORD dwTargetEvents, DWORD dwEvAny,
 
 DWORD vos::VOS_EpollWait()
 {
-    log_info("epoll_wait begin, EpollFd(%d)...", g_dwEpollFd);
+    log_info("epoll_wait begin, EpollFd(%lu)...", g_dwEpollFd);
 
     struct epoll_event stEvents[MAX_EPOLL_NUM];
     while(1)
     {
-        int iEpollNum = epoll_wait(g_dwEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
-        for(int i = 0; i < iEpollNum; i++)
+        INT iEpollNum = epoll_wait(g_dwEpollFd, stEvents, MAX_EPOLL_NUM, 0); //wait 500ms or get event
+        for(INT i = 0; i < iEpollNum; i++)
         {
             //log_debug("stEvents[i].data.fd(%d).", stEvents[i].data.fd);
-            for(int j = 0; j < g_dwMapCount; j++)
+            for(UINT j = 0; j < g_dwMapCount; j++)
             {
                 //log_debug("g_vosTaskMap[j].dwTaskEventFd(%d).", g_vosTaskMap[j].dwTaskEventFd);
-                if(stEvents[i].data.fd == g_vosTaskMap[j].dwTaskEventFd && stEvents[i].events & EPOLLIN)
+                if((DWORD)stEvents[i].data.fd == g_vosTaskMap[j].dwTaskEventFd)
                 {
                     //log_debug("epoll_wait find EventFd(%d).", g_vosTaskMap[j].dwTaskEventFd);
                     g_vosTaskMap[j].func(NULL);
