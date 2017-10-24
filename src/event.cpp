@@ -47,6 +47,12 @@ DWORD event::setEventFlags(QWORD qwEventFlag)
         log_error("getEventFlags error(%d)!", iRet);
         return FAILE;
     }
+
+    if(qwEventRead & qwEventFlag)
+    {
+        log_debug("qwEventRead(%llx) has been setted at qwEventFlag(%llx).", qwEventRead, qwEventFlag);
+        return SUCCESS;
+    }
     
     QWORD qwEventWrite = qwEventRead | qwEventFlag;
     iRet = write(g_dwEventFd, &qwEventWrite, sizeof(QWORD));
@@ -67,6 +73,12 @@ DWORD event::resetEventFlags(QWORD qwEventFlag)
     {
         log_error("getEventFlags error(%d)!", iRet);
         return FAILE;
+    }
+
+    if(~qwEventRead & qwEventFlag)
+    {
+        log_debug("qwEventRead(%llx) has been resetted at qwEventFlag(%llx).", qwEventRead, qwEventFlag);
+        return SUCCESS;
     }
     
     QWORD qwEventWrite = qwEventRead & ~qwEventFlag;

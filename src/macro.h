@@ -16,6 +16,9 @@ typedef unsigned int        *PUINT;
 typedef char                CHAR;
 typedef char                *PCHAR;
 
+#define FALSE               0
+#define TRUE                1
+
 #define SUCCESS             0
 #define FAILE               1
 #define SLV_HAS_REGED       2
@@ -31,12 +34,12 @@ typedef char                *PCHAR;
 //包的最小值61853288/65535=943
 #define MAX_PKG_LEN 1000
 //#define MAX_PKG_LEN 1024
-//MAX_BUFFER_SIZE一定要比MAX_PKG_LEN大
-#define MAX_BUFFER_SIZE 1024
+
+//MAX_RECV_LEN一定要比MAX_PKG_LEN大，考虑到MTU为1500，这里可设计为1536
+#define MAX_RECV_LEN 1536 
 
 #define MAX_STDIN_FILE_LEN 128
 #define MAX_EPOLL_NUM 64
-
 
 #define ADDR_1      1
 #define IP_1        "192.168.11.114"
@@ -66,10 +69,21 @@ typedef char                *PCHAR;
 #define IP_7        "192.168.11.114"
 #define PORT_7      8767
 
+#define ADDR_8      8
+#define IP_8        "192.168.11.114"
+#define PORT_8      8768
+
+#define ADDR_9      9
+#define IP_9        "192.168.11.114"
+#define PORT_9      8769
+
 //该地址用于下发备份数据的测试程序
 #define ADDR_10     10
 #define IP_10       "192.168.11.114"
 #define PORT_10     8770
+
+#define ADDR_MIN    ADDR_1
+#define ADDR_MAX    ADDR_10
 
 #define REGISTER_TIMER_VALUE        (1000*30+1) //30s
 #define KEEPALIVE_TIMER_VALUE       (1000*60*3+1) //3min-1min

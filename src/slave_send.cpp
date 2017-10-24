@@ -6,6 +6,8 @@
 #include "mbufer.h"
 #include "log.h"
 
+extern BYTE g_slv_byMstAddr;
+extern BYTE g_slv_bySlvAddr;
 extern mbufer *g_pSlvMbufer;
 
 static WORD g_wSeq = 0;
@@ -48,7 +50,7 @@ DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen)
 
     /* 将mbufer发送消息体发送出去 */
     MSG_INFO_S stSendMsgInfo = {0, (DWORD)pbySendBuf, 0, 0};
-    dwRet = g_pSlvMbufer->send_message(g_pSlvMbufer->g_byMstAddr, stSendMsgInfo, wOffset);
+    dwRet = g_pSlvMbufer->send_message(g_slv_byMstAddr, stSendMsgInfo, wOffset);
     if (dwRet != SUCCESS)
     {
         log_error("send_message error!");
@@ -81,8 +83,8 @@ VOID *slave_alloc_reqMsg(WORD wCmd)
     if(pstMsgHeader)
     {
         pstMsgHeader->wSig  = htons(START_FLAG_1);
-        pstMsgHeader->bySrcAddr = g_pSlvMbufer->g_bySlvAddr;
-        pstMsgHeader->byDstAddr = g_pSlvMbufer->g_byMstAddr;
+        pstMsgHeader->bySrcAddr = g_slv_bySlvAddr;
+        pstMsgHeader->byDstAddr = g_slv_byMstAddr;
         pstMsgHeader->wSeq = g_wSeq++;
         pstMsgHeader->wCmd = wCmd;
         pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
@@ -112,8 +114,8 @@ VOID *slave_alloc_rspMsg(WORD wSeq, WORD wCmd)
     if(pstMsgHeader)
     {
         pstMsgHeader->wSig  = htons(START_FLAG_1);
-        pstMsgHeader->bySrcAddr = g_pSlvMbufer->g_bySlvAddr;
-        pstMsgHeader->byDstAddr = g_pSlvMbufer->g_byMstAddr;
+        pstMsgHeader->bySrcAddr = g_slv_bySlvAddr;
+        pstMsgHeader->byDstAddr = g_slv_byMstAddr;
         pstMsgHeader->wSeq = wSeq;
         pstMsgHeader->wCmd = wCmd;
         pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
@@ -130,8 +132,8 @@ VOID *slave_alloc_dataWaitedRspMsg(WORD wSeq, WORD wDataQty)
     if(pstMsgHeader)
     {
         pstMsgHeader->wSig  = htons(START_FLAG_1);
-        pstMsgHeader->bySrcAddr = g_pSlvMbufer->g_bySlvAddr;
-        pstMsgHeader->byDstAddr = g_pSlvMbufer->g_byMstAddr;
+        pstMsgHeader->bySrcAddr = g_slv_bySlvAddr;
+        pstMsgHeader->byDstAddr = g_slv_byMstAddr;
         pstMsgHeader->wSeq = wSeq;
         pstMsgHeader->wCmd = CMD_DATA_WAITED;
         pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);

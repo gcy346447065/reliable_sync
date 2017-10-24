@@ -8,14 +8,15 @@ SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 SET(SRC_LIST
     main.cpp
     master.cpp
-    master_send.cpp
-    master_recv.cpp
+    master_procThread.cpp
+    #master_send.cpp
+    #master_recv.cpp
     slave.cpp
     slave_send.cpp
     slave_recv.cpp
     event.cpp
-    list_data.cpp
-    list_slv.cpp
+    #list_data.cpp
+    #list_slv.cpp
     mbufer.cpp
     timer.cpp
     checksum.cpp
@@ -26,11 +27,3 @@ ADD_EXECUTABLE(reliableSync ${SRC_LIST})
 TARGET_LINK_LIBRARIES(reliableSync pthread)
 
 
-SET(TEST_LIST
-    test.cpp
-    vos.cpp
-    mbufer.cpp
-    timer.cpp
-    )
-
-ADD_EXECUTABLE(test ${TEST_LIST})

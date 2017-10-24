@@ -8,6 +8,8 @@
 #include "timer.h"
 #include "log.h"
 
+extern BYTE g_slv_byMstAddr;
+extern BYTE g_slv_bySlvAddr;
 extern mbufer *g_pSlvMbufer;
 extern timer *g_pSlvRegTimer;
 
@@ -167,15 +169,15 @@ DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
         return FAILE;
     }
 
-    if(pstMsgHeader->bySrcAddr != g_pSlvMbufer->g_byMstAddr)
+    if(pstMsgHeader->bySrcAddr != g_slv_byMstAddr)
     {
-        log_error("bySrcAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHeader->bySrcAddr, g_pSlvMbufer->g_byMstAddr);
+        log_error("bySrcAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHeader->bySrcAddr, g_slv_byMstAddr);
         return FAILE;
     }
 
-    if(pstMsgHeader->byDstAddr != g_pSlvMbufer->g_bySlvAddr)
+    if(pstMsgHeader->byDstAddr != g_slv_bySlvAddr)
     {
-        log_error("byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHeader->byDstAddr, g_pSlvMbufer->g_bySlvAddr);
+        log_error("byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHeader->byDstAddr, g_slv_bySlvAddr);
         return FAILE;
     }
 

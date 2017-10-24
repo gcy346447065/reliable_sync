@@ -1,21 +1,14 @@
-#include <unistd.h> //for STDIN_FILENO lseek
+#include <unistd.h> //for STDIN_FILENO lseek close
 #include <stdio.h> //for sscanf
-#include <stdlib.h> //for malloc
+#include <stdlib.h> //for malloc free
 #include <netinet/in.h> //for htons
 #include <string.h> //for memset
 #include <errno.h> //for errno
-#include <fcntl.h> //for open
-#include "macro.h"
+#include <fcntl.h> //for open
+#include "test.h"
 #include "log.h"
-#include "vos.h"
-#include "mbufer.h"
-#include "timer.h"
 #include "protocol.h"
 
-vos *g_pTestVos;
-dmm *g_pTestDmm;
-mbufer *g_pTestMbufer;
-timer *g_pTestTimer;
 
 WORD g_wDataSeq = 0;
 
@@ -66,7 +59,7 @@ DWORD test_send(BYTE *pbyMsg, WORD wMsgLen)
 
     /* 将mbufer发送消息体发送出去 */
     MSG_INFO_S stSendMsgInfo = {0, (DWORD)pbySendBuf, 0, 0};
-    dwRet = g_pTestMbufer->send_message(g_pTestMbufer->g_byMstAddr, stSendMsgInfo, wOffset);
+    dwRet = g_pTestMbufer->send_message(g_test_byMstAddr, stSendMsgInfo, wOffset);
     if (dwRet != SUCCESS)
     {
         log_error("send_message error!");
@@ -146,8 +139,8 @@ DWORD test_sendBatch(INT iFileFd)
     BYTE *pbyFileBuf = (BYTE *)malloc(MAX_PKG_LEN);
     memset(pbyFileBuf, 0, MAX_PKG_LEN);
 
-    INT iFileLen = lseek(iFileFd, 0, SEEK_END);
-    lseek(iFileFd, 0, SEEK_SET);
+    INT iFileLen = lseek(iFileFd, 0, SEEK_END);//得到文件大小
+    lseek(iFileFd, 0, SEEK_SET);//定位到文件头
     log_debug("iFileLen(%d).", iFileLen);
 
     g_wDataSeq++;
@@ -285,7 +278,7 @@ DWORD test_sendWaited(INT iFileFd)
 DWORD test_batchFile(DWORD dwFileNum, CHAR cTmpBuf)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("test_batchFile()");
+    log_debug("test_batchFile().");
 
     CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
     memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
@@ -301,14 +294,15 @@ DWORD test_batchFile(DWORD dwFileNum, CHAR cTmpBuf)
         log_info("open new config file error(%s)!", strerror(errno));
     }
 
+    close(iFileFd);
     free(pcFilename);
     return dwRet;
 }
 
 DWORD test_instantFile(DWORD dwFileNum)
 {
+    log_debug("test_instantFile().");
     DWORD dwRet = SUCCESS;
-    log_debug("test_instantFile()");
 
     CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
     memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
@@ -317,21 +311,61 @@ DWORD test_instantFile(DWORD dwFileNum)
     INT iFileFd;
     if((iFileFd = open(pcFilename, O_RDONLY)) > 0)
     {
-        test_sendInstant(iFileFd);
+        //test_sendInstant(iFileFd);
+        log_debug("test_sendInstant()");
+
+        INT iFileLen = lseek(iFileFd, 0, SEEK_END);//定位到文件尾以得到文件大小
+        lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
+        log_debug("iFileLen(%d).", iFileLen);
+        if(iFileLen > MAX_PKG_LEN)//instant文件大小保证小于MAX_PKG_LEN，以保证能一次性发送
+        {
+            log_error("iFileLen(%d).", iFileLen);
+            free(pcFilename);
+            return FAILE;
+        }
+
+        BYTE *pbyFileBuf = (BYTE *)malloc(MAX_PKG_LEN);
+        memset(pbyFileBuf, 0, MAX_PKG_LEN);
+        INT iFileBufLen = read(iFileFd, pbyFileBuf, MAX_PKG_LEN);
+        if(iFileBufLen < 0)
+        {
+            log_error("read iFileFd error(%d)!", iFileBufLen);
+            free(pcFilename);
+            free(pbyFileBuf);
+            return FAILE;
+        }
+        WORD wFileBufLen = (WORD)iFileBufLen;
+
+        
+        
+
+        dwRet = test_send((BYTE *)pstDataMsg, sizeof(MSG_DATA_S) + wFileBufLen);
+        if(dwRet != SUCCESS)
+        {
+            log_error("test_send error!");
+
+            free(pbyFileBuf);
+            free(pstDataMsg);
+            return FAILE;
+        }
+
+        free(pstDataMsg);
+        free(pbyFileBuf);
     }
     else
     {
         log_info("open new config file error(%s)!", strerror(errno));
     }
 
+    close(iFileFd);
     free(pcFilename);
     return dwRet;
 }
 
 DWORD test_waitedFile(DWORD dwFileNum)
 {
+    log_debug("test_waitedFile().");
     DWORD dwRet = SUCCESS;
-    log_debug("test_waitedFile()");
 
     CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
     memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
@@ -347,14 +381,15 @@ DWORD test_waitedFile(DWORD dwFileNum)
         log_info("open new config file error(%s)!", strerror(errno));
     }
 
+    close(iFileFd);
     free(pcFilename);
     return dwRet;
 }
 
 DWORD test_stdinProc(void *pObj)
 {
+    log_debug("test_stdinProc().");
     DWORD dwRet = SUCCESS;
-    log_debug("test_stdinProc()");
 
     //从控制台读取键入字符串
     CHAR *pcStdinBuf = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
@@ -372,19 +407,19 @@ DWORD test_stdinProc(void *pObj)
     CHAR acTmpBuf[2];
     if(sscanf(pcStdinBuf, "?%d%[KM]file", &iFileNum, acTmpBuf) == 2)//%[M]提取M是因为否则2Kfile也能进入第一个流程，这样对M敏感后可以避免此BUG
     {
-        //log_debug("1(%d,%s)", iFileNum, acTmpBuf);
+        //log_debug("batchFile(%d,%s)", iFileNum, acTmpBuf);
         //批量备份，最大60M
         test_batchFile((DWORD)iFileNum, acTmpBuf[0]);
     }
     else if(sscanf(pcStdinBuf, "?file%d", &iFileNum) == 1)
     {
-        //log_debug("3(%d)", iFileNum);
+        //log_debug("instantFile(%d)", iFileNum);
         //实时备份
         test_instantFile((DWORD)iFileNum);
     }
     else if(sscanf(pcStdinBuf, "/file%d", &iFileNum) == 1)
     {
-        //log_debug("4(%d)", iFileNum);
+        //log_debug("waitedFile(%d)", iFileNum);
         //定时定量备份
         test_waitedFile((DWORD)iFileNum);
     }
@@ -393,18 +428,90 @@ DWORD test_stdinProc(void *pObj)
     return dwRet;
 }
 
+DWORD test_mailboxProc(void *pObj)
+{
+    DWORD dwRet = SUCCESS;
+    log_debug("test_mailboxProc().");
+
+    return dwRet;
+}
+
+DWORD test::test_Init()
+{
+    log_debug("test_Init begin.");
+    DWORD dwRet = SUCCESS;
+
+    pVos = new vos;
+    dwRet = pVos->vos_Init();//实际为创建epoll
+    if(dwRet != SUCCESS)
+    {
+        log_error("vos_Init error!");
+        return FAILE;
+    }
+    
+    pDmm = new dmm;
+    pMbufer = new mbufer;
+
+    /* 创建邮箱并注册到vos */
+    dwRet = pDmm->create_mailbox(&pMbufer, byTestAddr, "test_mb");
+    if(dwRet != SUCCESS)
+    {
+        log_error("create_mailbox error!");
+        return FAILE;
+    }
+    dwRet = pVos->vos_RegTask("test_mb", pMbufer->dwSocketFd, test_mailboxProc, NULL);
+    if(dwRet != SUCCESS)
+    {
+        log_error("vos_RegTask error!");
+        return FAILE;
+    }
+
+    /* 向vos注册stdin事件 */
+    dwRet = pVos->vos_RegTask("test_stdin", STDIN_FILENO, test_stdinProc, NULL);
+    if(dwRet != SUCCESS)
+    {
+        log_error("vos_RegTask error!");
+        return FAILE;
+    }
+
+    return dwRet;
+}
+
+VOID test::test_Free()
+{
+    log_debug("test_Free begin.");
+    
+    pVos->vos_free();
+    delete pVos;
+    pDmm->delete_mailbox(pMbufer);
+    delete pDmm;
+    delete pMbufer;
+
+    return;
+}
+
+VOID test::test_Loop()
+{
+    /* 进入vos循环 */
+    log_debug("test_Loop begin.");
+    pVos->vos_EpollWait(); //while(1)!!!
+    
+    return;
+}
+
 INT main(INT argc, CHAR *argv[])
 {
+	/* 开启log */
     log_init("TEST");
     log_info("TEST Beginning.");
 
+	/* 检查入参 */
     if(argc != 2)
     {
         log_error("main arg error!");
         log_free();
         return FAILE;
     }
-
     INT iMasterAddr = 0;
     if(sscanf(argv[1], "%d", &iMasterAddr) != 1)
     {
@@ -413,47 +520,15 @@ INT main(INT argc, CHAR *argv[])
         return FAILE;
     }
 
-    g_pTestVos = new vos;
-    DWORD dwRet = g_pTestVos->VOS_Init();
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_Init error!");
-        return FAILE;
-    }
+	/* test初始化 */
+    test *clsTest = new test(iMasterAddr);
+    clsTest->test_Init();
 
-    g_pTestMbufer = new mbufer;
-    g_pTestMbufer->g_byMstAddr = iMasterAddr;//实际只使用该位对应ip加端口号
-    g_pTestMbufer->g_bySlvAddr = ADDR_10;//测试机自己的地址
-    g_pTestMbufer->g_pSlvList = NULL;//备机中用不到
+    /* test循环 */
+    clsTest->test_Loop();
 
-    g_pTestDmm = new dmm;//实际上在create_mailbox中确定mbufer中的g_dwSocketFd，也就是记录vos中的EventFd
-    dwRet = g_pTestDmm->create_mailbox(&g_pTestMbufer, g_pTestMbufer->g_bySlvAddr);
-    if(dwRet != SUCCESS)
-    {
-        log_error("create_mailbox error!");
-        return FAILE;
-    }
-
-    dwRet = g_pTestVos->VOS_RegTaskEventFd(VOS_TASK_TEST_STDIN, STDIN_FILENO);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskEventFd error!");
-        return FAILE;
-    }
-    dwRet = g_pTestVos->VOS_RegTaskFunc(VOS_TASK_TEST_STDIN, test_stdinProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskFunc error!");
-        return FAILE;
-    }
-
-    g_pTestVos->VOS_EpollWait(); //while(1)!!!
-
-
-    delete g_pTestVos;
-    g_pTestDmm->delete_mailbox(g_pTestMbufer);
-    
-    delete g_pTestMbufer;
-    delete g_pTestDmm;
+    /* test关机 */
+    clsTest->test_Free();
     return SUCCESS;
 }
+

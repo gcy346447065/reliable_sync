@@ -1,8 +1,6 @@
 #ifndef _CHECKSUM_H_
 #define _CHECKSUM_H_
 
-#include "macro.h"
+unsigned short checksum(const unsigned char *pData, int iDataLen);
 
-short checksum(const char *pData, int iDataLen);
-
-#endif //_TIMER_H_
+#endif //_CHECKSUM_H_

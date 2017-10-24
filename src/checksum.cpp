@@ -1,17 +1,26 @@
 #include "checksum.h"
 #include "log.h"
 
-short checksum(const char *pData, int iDataLen)
+unsigned short checksum(const unsigned char *pData, int iDataLen)
 {
     log_debug("checksum iDataLen(%d)", iDataLen);
     //log_hex(pData, iDataLen);
-    short sum1 = 0, sum2 = 0;
+    unsigned long sum = 0;
 
-    for(int i=0; i<iDataLen; i++)
+    while(iDataLen > 1)
     {
-        sum1 += *(pData++);
-        sum2 += sum1;
+        sum += *(const unsigned short *)pData++;
+        iDataLen -= 2;
+    }
+    if(iDataLen > 0)
+    {
+        sum += *(const unsigned char *)pData;
     }
 
-    return (sum1 & 0xffff) + (sum2 << 16);
+    while(sum >> 16)
+    {
+        sum = (sum & 0xffff) + (sum << 16);
+    }
+
+    return (unsigned short)~sum;
 }

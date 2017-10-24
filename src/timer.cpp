@@ -13,9 +13,9 @@ DWORD timer::init()
         return FAILE;
     }
 
-    g_dwTimerFd = iRet;
+    dwTimerFd = iRet;
 
-    log_info("timerfd(%lu) create ok.", g_dwTimerFd);
+    log_info("timerfd(%lu) create ok.", dwTimerFd);
     return SUCCESS;
 }
 
@@ -34,13 +34,13 @@ DWORD timer::start(DWORD dwMS)
     stTimerSpec.it_interval.tv_sec = 0;
     stTimerSpec.it_interval.tv_nsec = 0;
 
-    if(timerfd_settime(g_dwTimerFd, 0, &stTimerSpec, NULL) < 0) //0 for a time relative to the current value of the clock
+    if(timerfd_settime(dwTimerFd, 0, &stTimerSpec, NULL) < 0) //0 for a time relative to the current value of the clock
     {
         log_error("timerfd settime error!");
         return FAILE;
     }
 
-    log_info("timerfd(%lu) settime ok.", g_dwTimerFd);
+    log_info("timerfd(%lu) settime ok.", dwTimerFd);
     return SUCCESS;
 }
 
@@ -48,7 +48,7 @@ DWORD timer::stop()
 {
     struct itimerspec stTimerSpec;
     memset(&stTimerSpec, 0, sizeof(struct itimerspec));
-    if(timerfd_settime(g_dwTimerFd, 0, &stTimerSpec, NULL) < 0)
+    if(timerfd_settime(dwTimerFd, 0, &stTimerSpec, NULL) < 0)
     {
         log_error("timerfd settime error!");
         return FAILE;
@@ -62,7 +62,7 @@ DWORD timer::get(DWORD *pdwMS)
     struct itimerspec stTimerSpec;
     memset(&stTimerSpec, 0, sizeof(struct itimerspec));
 
-    if(timerfd_gettime(g_dwTimerFd, &stTimerSpec) < 0)
+    if(timerfd_gettime(dwTimerFd, &stTimerSpec) < 0)
     {
         log_error("timerfd gettime error!");
         return FAILE;
@@ -74,7 +74,7 @@ DWORD timer::get(DWORD *pdwMS)
 
 DWORD timer::free()
 {
-    close(g_dwTimerFd);
+    close(dwTimerFd);
 
     return SUCCESS;
 }

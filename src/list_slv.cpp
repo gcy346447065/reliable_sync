@@ -118,8 +118,8 @@ DWORD list_slv::slv_insert(BYTE bySlvAddr)
 
             pNode->pPrev = pTmpNode->pPrev;
             pNode->pNext = pTmpNode;
+            pTmpNode->pPrev->pNext = pNode;
             pTmpNode->pPrev = pNode;
-            pTmpNode->pPrev->pPrev->pNext = pNode;
             g_pstSlvAddrList->bySlvNum++;
             return SUCCESS;
         }

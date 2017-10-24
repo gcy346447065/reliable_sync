@@ -11,7 +11,7 @@
 
 
 //实际只使用了ppDmmMailbox、stMailboxAddr、dwTaskMacro三个参数
-DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr)
+DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskName)
 {
     /* 创建UDP的socket句柄 */
     INT iSockFd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -94,15 +94,15 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr)
     socklen_t optlen;
     getsockopt(iSockFd, SOL_SOCKET, SO_SNDBUF, &iSendValue, &optlen);
     getsockopt(iSockFd, SOL_SOCKET, SO_RCVBUF, &iRecvValue, &optlen);
-    log_debug("SO_SNDBUF(%d), SO_RCVBUF(%d)", iSendValue, iRecvValue);
+    //log_debug("SO_SNDBUF(%d), SO_RCVBUF(%d)", iSendValue, iRecvValue);
     
-    (*ppMbufer)->g_dwSocketFd = iSockFd;//将socket句柄记录在邮箱mbufer中
+    (*ppMbufer)->dwSocketFd = iSockFd;//将socket句柄记录在邮箱mbufer中
     return SUCCESS;
 }
 
 DWORD dmm::delete_mailbox(mbufer *pMbufer)
 {
-    close(pMbufer->g_dwSocketFd);
+    close(pMbufer->dwSocketFd);
     return SUCCESS;
 }
 
@@ -196,7 +196,7 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
 
     //log_debug("g_dwSocketFd(%d).", g_dwSocketFd);
     BYTE *pbySendBuf = (BYTE *)(stMsgInfo.dwMsgBuf);
-    if((iRet = sendto(g_dwSocketFd, pbySendBuf, wOffset, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
+    if((iRet = sendto(dwSocketFd, pbySendBuf, wOffset, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {
         log_error("send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
         return FAILE;
@@ -224,7 +224,7 @@ DWORD mbufer::receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime
     log_debug("SO_RCVBUF(%d)", iValue);*/
 
     INT iRet = 0;
-    if((iRet = recv(g_dwSocketFd, pbyRecvBuf, MAX_BUFFER_SIZE, 0)) < 0)
+    if((iRet = recv(dwSocketFd, pbyRecvBuf, MAX_RECV_LEN, 0)) < 0)
     {
         log_error("recv error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
         return FAILE;

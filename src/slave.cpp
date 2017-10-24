@@ -12,6 +12,7 @@
 #include "slave_send.h"
 #include "slave_recv.h"
 #include "protocol.h"
+#include "list_data.h"
 
 DWORD dwSlaveHEHE = 0;
 
@@ -19,6 +20,10 @@ vos *g_pSlaveVos;
 dmm *g_pSlaveDmm;
 mbufer *g_pSlvMbufer;
 timer *g_pSlvRegTimer;
+
+BYTE g_slv_byMstAddr;
+BYTE g_slv_bySlvAddr;
+list_data *g_slv_pDataList;
 
 DWORD slave_stdinProc(void *pObj)
 {
@@ -33,14 +38,14 @@ DWORD slave_mailboxProc(void *pObj)
     DWORD dwRet = SUCCESS;
     log_debug("slave_mailboxProc()");
 
-    BYTE *pbyRecvBuf = slave_alloc_RecvBuffer(MAX_BUFFER_SIZE);
+    BYTE *pbyRecvBuf = slave_alloc_RecvBuffer(MAX_RECV_LEN);
     if(pbyRecvBuf == NULL)
     {
         log_error("slave_alloc_RecvBuffer error!");
         return FAILE;
     }
 
-    WORD wBufLen = MAX_BUFFER_SIZE;
+    WORD wBufLen = MAX_RECV_LEN;
     dwRet = slave_recv(pbyRecvBuf, &wBufLen);
     if(dwRet != SUCCESS)
     {
@@ -100,7 +105,7 @@ DWORD slave_InitAndLoop(BYTE byMasterAddr, BYTE bySlaveAddr)
 
     /* 初始化事件调用机制vos（用epoll模拟实现） */
     g_pSlaveVos = new vos;
-    dwRet = g_pSlaveVos->VOS_Init();
+    dwRet = g_pSlaveVos->vos_Init();
     if(dwRet != SUCCESS)
     {
         log_error("VOS_Init error!");
@@ -108,43 +113,29 @@ DWORD slave_InitAndLoop(BYTE byMasterAddr, BYTE bySlaveAddr)
     }
 
     /* 初始化网络通信mbufer，并创建邮箱 */
-    g_pSlvMbufer = new mbufer;
-    g_pSlvMbufer->g_byMstAddr = byMasterAddr;//实际只使用该位对应ip加端口号
-    g_pSlvMbufer->g_bySlvAddr = bySlaveAddr;//实际只使用该位对应ip加端口号
-    g_pSlvMbufer->g_pSlvList = NULL;//备机中用不到
-
+    g_slv_byMstAddr = byMasterAddr;//实际只使用该位对应ip加端口号
+    g_slv_bySlvAddr = bySlaveAddr;//实际只使用该位对应ip加端口号
     g_pSlaveDmm = new dmm;//实际上在create_mailbox中确定mbufer中的g_dwSocketFd，也就是记录vos中的EventFd
-    dwRet = g_pSlaveDmm->create_mailbox(&g_pSlvMbufer, bySlaveAddr);
+    g_pSlvMbufer = new mbufer;
+    dwRet = g_pSlaveDmm->create_mailbox(&g_pSlvMbufer, bySlaveAddr, "mailbox");
     if(dwRet != SUCCESS)
     {
         log_error("create_mailbox error!");
         return FAILE;
     }
 
-    dwRet = g_pSlaveVos->VOS_RegTaskEventFd(VOS_TASK_SLAVE_STDIN, STDIN_FILENO);
+    dwRet = g_pSlaveVos->vos_RegTask("stdin", STDIN_FILENO, slave_stdinProc, NULL);
     if(dwRet != SUCCESS)
     {
-        log_error("VOS_RegTaskEventFd error!");
-        return FAILE;
-    }
-    dwRet = g_pSlaveVos->VOS_RegTaskFunc(VOS_TASK_SLAVE_STDIN, slave_stdinProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskFunc error!");
+        log_error("vos_RegTask error!");
         return FAILE;
     }
 
     /* 将mbufer添加到vos中，需要利用Macro关联EventFd和Func */
-    dwRet = g_pSlaveVos->VOS_RegTaskEventFd(VOS_TASK_SLAVE_MAILBOX, g_pSlvMbufer->g_dwSocketFd);
+    dwRet = g_pSlaveVos->vos_RegTask("mailbox", g_pSlvMbufer->dwSocketFd, slave_mailboxProc, NULL);
     if(dwRet != SUCCESS)
     {
-        log_error("VOS_RegTaskEventFd error!");
-        return FAILE;
-    }
-    dwRet = g_pSlaveVos->VOS_RegTaskFunc(VOS_TASK_SLAVE_MAILBOX, slave_mailboxProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskFunc error!");
+        log_error("vos_RegTask error!");
         return FAILE;
     }
 
@@ -156,21 +147,15 @@ DWORD slave_InitAndLoop(BYTE byMasterAddr, BYTE bySlaveAddr)
         log_error("g_pSlvRegTimer->init error!");
         return FAILE;
     }
-    //log_debug("g_pSlvRegTimer->g_dwTimerFd(%lu)", g_pSlvRegTimer->g_dwTimerFd);
+    //log_debug("g_pSlvRegTimer->dwTimerFd(%lu)", g_pSlvRegTimer->dwTimerFd);
     //g_pSlvRegTimer->get(&dwRet);
     //log_debug("g_pSlvRegTimer->get(%lu)", dwRet);
     
     /* 将pRegisterTimer添加到vos中，需要利用Macro关联EventFd和Func */
-    dwRet = g_pSlaveVos->VOS_RegTaskEventFd(VOS_TASK_SLAVE_REGISTER_TIMER, g_pSlvRegTimer->g_dwTimerFd);
+    dwRet = g_pSlaveVos->vos_RegTask("regtimer", g_pSlvRegTimer->dwTimerFd, slave_registerTimerProc, NULL);
     if(dwRet != SUCCESS)
     {
-        log_error("VOS_RegTaskEventFd error!");
-        return FAILE;
-    }
-    dwRet = g_pSlaveVos->VOS_RegTaskFunc(VOS_TASK_SLAVE_REGISTER_TIMER, slave_registerTimerProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_RegTaskFunc error!");
+        log_error("vos_RegTask error!");
         return FAILE;
     }
 
@@ -182,21 +167,65 @@ DWORD slave_InitAndLoop(BYTE byMasterAddr, BYTE bySlaveAddr)
     }
 
     /* 进入vos循环 */
-    g_pSlaveVos->VOS_EpollWait(); //while(1)!!!
+    g_pSlaveVos->vos_EpollWait(); //while(1)!!!
 
     return dwRet;
 }
 
-DWORD slave_Free()
+
+DWORD slave::slave_Init()
 {
-    delete g_pSlaveVos;
-    g_pSlaveDmm->delete_mailbox(g_pSlvMbufer);
-    delete g_pSlvMbufer;
-    delete g_pSlaveDmm;
+    log_init("SLAVE");
+    log_debug("Slave Task Beginning.");
+    DWORD dwRet = SUCCESS;
 
-    g_pSlvRegTimer->free();
-    delete g_pSlvRegTimer;
+    mapBatchData.clear();
+    mapInstantData.clear();
+    mapWaitedData.clear();
 
-    return SUCCESS;
+    pVos = new vos;
+    dwRet = pVos->vos_Init();//实际为创建epoll
+    if(dwRet != SUCCESS)
+    {
+        log_error("vos_Init error!");
+        return FAILE;
+    }
+    pDmm = new dmm;
+    pMbufer = new mbufer;
+
+    /* 创建邮箱并注册到vos */
+    dwRet = pDmm->create_mailbox(&pMbufer, bySlvAddr, "slv_mb");
+    if(dwRet != SUCCESS)
+    {
+        log_error("create_mailbox error!");
+        return FAILE;
+    }
+    dwRet = pVos->vos_RegTask("slv_mb", pMbufer->dwSocketFd, slave_mailboxProc, NULL);
+    if(dwRet != SUCCESS)
+    {
+        log_error("vos_RegTask error!");
+        return FAILE;
+    }
+
+    return dwRet;
 }
+
+VOID slave::slave_Free()
+{
+    delete pVos;
+    delete pDmm;
+    delete pMbufer;
+
+    log_free();
+    return;
+}
+
+VOID slave::slave_Loop()
+{
+    /* 进入vos循环 */
+    log_debug("slave_Loop begin.");
+    pVos->vos_EpollWait(); //while(1)!!!
+    return;
+}
+
 

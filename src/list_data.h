@@ -3,6 +3,7 @@
 
 #include "macro.h"
 #include "protocol.h"
+#include <pthread.h>
 
 typedef struct tagDATA_NODE
 {
@@ -15,17 +16,14 @@ typedef struct tagDATA_NODE
 
 typedef struct tagDATA_LIST
 {
+    pthread_mutex_t pMutex;
     DATA_NODE_S *pFront;
     DATA_NODE_S *pRear;
-    DWORD dwDataCount;
-    DWORD dwBatchCount;
-    DWORD dwInstantCount;
-    DWORD dwWaitedCount;
+    DWORD dwAllCount;
+    DWORD dwNewCount;
 }DATA_LIST_S;
 
-/*
- * 该链是以bySlvAddr按从小到大顺序放入的单链表，可能会在遍历链表时删除节点
- */
+
 class list_data
 {
 
@@ -34,13 +32,19 @@ public:
     DWORD data_free(void);
     DWORD data_clean(void);
 
-    DWORD data_insert(BYTE byDataType, WORD wDataID);
+    DWORD data_insert(const MSG_DATA_S *pstDataNET);
     DATA_NODE_S *data_find(BYTE byDataType, WORD wDataID);
     DWORD data_delete(DATA_NODE_S *pNode);
-    DWORD data_traverseAndRetSlvAddr(BYTE *pbyRetSlvAddrs);
-    
-    DWORD data_getSlvNum(void);
-    DWORD data_resetKeepaliveSendTimes(BYTE bySlvAddr);
+
+    DWORD data_traverseAndPrintBatch(void);
+    DWORD data_traverseAndPrintInstant(void);
+    DWORD data_traverseAndPrintWaited(void);
+    DWORD data_getBatchCount(void);
+    DWORD data_getBatchNew(void);
+    DWORD data_getInstantCount(void);
+    DWORD data_getInstantNew(void);
+    DWORD data_getWaitedCount(void);
+    DWORD data_getWaitedNew(void);
 };
 
 #endif //_LIST_DATA_H_

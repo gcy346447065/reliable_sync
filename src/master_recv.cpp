@@ -7,9 +7,15 @@
 #include "protocol.h"
 #include "mbufer.h"
 #include "log.h"
+#include "list_slv.h"
+#include "list_data.h"
 
+extern BYTE g_mst_byMstAddr;
 extern mbufer *g_pMstMbufer;
-extern DWORD dwMasterHEHE;
+extern list_slv *g_mst_pSlvList;
+extern list_data *g_mst_pDataList;
+
+//extern DWORD dwMasterHEHE;
 
 BYTE *master_alloc_RecvBuffer(WORD wBufLen)
 {
@@ -69,7 +75,7 @@ static DWORD master_login(const BYTE *pbyMsg)
         return FAILE;
     }
 
-    dwRet = g_pMstMbufer->g_pSlvList->slv_insert(bySlvAddr);
+    dwRet = g_mst_pSlvList->slv_insert(bySlvAddr);
     if(dwRet == FAILE)
     {
         pstRsp->byLoginResult = LOGIN_RESULT_ERROR;
@@ -115,7 +121,7 @@ static DWORD master_keepAlive(const BYTE *pbyMsg)
     BYTE bySlvAddr = pstRsp->stMsgHeader.bySrcAddr;
     log_debug("bySlvAddr(%d).", bySlvAddr);
 
-    DWORD dwRet = g_pMstMbufer->g_pSlvList->slv_resetKeepaliveSendTimes(bySlvAddr);
+    DWORD dwRet = g_mst_pSlvList->slv_resetKeepaliveSendTimes(bySlvAddr);
     if(dwRet != SUCCESS)
     {
         log_error("slv_resetKeepaliveSendTimes error!");
@@ -171,29 +177,35 @@ static DWORD master_SyncMsgHandle(const MSG_HEADER_S *pstMsgHeader)
     return FAILE;//未解析出函数说明异常
 }
 
-static DWORD master_TestMsgHandle(const MSG_DATA_S *pstData)
+static DWORD master_IssueMsgHandle(const MSG_DATA_S *pstDataNET)
 {
-    //log_debug("master_TestMsgHandle.");
+    //log_debug("master_IssueMsgHandle.");
 
-    if(!pstData)
+    if(!pstDataNET)
     {
-        log_error("pstData empty!");
+        log_error("pstDataNET empty!");
         return FAILE;
     }
-    dwMasterHEHE++;//用于test发来的数据包计数测试
+    //dwMasterHEHE++;//用于test发来的数据包计数测试
 
-    //log_debug("wDataSeq(%d), byDataType(%d), wDataLen(%d).", ntohs(pstData->wDataSeq), pstData->byDataType, ntohs(pstData->wDataLen));
-    //log_debug("wDataID(%d), wBatchStart(%d), wBatchEnd(%d).", ntohs(pstData->wDataID), ntohs(pstData->wBatchStart), ntohs(pstData->wBatchEnd));
+    //log_debug("wDataSeq(%d), byDataType(%d), wDataLen(%d).", ntohs(pstDataNET->wDataSeq), pstDataNET->byDataType, ntohs(pstDataNET->wDataLen));
+    //log_debug("wDataID(%d), wBatchStart(%d), wBatchEnd(%d).", ntohs(pstDataNET->wDataID), ntohs(pstDataNET->wBatchStart), ntohs(pstDataNET->wBatchEnd));
 
+    DWORD dwRet = g_mst_pDataList->data_insert(pstDataNET);
+    if(dwRet != SUCCESS)
+    {
+        log_error("data_insert error!");
+        return FAILE;
+    }
 
     /*INT iValue;
     socklen_t optlen;
     getsockopt(g_pMstMbufer->g_dwSocketFd, SOL_SOCKET, SO_RCVBUF, &iValue, &optlen);
     log_debug("SO_RCVBUF(%d)", iValue);*/
 
-    //log_hex((const BYTE *)pstData, 15);//WORD wDataID; WORD wBatchStart; WORD wBatchEnd;
+    //log_hex((const BYTE *)pstDataNET, 15);//WORD wDataID; WORD wBatchStart; WORD wBatchEnd;
 
-    return FAILE;//未解析出函数说明异常
+    return SUCCESS;
 }
 
 DWORD master_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
@@ -222,9 +234,9 @@ DWORD master_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
             wLeftLen = wLeftLen - sizeof(MSG_HEADER_S) - ntohs(pstMsgHeader->wLen);
             pbyTmpMsg = pbyTmpMsg + wMsgLen - wLeftLen;
             //log_debug("wLeftLen(%d).", wLeftLen);
-            if(pstMsgHeader->byDstAddr != g_pMstMbufer->g_byMstAddr)
+            if(pstMsgHeader->byDstAddr != g_mst_byMstAddr)
             {
-                log_error("byDstAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHeader->byDstAddr, g_pMstMbufer->g_byMstAddr);
+                log_error("byDstAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHeader->byDstAddr, g_mst_byMstAddr);
                 continue;
             }
 
@@ -233,22 +245,21 @@ DWORD master_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
         else if(ntohs(pwSig[0]) == START_FLAG_2)
         {
             //log_debug("START_FLAG_2.");
-            const MSG_DATA_S *pstData = (const MSG_DATA_S *)pbyTmpMsg;
+            const MSG_DATA_S *pstDataNET = (const MSG_DATA_S *)pbyTmpMsg;
             if(wLeftLen < sizeof(MSG_DATA_S))
             {
                 break;
             }
 
             //log_debug("wLeftLen(%d).", wLeftLen);
-            wLeftLen = wLeftLen - sizeof(MSG_DATA_S) - ntohs(pstData->wDataLen);
+            wLeftLen = wLeftLen - sizeof(MSG_DATA_S) - ntohs(pstDataNET->wDataLen);
             //log_debug("wLeftLen(%d).", wLeftLen);
             pbyTmpMsg = pbyTmpMsg + wMsgLen - wLeftLen;
 
-            master_TestMsgHandle(pstData);
+            master_IssueMsgHandle(pstDataNET);//业务流程发来的下发消息
         }
 
         pwSig = (const WORD *)pbyTmpMsg;
-        //log_hex(pwSig, 2);
     }
     
     return SUCCESS;

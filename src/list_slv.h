@@ -16,12 +16,10 @@ typedef struct tagSLV_LIST
 {
     SLV_NODE_S *pFront;
     SLV_NODE_S *pRear;
-    BYTE bySlvNum;
+    BYTE bySlvCount;
 }SLV_LIST_S;
 
-/*
- * 该链是以bySlvAddr按从小到大顺序放入的单链表，可能会在遍历链表时删除节点
- */
+
 class list_slv
 {
 

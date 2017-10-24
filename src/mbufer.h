@@ -41,11 +41,8 @@ class mbufer
 {
 
 public:
-    DWORD g_dwSocketFd;
-    BYTE g_byMstAddr;
-    BYTE g_bySlvAddr;
-    list_slv *g_pSlvList;
-
+    DWORD dwSocketFd;
+    
     DWORD alloc_msg(void **ppSendBuf, WORD wMsgLen);
     DWORD free_msg(void *pSendBuf);
     DWORD set_cmd_head_flag(void *pSendBuf, DWORD dwSendFlag);
@@ -65,7 +62,7 @@ class dmm
 {
 
 public:
-    DWORD create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr);
+    DWORD create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskName);
     DWORD delete_mailbox(mbufer *pMbufer);
 };
 

@@ -7,6 +7,7 @@
 #include "log.h"
 
 extern mbufer *g_pMstMbufer;
+extern BYTE g_mst_byMstAddr;
 
 static WORD g_wSeq = 0;
 
@@ -137,7 +138,7 @@ VOID *master_alloc_reqMsg(BYTE bySlvAddr, WORD wCmd)
     if(pstMsgHeader)
     {
         pstMsgHeader->wSig  = htons(START_FLAG_1);
-        pstMsgHeader->bySrcAddr = g_pMstMbufer->g_byMstAddr;
+        pstMsgHeader->bySrcAddr = g_mst_byMstAddr;
         pstMsgHeader->byDstAddr = bySlvAddr;
         pstMsgHeader->wSeq = g_wSeq++;
         pstMsgHeader->wCmd = wCmd;
@@ -168,7 +169,7 @@ VOID *master_alloc_rspMsg(BYTE bySlvAddr, WORD wSeq, WORD wCmd)
     if(pstMsgHeader)
     {
         pstMsgHeader->wSig  = htons(START_FLAG_1);
-        pstMsgHeader->bySrcAddr = g_pMstMbufer->g_byMstAddr;
+        pstMsgHeader->bySrcAddr = g_mst_byMstAddr;
         pstMsgHeader->byDstAddr = bySlvAddr;
         pstMsgHeader->wSeq = wSeq;
         pstMsgHeader->wCmd = wCmd;
@@ -177,3 +178,4 @@ VOID *master_alloc_rspMsg(BYTE bySlvAddr, WORD wSeq, WORD wCmd)
 
     return (VOID *)pstMsgHeader;
 }
+

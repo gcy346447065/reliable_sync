@@ -10,7 +10,7 @@ class timer
 {
 
 public:
-    DWORD g_dwTimerFd;
+    DWORD dwTimerFd;
 
     DWORD init();
     DWORD start(DWORD dwMS);
