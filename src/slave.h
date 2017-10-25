@@ -19,12 +19,12 @@ public:
         if(byMstAddr >= ADDR_MIN && byMstAddr <= ADDR_MAX)
         {
             this->byMstAddr = byMstAddr;
-            this->byMstAddr = byMstAddr;
+            this->bySlvAddr = bySlvAddr;
         }
         else
         {
             this->byMstAddr = ADDR_MIN;
-            this->byMstAddr = ADDR_2;
+            this->bySlvAddr = ADDR_2;
         }
     }
 

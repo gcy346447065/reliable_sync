@@ -193,6 +193,7 @@ DWORD master::master_Init()
     pMbufer = new mbufer;
 
     /* 创建邮箱并注册到vos */
+    log_debug("byMstAddr(%d).", byMstAddr);
     dwRet = pDmm->create_mailbox(&pMbufer, byMstAddr, "mst_mb");
     if(dwRet != SUCCESS)
     {

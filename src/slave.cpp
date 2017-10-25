@@ -194,6 +194,7 @@ DWORD slave::slave_Init()
     pMbufer = new mbufer;
 
     /* 创建邮箱并注册到vos */
+    log_debug("byMstAddr(%d), bySlvAddr(%d).", byMstAddr, bySlvAddr);
     dwRet = pDmm->create_mailbox(&pMbufer, bySlvAddr, "slv_mb");
     if(dwRet != SUCCESS)
     {

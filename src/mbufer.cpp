@@ -75,6 +75,16 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
             stLclAddr.sin_port = htons(PORT_7);
             break;
 
+        case ADDR_8:
+            stLclAddr.sin_addr.s_addr = inet_addr(IP_8);
+            stLclAddr.sin_port = htons(PORT_8);
+            break;
+
+        case ADDR_9:
+            stLclAddr.sin_addr.s_addr = inet_addr(IP_9);
+            stLclAddr.sin_port = htons(PORT_9);
+            break;
+
         case ADDR_10:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_10);
             stLclAddr.sin_port = htons(PORT_10);
@@ -87,7 +97,7 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
     //绑定本端地址
     if(bind(iSockFd, (struct sockaddr *)&stLclAddr, sizeof(stLclAddr)) < 0)
     {
-        log_error("socket bind error(%d)!", errno);
+        log_error("socket bind(%d) error(%d, %s)!", byMsgAddr, errno, strerror(errno));
         return FAILE;
     }
 
@@ -218,13 +228,22 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
 
 DWORD mbufer::receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime)
 {
-    /*INT iValue;
-    socklen_t optlen;
-    getsockopt(g_dwSocketFd, SOL_SOCKET, SO_RCVBUF, &iValue, &optlen);
-    log_debug("SO_RCVBUF(%d)", iValue);*/
+    INT iFlags = 0;
+    if(dwWaitTime == DMM_NO_WAIT)
+    {
+        iFlags = MSG_DONTWAIT;
+    }
+    else
+    {
+        struct timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = dwWaitTime;//单位为微秒
+        setsockopt(dwSocketFd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(struct timeval));
+        iFlags = MSG_WAITALL;
+    }
 
     INT iRet = 0;
-    if((iRet = recv(dwSocketFd, pbyRecvBuf, MAX_RECV_LEN, 0)) < 0)
+    if((iRet = recv(dwSocketFd, pbyRecvBuf, MAX_RECV_LEN, iFlags)) < 0)
     {
         log_error("recv error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
         return FAILE;
@@ -232,12 +251,6 @@ DWORD mbufer::receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime
     *pwBufLen = (DWORD)iRet;
 
     //log_debug("recv(%d).", iRet);
-
-    /*INT iValue = 0;
-    socklen_t optlen = 0;
-    getsockopt(g_dwSocketFd, SOL_SOCKET, SO_RCVBUF, &iValue, &optlen);
-    log_debug("SO_RCVBUF(%d), recv(%d)", iValue, iRet);*/
-
     return SUCCESS;
 }
 

@@ -49,7 +49,7 @@ public:
     DWORD add_to_packet(void *pSendBuf, CMD_S *pstCmdHeader, WORD *pwOffset);
     DWORD send_message(BYTE byDstMsgAddr, MSG_INFO_S stCmdHeader, WORD wOffset);
     
-    DWORD receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime);
+    DWORD receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime);//单位为微秒
     DWORD get_from_packet(void *pRecvBuf, CMD_S *pstCmdHeader, WORD *pwOffset);
     DWORD get_cmd_head_flag(void *pRecvBuf, DWORD dwRecvFlag);
 
