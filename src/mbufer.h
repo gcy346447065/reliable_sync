@@ -48,6 +48,7 @@ public:
     DWORD set_cmd_head_flag(void *pSendBuf, DWORD dwSendFlag);
     DWORD add_to_packet(void *pSendBuf, CMD_S *pstCmdHeader, WORD *pwOffset);
     DWORD send_message(BYTE byDstMsgAddr, MSG_INFO_S stCmdHeader, WORD wOffset);
+    DWORD send_message(BYTE byDstMsgAddr, void *pData, WORD wDataLen);
     
     DWORD receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime);//单位为微秒
     DWORD get_from_packet(void *pRecvBuf, CMD_S *pstCmdHeader, WORD *pwOffset);
@@ -67,3 +68,4 @@ public:
 };
 
 #endif //_MBUFER_H_
+

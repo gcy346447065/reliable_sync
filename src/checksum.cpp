@@ -5,8 +5,8 @@ unsigned short checksum(const unsigned char *pData, int iDataLen)
 {
     log_debug("checksum iDataLen(%d)", iDataLen);
     //log_hex(pData, iDataLen);
-    unsigned long sum = 0;
 
+    unsigned long sum = 0;
     while(iDataLen > 1)
     {
         sum += *(const unsigned short *)pData++;

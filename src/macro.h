@@ -92,3 +92,4 @@ typedef char                *PCHAR;
 #define NEWCFG_WAITED_TIMER_VALUE   (1000*60*5+1)
 
 #endif //_MACRO_H_
+

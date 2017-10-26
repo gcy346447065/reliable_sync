@@ -26,4 +26,3 @@ SET(SRC_LIST
 ADD_EXECUTABLE(reliableSync ${SRC_LIST})
 TARGET_LINK_LIBRARIES(reliableSync pthread)
 
-

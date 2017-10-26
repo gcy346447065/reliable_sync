@@ -14,6 +14,85 @@
 #include "master.h"
 #include "slave.h"
 
+DWORD task_stdinProc(void *pObj);
+
+class task
+{
+public:
+    task(BOOL bMstOrSlv, BYTE byAddr)
+    {
+        if(bMstOrSlv == TRUE)
+        {
+            byTaskAddr = ADDR_10;//master
+            byDestAddr = byAddr;
+        }
+        else
+        {
+            byTaskAddr = ADDR_9;//slave
+            byDestAddr = byAddr;
+        }
+    }
+
+    DWORD task_Init()
+    {
+        DWORD dwRet = SUCCESS;
+
+        /* 创建vos */
+        pVos = new vos;
+        dwRet = pVos->vos_Init();//实际为创建epoll
+        if(dwRet != SUCCESS)
+        {
+            log_error("vos_Init error!");
+            return FAILE;
+        }
+        
+        /* 创建邮箱 */
+        pDmm = new dmm;
+        pMbufer = new mbufer;
+        dwRet = pDmm->create_mailbox(&pMbufer, byTaskAddr, "task_mb");
+        if(dwRet != SUCCESS)
+        {
+            log_error("create_mailbox error!");
+            return FAILE;
+        }
+
+        /* 向vos注册stdin事件 */
+        dwRet = pVos->vos_RegTask("task_stdin", STDIN_FILENO, task_stdinProc, NULL);
+        if(dwRet != SUCCESS)
+        {
+            log_error("vos_RegTask error!");
+            return FAILE;
+        }
+
+        return dwRet;
+    }
+    
+    VOID task_Free()
+    {
+        delete pVos;
+        delete pDmm;
+        delete pMbufer;
+    }
+    
+    VOID task_Loop()
+    {
+        /* 进入vos循环 */
+        pVos->vos_EpollWait(); //while(1)!!!
+    }
+
+private:
+    BYTE byTaskAddr;
+    vos *pVos;
+    dmm *pDmm;
+    
+public:
+    BYTE byDestAddr;//与task相连的master或者slave线程的地址
+    mbufer *pMbufer;
+};
+
+task *g_clsTask;
+
+
 typedef struct
 {
     BOOL bMstOrSlv;
@@ -55,74 +134,24 @@ VOID *main_syncThread(VOID *pArg)
     return (VOID *)dwRet;
 }
 
-DWORD main_batchFile(DWORD dwFileNum, CHAR cTmpBuf)
-{
-    DWORD dwRet = SUCCESS;
-    log_debug("test_batchFile().");
-
-    CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
-    memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
-    sprintf(pcFilename, "%d%cfile", (INT)dwFileNum, cTmpBuf);
-
-    INT iFileFd;
-    if((iFileFd = open(pcFilename, O_RDONLY)) > 0)
-    {
-        //test_sendBatch(iFileFd);
-    }
-    else
-    {
-        log_info("open new config file error(%s)!", strerror(errno));
-    }
-
-    close(iFileFd);
-    free(pcFilename);
-    return dwRet;
-}
-
-DWORD main_waitedFile(DWORD dwFileNum)
-{
-    log_debug("test_waitedFile().");
-    DWORD dwRet = SUCCESS;
-
-    CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
-    memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
-    sprintf(pcFilename, "file%d", (INT)dwFileNum);
-
-    INT iFileFd;
-    if((iFileFd = open(pcFilename, O_RDONLY)) > 0)
-    {
-        //test_sendWaited(iFileFd);
-    }
-    else
-    {
-        log_info("open new config file error(%s)!", strerror(errno));
-    }
-
-    close(iFileFd);
-    free(pcFilename);
-    return dwRet;
-}
-
 DWORD reliableSync_send(void *pData, WORD wDataLen, DWORD dwTimeout)
 {
     log_debug("reliableSync_send().");
     DWORD dwRet = SUCCESS;
 
-    /*dwRet = g_clsTask->pMbufer->send_message(g_test_byMstAddr, stSendMsgInfo, wOffset);
-    if (dwRet != SUCCESS)
+    dwRet = g_clsTask->pMbufer->send_message(g_clsTask->byDestAddr, pData, wDataLen);
+    if(dwRet != SUCCESS)
     {
         log_error("send_message error!");
-        g_clsTask->pMbufer->free_msg(pbySendBuf);
         return dwRet;
-    }*/
+    }
     
     return dwRet;
 }
 
-
 DWORD task_stdinProc(void *pObj)
 {
-    log_debug("main_stdinProc().");
+    log_debug("task_stdinProc().");
     DWORD dwRet = SUCCESS;
 
     //从控制台读取键入字符串
@@ -143,7 +172,25 @@ DWORD task_stdinProc(void *pObj)
     {
         //log_debug("batchFile(%d,%s)", iFileNum, acTmpBuf);
         //批量备份，最大60M
-        main_batchFile((DWORD)iFileNum, acTmpBuf[0]);
+        CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+        memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
+        sprintf(pcFilename, "%d%cfile", iFileNum, acTmpBuf[0]);
+
+        INT iFileFd;
+        if((iFileFd = open(pcFilename, O_RDONLY)) < 0)
+        {
+            log_error("open new config file error(%s)!", strerror(errno));
+            free(pcFilename);
+            return FAILE;
+        }
+        else
+        {
+            INT iFileLen = lseek(iFileFd, 0, SEEK_END);//定位到文件尾以得到文件大小
+            lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
+            log_debug("batch iFileLen(%d).", iFileLen);
+
+            
+        }
     }
     else if(sscanf(pcStdinBuf, "?file%d", &iFileNum) == 1)
     {
@@ -164,7 +211,8 @@ DWORD task_stdinProc(void *pObj)
         {
             INT iFileLen = lseek(iFileFd, 0, SEEK_END);//定位到文件尾以得到文件大小
             lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
-            log_debug("iFileLen(%d).", iFileLen);
+            log_debug("instant iFileLen(%d).", iFileLen);
+            
             if(iFileLen > MAX_PKG_LEN)//instant文件大小保证小于MAX_PKG_LEN，以保证能一次性发送
             {
                 log_error("iFileLen(%d).", iFileLen);
@@ -200,83 +248,58 @@ DWORD task_stdinProc(void *pObj)
     {
         //log_debug("waitedFile(%d)", iFileNum);
         //定时定量备份
-        main_waitedFile((DWORD)iFileNum);
+        CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+        memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
+        sprintf(pcFilename, "file%d", iFileNum);
+
+        INT iFileFd;
+        if((iFileFd = open(pcFilename, O_RDONLY)) < 0)
+        {
+            log_error("open new config file error(%s)!", strerror(errno));
+            free(pcFilename);
+            return FAILE;
+        }
+        else
+        {
+            INT iFileLen = lseek(iFileFd, 0, SEEK_END);//定位到文件尾以得到文件大小
+            lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
+            log_debug("waited iFileLen(%d).", iFileLen);
+            
+            if(iFileLen > MAX_PKG_LEN)//waited文件大小与instant一致
+            {
+                log_error("iFileLen(%d).", iFileLen);
+                free(pcFilename);
+                return FAILE;
+            }
+
+            BYTE *pbyFileBuf = (BYTE *)malloc(MAX_PKG_LEN);
+            memset(pbyFileBuf, 0, MAX_PKG_LEN);
+            INT iFileBufLen = read(iFileFd, pbyFileBuf, MAX_PKG_LEN);
+            if(iFileBufLen < 0)
+            {
+                log_error("read iFileFd error(%d)!", iFileBufLen);
+                free(pcFilename);
+                free(pbyFileBuf);
+                return FAILE;
+            }
+            WORD wFileBufLen = (WORD)iFileBufLen;
+
+            dwRet = reliableSync_send(pbyFileBuf, wFileBufLen, 1000);//1000us
+            if(dwRet != SUCCESS)
+            {
+                log_error("reliableSync_send error!");
+
+                free(pbyFileBuf);
+                return FAILE;
+            }
+
+            free(pbyFileBuf);
+        }
     }
 
     free(pcStdinBuf);
     return dwRet;
 }
-
-class task
-{
-public:
-    task(BOOL bMstOrSlv)
-    {
-        if(bMstOrSlv == TRUE)
-        {
-            byTaskAddr = ADDR_10;//master
-        }
-        else
-        {
-            byTaskAddr = ADDR_9;//slave
-        }
-    }
-
-    DWORD task_Init()
-    {
-        DWORD dwRet = SUCCESS;
-        
-        pVos = new vos;
-        dwRet = pVos->vos_Init();//实际为创建epoll
-        if(dwRet != SUCCESS)
-        {
-            log_error("vos_Init error!");
-            return FAILE;
-        }
-        
-        pDmm = new dmm;
-        pMbufer = new mbufer;
-
-        /* 创建邮箱 */
-        dwRet = pDmm->create_mailbox(&pMbufer, byTaskAddr, "task_mb");
-        if(dwRet != SUCCESS)
-        {
-            log_error("create_mailbox error!");
-            return FAILE;
-        }
-
-        /* 向vos注册stdin事件 */
-        dwRet = pVos->vos_RegTask("task_stdin", STDIN_FILENO, task_stdinProc, NULL);
-        if(dwRet != SUCCESS)
-        {
-            log_error("vos_RegTask error!");
-            return FAILE;
-        }
-
-        return dwRet;
-    }
-    
-    VOID task_Free()
-    {
-        delete pVos;
-        delete pDmm;
-        delete pMbufer;
-    }
-    
-    VOID task_Loop()
-    {
-        /* 进入vos循环 */
-        pVos->vos_EpollWait(); //while(1)!!!
-    }
-
-private:
-    BYTE byTaskAddr;
-    vos *pVos;
-    dmm *pDmm;
-    mbufer *pMbufer;
-};
-
-task *g_clsTask;
 
 INT main(INT argc, CHAR *argv[])
 {
@@ -293,13 +316,7 @@ INT main(INT argc, CHAR *argv[])
     }
     BOOL bMstOrSlv = TRUE;
     INT iMstAddr = 0, iSlvAddr = 0;
-    if(strcmp(argv[1], "master") != SUCCESS && strcmp(argv[1], "slave") != SUCCESS)
-    {
-        log_error("main argv error!");
-        log_free();
-        return FAILE;
-    }
-    else if(strcmp(argv[1], "master") == SUCCESS)
+    if(strcmp(argv[1], "master") == SUCCESS)
     {
         bMstOrSlv = TRUE;
         if(sscanf(argv[2], "%d", &iMstAddr) != 1)
@@ -325,7 +342,13 @@ INT main(INT argc, CHAR *argv[])
             return FAILE;
         }
     }
-    //log_debug("bMstOrSlv(%d), byMstAddr(%d), bySlvAddr(%d).", bMstOrSlv, iMstAddr, iSlvAddr);
+    else
+    {
+        log_error("main argv error!");
+        log_free();
+        return FAILE;
+    }
+    //log_debug("bMstOrSlv(%d), iMstAddr(%d), iSlvAddr(%d).", bMstOrSlv, iMstAddr, iSlvAddr);
 
     /* 创建新线程作为主备线程，主线程作为业务线程 */
     pthread_t syncThreadId;
@@ -341,7 +364,7 @@ INT main(INT argc, CHAR *argv[])
     }
 
     /* 业务流程初始化 */
-    g_clsTask = new task(bMstOrSlv);
+    g_clsTask = new task(bMstOrSlv, bMstOrSlv ? (BYTE)iMstAddr : (BYTE)iSlvAddr);
     g_clsTask->task_Init();
 
     /* 业务流程epoll循环 */
@@ -354,5 +377,4 @@ INT main(INT argc, CHAR *argv[])
     
     return SUCCESS;
 }
-
 

@@ -198,3 +198,4 @@ DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
 
     return SUCCESS;
 }
+

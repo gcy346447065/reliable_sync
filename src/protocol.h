@@ -136,5 +136,5 @@ typedef struct
 
 #pragma pack(pop)
 
-
 #endif //_PROTOCOL_H_
+

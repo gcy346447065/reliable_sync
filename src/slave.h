@@ -51,5 +51,5 @@ private:
     
 };
 
-
 #endif//_SLAVE_H_
+

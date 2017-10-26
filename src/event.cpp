@@ -91,3 +91,4 @@ DWORD event::resetEventFlags(QWORD qwEventFlag)
 
     return SUCCESS;
 }
+

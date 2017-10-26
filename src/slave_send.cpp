@@ -141,3 +141,4 @@ VOID *slave_alloc_dataWaitedRspMsg(WORD wSeq, WORD wDataQty)
 
     return (VOID *)pstMsgHeader;
 }
+

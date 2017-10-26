@@ -21,3 +21,4 @@ public:
 };
 
 #endif //_TIMER_H_
+

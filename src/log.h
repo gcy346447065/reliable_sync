@@ -85,5 +85,5 @@
         closelog(); \
     } while (0)
 
-
 #endif //_LOG_H_
+

@@ -113,4 +113,3 @@ DWORD vos::vos_deleteEvent(DWORD dwEventFd)
     return SUCCESS;
 }
 
-

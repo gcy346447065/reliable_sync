@@ -78,3 +78,4 @@ DWORD timer::free()
 
     return SUCCESS;
 }
+

@@ -10,3 +10,4 @@ VOID *master_alloc_reqMsg(BYTE bySlvAddr, WORD wCmd);
 VOID *master_alloc_rspMsg(BYTE bySlvAddr, WORD wSeq, WORD wCmd);
 
 #endif//_MASTER_SEND_H_
+

@@ -199,7 +199,6 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
             log_error("byDstMsgAddr error(%d)!", byDstMsgAddr);
             return FAILE;
     }
-
     
     /*getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
     log_debug("SO_SNDBUF(%d)", iValue);*/
@@ -225,6 +224,80 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
 
     return SUCCESS;
 }
+
+DWORD mbufer::send_message(BYTE byDstMsgAddr, void *pData, WORD wDataLen)
+{
+    INT iRet = 0;
+    //log_debug("byDstMsgAddr(%d).", byDstMsgAddr);
+    struct sockaddr_in stDstAddr;
+    memset(&stDstAddr, 0, sizeof(stDstAddr));
+    stDstAddr.sin_family = AF_INET;
+    switch(byDstMsgAddr)//从创建邮箱的地址映射出实际使用的ip:port
+    {
+        case ADDR_1:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_1);
+            stDstAddr.sin_port = htons(PORT_1);
+            break;
+
+        case ADDR_2:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_2);
+            stDstAddr.sin_port = htons(PORT_2);
+            break;
+
+        case ADDR_3:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_3);
+            stDstAddr.sin_port = htons(PORT_3);
+            break;
+
+        case ADDR_4:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_4);
+            stDstAddr.sin_port = htons(PORT_4);
+            break;
+
+        case ADDR_5:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_5);
+            stDstAddr.sin_port = htons(PORT_5);
+            break;
+
+        case ADDR_6:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_6);
+            stDstAddr.sin_port = htons(PORT_6);
+            break;
+
+        case ADDR_7:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_7);
+            stDstAddr.sin_port = htons(PORT_7);
+            break;
+
+        default:
+            log_error("byDstMsgAddr error(%d)!", byDstMsgAddr);
+            return FAILE;
+    }
+    
+    /*getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
+    log_debug("SO_SNDBUF(%d)", iValue);*/
+
+    //log_debug("g_dwSocketFd(%d).", g_dwSocketFd);
+    if((iRet = sendto(dwSocketFd, pData, wDataLen, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
+    {
+        log_error("send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
+        return FAILE;
+    }
+    //log_debug("sendto(%d).", iRet);
+
+    /*INT iValue = 0;
+    socklen_t optlen = 0;
+    getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
+    log_debug("SO_SNDBUF(%d), sendto(%d)", iValue, iRet);*/
+    
+    /*if((iRet = sendto(g_dwSocketFd, "test", 4, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
+    {
+        log_error("send_message error(%d)!", iRet);
+    }*/
+
+    return SUCCESS;
+}
+
 
 DWORD mbufer::receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime)
 {

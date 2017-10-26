@@ -10,3 +10,4 @@ DWORD master_recv(BYTE *pbyRecvBuf, WORD *pwBufLen);
 DWORD master_msgHandle(const BYTE *pbyPara, WORD wParaLen);
 
 #endif//_MASTER_RECV_H_
+

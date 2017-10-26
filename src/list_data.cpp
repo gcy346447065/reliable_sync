@@ -534,3 +534,4 @@ DWORD list_data::data_getWaitedNew(void)
 {
     return g_pstDataList->dwWaitedNew;
 }
+

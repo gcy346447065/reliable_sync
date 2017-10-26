@@ -8,3 +8,4 @@ VOID *slave_alloc_reqMsg(WORD wCmd);
 VOID *slave_alloc_rspMsg(WORD wSeq, WORD wCmd);
 
 #endif//_SLAVE_SEND_H_
+

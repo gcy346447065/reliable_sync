@@ -10,3 +10,4 @@ DWORD slave_recv(BYTE *pbyRecvBuf, WORD *pwBufLen);
 DWORD slave_msgHandle(const BYTE *pbyPara, WORD wParaLen);
 
 #endif//_SLAVE_RECV_H_
+

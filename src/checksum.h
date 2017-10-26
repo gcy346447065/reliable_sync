@@ -4,3 +4,4 @@
 unsigned short checksum(const unsigned char *pData, int iDataLen);
 
 #endif //_CHECKSUM_H_
+
