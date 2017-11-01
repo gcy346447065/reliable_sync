@@ -179,9 +179,9 @@ DWORD slave::slave_Init()
     log_debug("Slave Task Beginning.");
     DWORD dwRet = SUCCESS;
 
-    mapBatchData.clear();
-    mapInstantData.clear();
-    mapWaitedData.clear();
+    mapDataBatch.clear();
+    mapDataInstant.clear();
+    mapDataWaited.clear();
 
     pVos = new vos;
     dwRet = pVos->vos_Init();//实际为创建epoll

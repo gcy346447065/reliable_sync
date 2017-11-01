@@ -30,22 +30,18 @@ public:
     VOID master_Free();
     VOID master_Loop();
 
-    /*DWORD master_stdinProc(void *pObj);
-    DWORD master_mailboxProc(void *pObj);
-    DWORD master_keepaliveTimerProc(void *pObj);*/
-
 private:
-    BYTE byMstAddr;
-    vector<BYTE> vecSlvAddr;
-    map<WORD, MSG_DATA_S> mapBatchData;
-    map<WORD, MSG_DATA_S> mapInstantData;
-    map<WORD, MSG_DATA_S> mapWaitedData;
-
     vos *pVos;
     dmm *pDmm;
-    mbufer *pMbufer;
-
     
+public:
+    BYTE byMstAddr;
+    vector<BYTE> vecSlvAddr;
+    map<WORD, DATA_BATCH_PKG_S> mapDataBatch;
+    map<WORD, DATA_PKG_S> mapDataInstant;
+    map<WORD, DATA_PKG_S> mapDataWaited;
+    
+    mbufer *pMbufer;
     
 };
 

@@ -2,7 +2,6 @@
 #define _MBUFER_H_
 
 #include "macro.h"
-#include "list_slv.h"
 
 typedef struct tagCMD
 {
@@ -50,7 +49,7 @@ public:
     DWORD send_message(BYTE byDstMsgAddr, MSG_INFO_S stCmdHeader, WORD wOffset);
     DWORD send_message(BYTE byDstMsgAddr, void *pData, WORD wDataLen);
     
-    DWORD receive_message(BYTE *pbyRecvBuf, WORD *pwBufLen, DWORD dwWaitTime);//单位为微秒
+    DWORD receive_message(void *pRecvBuf, WORD *pwBufLen, DWORD dwWaitTime);//单位为微秒
     DWORD get_from_packet(void *pRecvBuf, CMD_S *pstCmdHeader, WORD *pwOffset);
     DWORD get_cmd_head_flag(void *pRecvBuf, DWORD dwRecvFlag);
 

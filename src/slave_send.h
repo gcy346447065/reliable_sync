@@ -5,7 +5,7 @@
 
 DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen);
 VOID *slave_alloc_reqMsg(WORD wCmd);
-VOID *slave_alloc_rspMsg(WORD wSeq, WORD wCmd);
+VOID *slave_alloc_rspMsg(WORD dwSeq, WORD wCmd);
 
 #endif//_SLAVE_SEND_H_
 

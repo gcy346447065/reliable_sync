@@ -9,14 +9,12 @@ SET(SRC_LIST
     main.cpp
     master.cpp
     master_procThread.cpp
-    #master_send.cpp
-    #master_recv.cpp
+    master_send.cpp
+    master_recv.cpp
     slave.cpp
     slave_send.cpp
     slave_recv.cpp
     event.cpp
-    #list_data.cpp
-    #list_slv.cpp
     mbufer.cpp
     timer.cpp
     checksum.cpp

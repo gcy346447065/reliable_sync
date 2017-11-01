@@ -77,13 +77,14 @@ typedef char                *PCHAR;
 #define IP_9        "192.168.11.114"
 #define PORT_9      8769
 
-//该地址用于下发备份数据的测试程序
 #define ADDR_10     10
 #define IP_10       "192.168.11.114"
 #define PORT_10     8770
 
 #define ADDR_MIN    ADDR_1
 #define ADDR_MAX    ADDR_10
+
+
 
 #define REGISTER_TIMER_VALUE        (1000*30+1) //30s
 #define KEEPALIVE_TIMER_VALUE       (1000*60*3+1) //3min-1min

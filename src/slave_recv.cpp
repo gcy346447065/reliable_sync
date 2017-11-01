@@ -56,17 +56,17 @@ static DWORD slave_login(const BYTE *pbyMsg)
         log_error("msg handle empty!");
         return FAILE;
     }
-    if(ntohs(pstRsp->stMsgHeader.wLen) < sizeof(MSG_LOGIN_RSP_S) - MSG_HEADER_LEN)
+    if(ntohs(pstRsp->stMsgHdr.wLen) < sizeof(MSG_LOGIN_RSP_S) - MSG_HDR_LEN)
     {
         log_error("msg length not enough!");
         return FAILE;
     }
 
-    log_debug("bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHeader.byDstAddr, pstRsp->byLoginResult);
+    log_debug("bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHdr.byDstAddr, pstRsp->byLoginResult);
     if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
     {
         //收到登录成功回复包
-        log_info("This bySlvAddr(%d) logged success.", pstRsp->stMsgHeader.byDstAddr);
+        log_info("This bySlvAddr(%d) logged success.", pstRsp->stMsgHdr.byDstAddr);
 
         dwRet = g_pSlvRegTimer->stop();
         if(dwRet != SUCCESS)
@@ -89,13 +89,13 @@ static DWORD slave_keepAlive(const BYTE *pbyMsg)
         log_error("msg handle empty!");
         return FAILE;
     }
-    if(ntohs(pstReq->stMsgHeader.wLen) < sizeof(MSG_KEEP_ALIVE_REQ_S) - MSG_HEADER_LEN)
+    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_KEEP_ALIVE_REQ_S) - MSG_HDR_LEN)
     {
         log_error("msg length not enough!");
         return FAILE;
     }
     
-    MSG_KEEP_ALIVE_RSP_S *pstRsp = (MSG_KEEP_ALIVE_RSP_S *)slave_alloc_rspMsg(pstReq->stMsgHeader.wSeq, CMD_KEEP_ALIVE);
+    MSG_KEEP_ALIVE_RSP_S *pstRsp = (MSG_KEEP_ALIVE_RSP_S *)slave_alloc_rspMsg(pstReq->stMsgHdr.dwSeq, CMD_KEEP_ALIVE);
     if(!pstRsp)
     {
         log_error("slave_alloc_rspMsg error!");
@@ -142,10 +142,10 @@ static MSG_PROC_MAP g_msgProcs[] =
 
 static DWORD slave_msgHandleOne(const BYTE *pbyMsg)
 {
-    const MSG_HEADER_S *pstMsgHeader = (const MSG_HEADER_S *)pbyMsg;
+    const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pbyMsg;
     for(UINT i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
     {
-        if(g_msgProcs[i].wCmd == pstMsgHeader->wCmd)
+        if(g_msgProcs[i].wCmd == pstMsgHdr->wCmd)
         {
             MSG_PROC pfn = g_msgProcs[i].pfn;
             if(pfn)
@@ -161,39 +161,39 @@ static DWORD slave_msgHandleOne(const BYTE *pbyMsg)
 DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
 {
     log_debug("slave_msgHandle.");
-    const MSG_HEADER_S *pstMsgHeader = (const MSG_HEADER_S *)pbyMsg;
+    const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pbyMsg;
 
-    if(wMsgLen < MSG_HEADER_LEN)
+    if(wMsgLen < MSG_HDR_LEN)
     {
-        log_error("sync message length not enough(%u<%lu)", wMsgLen, MSG_HEADER_LEN);
+        log_error("sync message length not enough(%u<%lu)", wMsgLen, MSG_HDR_LEN);
         return FAILE;
     }
 
-    if(pstMsgHeader->bySrcAddr != g_slv_byMstAddr)
+    if(pstMsgHdr->wSrcAddr != g_slv_byMstAddr)
     {
-        log_error("bySrcAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHeader->bySrcAddr, g_slv_byMstAddr);
+        log_error("wSrcAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHdr->wSrcAddr, g_slv_byMstAddr);
         return FAILE;
     }
 
-    if(pstMsgHeader->byDstAddr != g_slv_bySlvAddr)
+    if(pstMsgHdr->byDstAddr != g_slv_bySlvAddr)
     {
-        log_error("byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHeader->byDstAddr, g_slv_bySlvAddr);
+        log_error("byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHdr->byDstAddr, g_slv_bySlvAddr);
         return FAILE;
     }
 
     WORD wLeftLen = wMsgLen;
-    while(wLeftLen >= ntohs(pstMsgHeader->wLen) + MSG_HEADER_LEN)
+    while(wLeftLen >= ntohs(pstMsgHdr->wLen) + MSG_HDR_LEN)
     {
-        const BYTE *pbyStatus = (const BYTE *)(&(pstMsgHeader->wSig));
-        if((pbyStatus[0] != START_FLAG_1 / 0x100) || (pbyStatus[1] != START_FLAG_1 % 0x100))
+        const BYTE *pbyStatus = (const BYTE *)(&(pstMsgHdr->wSig));
+        if((pbyStatus[0] != START_SIG_1 / 0x100) || (pbyStatus[1] != START_SIG_1 % 0x100))
         {
-            log_error("signature error(%x)!", (unsigned)ntohs(pstMsgHeader->wSig));
+            log_error("signature error(%x)!", (unsigned)ntohs(pstMsgHdr->wSig));
             return FAILE;
         }
 
-        slave_msgHandleOne((const BYTE *)pstMsgHeader);//如果多个数据包中有一个数据包未找到相应的解析函数时，暂未记录此异常情况
-        wLeftLen = wLeftLen - MSG_HEADER_LEN - ntohs(pstMsgHeader->wLen);
-        pstMsgHeader = (const MSG_HEADER_S *)(pbyMsg + wMsgLen - wLeftLen);
+        slave_msgHandleOne((const BYTE *)pstMsgHdr);//如果多个数据包中有一个数据包未找到相应的解析函数时，暂未记录此异常情况
+        wLeftLen = wLeftLen - MSG_HDR_LEN - ntohs(pstMsgHdr->wLen);
+        pstMsgHdr = (const MSG_HDR_S *)(pbyMsg + wMsgLen - wLeftLen);
     }
 
     return SUCCESS;

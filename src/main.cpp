@@ -7,6 +7,7 @@
 #include <errno.h> //for errno
 #include <sys/socket.h> //for recv
 #include <pthread.h> //for pthread
+#include <netinet/in.h> //for htons
 #include "macro.h"
 #include "log.h"
 #include "vos.h"
@@ -14,7 +15,7 @@
 #include "master.h"
 #include "slave.h"
 
-DWORD task_stdinProc(void *pObj);
+DWORD task_stdinProc(void *pArg);
 
 class task
 {
@@ -57,7 +58,7 @@ public:
         }
 
         /* 向vos注册stdin事件 */
-        dwRet = pVos->vos_RegTask("task_stdin", STDIN_FILENO, task_stdinProc, NULL);
+        dwRet = pVos->vos_RegTask("task_stdin", STDIN_FILENO, task_stdinProc, this);
         if(dwRet != SUCCESS)
         {
             log_error("vos_RegTask error!");
@@ -81,16 +82,14 @@ public:
     }
 
 private:
-    BYTE byTaskAddr;
     vos *pVos;
     dmm *pDmm;
     
 public:
+    BYTE byTaskAddr;
     BYTE byDestAddr;//与task相连的master或者slave线程的地址
     mbufer *pMbufer;
 };
-
-task *g_clsTask;
 
 
 typedef struct
@@ -109,58 +108,183 @@ VOID *main_syncThread(VOID *pArg)
     if(pstSyncThread->bMstOrSlv == TRUE)
     {
         //master开机初始化
-        master *clsMst = new master(pstSyncThread->byMstAddr);
-        clsMst->master_Init();
+        master *pclsMst = new master(pstSyncThread->byMstAddr);
+        pclsMst->master_Init();
 
         //master循环
-        clsMst->master_Loop();
+        pclsMst->master_Loop();
 
         //master关机
-        clsMst->master_Free();
+        pclsMst->master_Free();
     }
     else
     {
         //slave开机初始化
-        slave *clsSlv = new slave(pstSyncThread->byMstAddr, pstSyncThread->bySlvAddr);
-        clsSlv->slave_Init();
+        slave *pclsSlv = new slave(pstSyncThread->byMstAddr, pstSyncThread->bySlvAddr);
+        pclsSlv->slave_Init();
 
         //slave循环
-        clsSlv->slave_Loop();
+        pclsSlv->slave_Loop();
 
         //slave关机
-        clsSlv->slave_Free();
+        pclsSlv->slave_Free();
     }
 
     return (VOID *)dwRet;
 }
 
-DWORD reliableSync_send(void *pData, WORD wDataLen, DWORD dwTimeout)
+DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTimeout)
 {
     log_debug("reliableSync_send().");
     DWORD dwRet = SUCCESS;
 
-    dwRet = g_clsTask->pMbufer->send_message(g_clsTask->byDestAddr, pData, wDataLen);
+    task *pclsTask = (task *)pArg;
+    BYTE byDestAddr = pclsTask->byDestAddr;
+    mbufer *pMbufer = pclsTask->pMbufer;
+
+    /* 向主机主备线程接收端口发送数据 */
+    dwRet = pMbufer->send_message(byDestAddr, pData, wDataLen);
     if(dwRet != SUCCESS)
     {
         log_error("send_message error!");
         return dwRet;
     }
+
+    /* 等待主机主备线程接收端口的回复，超时作失败对待 */
+    void *pRecvBuf = malloc(MAX_RECV_LEN);
+    WORD wRecvBufLen = 0;
+    dwRet = pMbufer->receive_message(pRecvBuf, &wRecvBufLen, dwTimeout);
+    if(dwRet != SUCCESS)
+    {
+        log_error("receive_message error!");
+        free(pRecvBuf);
+        return dwRet;
+    }
+
+    if(wRecvBufLen == 0)
+    {
+        //说明recv超时返回0
+        log_warning("receive_message return with zero.");
+        free(pRecvBuf);
+        return FAILE;
+    }
     
+    MSG_DATA_INSTANT_RSP_S *pstRsp = (MSG_DATA_INSTANT_RSP_S *)pRecvBuf;
+    if(pstRsp->stDataResult.byResult == DATA_RESULT_SUCCEED)
+    {
+        dwRet = SUCCESS;
+    }
+    else
+    {
+        dwRet = FAILE;
+    }
+    free(pRecvBuf);
     return dwRet;
 }
 
-DWORD task_stdinProc(void *pObj)
+static DWORD g_dwDataSeq = 0;
+
+static DWORD g_dwBatchID = 0;
+static DWORD g_dwInstantID = 0;
+static DWORD g_dwWaitedID = 0;
+
+void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
+{
+    log_debug("wPkgCount(%d)", wPkgCount);
+    MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)malloc(sizeof(MSG_DATA_BATCH_REQ_S) + MAX_PKG_LEN);
+    if(pstBatch)
+    {
+        pstBatch->stMsgHdr.wSig = htons(START_SIG_1);
+        pstBatch->stMsgHdr.wVer = htons(VERSION_INT);
+        pstBatch->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstBatch->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstBatch->stMsgHdr.dwSeq = htonl(g_dwDataSeq++);
+        pstBatch->stMsgHdr.wCmd = htons(CMD_DATA_BATCH);
+        pstBatch->stMsgHdr.wLen = htons(0);//后面在循环中写入
+
+        pstBatch->stData.dwDataStart = htons(g_dwBatchID);
+        pstBatch->stData.dwDataEnd = htons(g_dwBatchID + wPkgCount - 1);
+        pstBatch->stData.stData.dwDataID = htonl(0);//后面在循环中写入
+        pstBatch->stData.stData.wDataLen = htons(0);//后面在循环中写入
+        pstBatch->stData.stData.wDataChecksum = htons(0);//在主机下发时不填
+        //pstBatch->stData.stData.abyData在循环中写入
+    }
+
+    return (void *)pstBatch;
+}
+
+void *task_allocDataInstant(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufLen)
+{
+    WORD wMsgLen = sizeof(MSG_DATA_INSTANT_REQ_S) + wBufLen;
+    log_debug("wBufLen(%d), wMsgLen(%d).", wBufLen, wMsgLen);
+    
+    MSG_DATA_INSTANT_REQ_S *pstInstant = (MSG_DATA_INSTANT_REQ_S *)malloc(wMsgLen);
+    if(pstInstant)
+    {
+        pstInstant->stMsgHdr.wSig = htons(START_SIG_1);
+        pstInstant->stMsgHdr.wVer = htons(VERSION_INT);
+        pstInstant->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstInstant->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstInstant->stMsgHdr.dwSeq = htonl(g_dwDataSeq++);
+        pstInstant->stMsgHdr.wCmd = htons(CMD_DATA_INSTANT);
+        pstInstant->stMsgHdr.wLen = htons(wMsgLen);
+
+        pstInstant->stData.dwDataID = htonl(g_dwInstantID++);
+        pstInstant->stData.wDataLen = htons(wBufLen);
+        pstInstant->stData.wDataChecksum = htons(0);//在主机下发时不填
+        memcpy(pstInstant->stData.abyData, pBuf, wBufLen);
+    }
+
+    return (void *)pstInstant;
+}
+
+void *task_allocDataWaited(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufLen)
+{
+    WORD wMsgLen = sizeof(MSG_DATA_INSTANT_REQ_S) + wBufLen;
+    log_debug("wBufLen(%d), wMsgLen(%d).", wBufLen, wMsgLen);
+    /*
+     * !!!需要注意的是MSG_DATA_WAITED_REQ_S用于主备机之间打包发送数据，
+     * 这里主机业务线程向主备线程下发waited数据时仍用MSG_DATA_INSTANT_REQ_S单次发送，
+     * 但是wCmd不同，dwDataID不共用。
+     */
+    MSG_DATA_INSTANT_REQ_S *pstWaited = (MSG_DATA_INSTANT_REQ_S *)malloc(wMsgLen);
+    if(pstWaited)
+    {
+        pstWaited->stMsgHdr.wSig = htons(START_SIG_1);
+        pstWaited->stMsgHdr.wVer = htons(VERSION_INT);
+        pstWaited->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstWaited->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstWaited->stMsgHdr.dwSeq = htonl(g_dwDataSeq++);
+        pstWaited->stMsgHdr.wCmd = htons(CMD_DATA_WAITED);
+        pstWaited->stMsgHdr.wLen = htons(wMsgLen);//后面在循环中写入
+
+        pstWaited->stData.dwDataID = htonl(g_dwWaitedID++);
+        pstWaited->stData.wDataLen = htons(wBufLen);
+        pstWaited->stData.wDataChecksum = htons(0);//在主机下发时不填
+        memcpy(pstWaited->stData.abyData, pBuf, wBufLen);
+    }
+
+    return (void *)pstWaited;
+}
+
+
+DWORD task_stdinProc(void *pArg)
 {
     log_debug("task_stdinProc().");
     DWORD dwRet = SUCCESS;
+
+    task *pclsTask = (task *)pArg;
+    BYTE byTaskAddr = pclsTask->byTaskAddr;
+    BYTE byDestAddr = pclsTask->byDestAddr;
 
     //从控制台读取键入字符串
     CHAR *pcStdinBuf = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
     memset(pcStdinBuf, 0, MAX_STDIN_FILE_LEN);
     INT iRet = read(STDIN_FILENO, pcStdinBuf, MAX_STDIN_FILE_LEN);
-    if(iRet <= 0)
+    if(iRet < 0)
     {
         log_error("read STDIN_FILENO error(%s)!", strerror(errno));
+        free(pcStdinBuf);
         return FAILE;
     }
     pcStdinBuf[iRet - 1] = '\0'; //-1 for '\n' turn to '\0'
@@ -180,6 +304,7 @@ DWORD task_stdinProc(void *pObj)
         if((iFileFd = open(pcFilename, O_RDONLY)) < 0)
         {
             log_error("open new config file error(%s)!", strerror(errno));
+            free(pcStdinBuf);
             free(pcFilename);
             return FAILE;
         }
@@ -190,6 +315,54 @@ DWORD task_stdinProc(void *pObj)
             log_debug("batch iFileLen(%d).", iFileLen);
 
             
+
+            void *pFileBuf = malloc(MAX_PKG_LEN);
+            WORD wPkgCount = (iFileLen + MAX_PKG_LEN - 1) / MAX_PKG_LEN;
+            MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)task_allocDataBatch(byTaskAddr, byDestAddr, wPkgCount);
+            if(!pstBatch)
+            {
+                log_error("task_allocDataBatch error!");
+                free(pcStdinBuf);
+                free(pcFilename);
+                free(pFileBuf);
+                return FAILE;
+            }
+            
+            for(INT i = 0; i < wPkgCount; i++)
+            {
+                memset(pFileBuf, 0, MAX_PKG_LEN);
+                INT iFileBufLen = read(iFileFd, pFileBuf, MAX_PKG_LEN);
+                if(iFileBufLen < 0)
+                {
+                    log_error("read iFileFd error(%d)!", iFileBufLen);
+                    free(pcStdinBuf);
+                    free(pcFilename);
+                    free(pFileBuf);
+                    free(pstBatch);
+                    return FAILE;
+                }
+                
+                WORD wFileBufLen = (WORD)iFileBufLen;
+                pstBatch->stMsgHdr.wLen = htons(sizeof(MSG_DATA_BATCH_REQ_S) + wFileBufLen);//在循环中每次重新写值
+                pstBatch->stData.stData.dwDataID = htonl(g_dwBatchID++);
+                pstBatch->stData.stData.wDataLen = htons(wFileBufLen);
+                memcpy(pstBatch->stData.stData.abyData, pFileBuf, wFileBufLen);
+
+                iRet = task_sendReliableSync(pArg, pFileBuf, wFileBufLen, 10 * 1000);//10 * 1000us = 10ms
+                if(iRet < 0)
+                {
+                    log_error("reliableSync_send error(%d)!", iRet);
+                    free(pcStdinBuf);
+                    free(pcFilename);
+                    free(pFileBuf);
+                    free(pstBatch);
+                    return FAILE;
+                }
+            }
+
+            free(pstBatch);
+            free(pFileBuf);
+            free(pcFilename);
         }
     }
     else if(sscanf(pcStdinBuf, "?file%d", &iFileNum) == 1)
@@ -204,6 +377,7 @@ DWORD task_stdinProc(void *pObj)
         if((iFileFd = open(pcFilename, O_RDONLY)) < 0)
         {
             log_error("open new config file error(%s)!", strerror(errno));
+            free(pcStdinBuf);
             free(pcFilename);
             return FAILE;
         }
@@ -216,6 +390,7 @@ DWORD task_stdinProc(void *pObj)
             if(iFileLen > MAX_PKG_LEN)//instant文件大小保证小于MAX_PKG_LEN，以保证能一次性发送
             {
                 log_error("iFileLen(%d).", iFileLen);
+                free(pcStdinBuf);
                 free(pcFilename);
                 return FAILE;
             }
@@ -226,22 +401,25 @@ DWORD task_stdinProc(void *pObj)
             if(iFileBufLen < 0)
             {
                 log_error("read iFileFd error(%d)!", iFileBufLen);
+                free(pcStdinBuf);
                 free(pcFilename);
                 free(pbyFileBuf);
                 return FAILE;
             }
             WORD wFileBufLen = (WORD)iFileBufLen;
 
-            dwRet = reliableSync_send(pbyFileBuf, wFileBufLen, 1000);//1000us
+            dwRet = task_sendReliableSync(pArg, pbyFileBuf, wFileBufLen, 1000);//1000us
             if(dwRet != SUCCESS)
             {
                 log_error("reliableSync_send error!");
-
+                free(pcStdinBuf);
+                free(pcFilename);
                 free(pbyFileBuf);
                 return FAILE;
             }
 
             free(pbyFileBuf);
+            free(pcFilename);
         }
     }
     else if(sscanf(pcStdinBuf, "/file%d", &iFileNum) == 1)
@@ -256,6 +434,7 @@ DWORD task_stdinProc(void *pObj)
         if((iFileFd = open(pcFilename, O_RDONLY)) < 0)
         {
             log_error("open new config file error(%s)!", strerror(errno));
+            free(pcStdinBuf);
             free(pcFilename);
             return FAILE;
         }
@@ -268,6 +447,7 @@ DWORD task_stdinProc(void *pObj)
             if(iFileLen > MAX_PKG_LEN)//waited文件大小与instant一致
             {
                 log_error("iFileLen(%d).", iFileLen);
+                free(pcStdinBuf);
                 free(pcFilename);
                 return FAILE;
             }
@@ -278,22 +458,25 @@ DWORD task_stdinProc(void *pObj)
             if(iFileBufLen < 0)
             {
                 log_error("read iFileFd error(%d)!", iFileBufLen);
+                free(pcStdinBuf);
                 free(pcFilename);
                 free(pbyFileBuf);
                 return FAILE;
             }
             WORD wFileBufLen = (WORD)iFileBufLen;
 
-            dwRet = reliableSync_send(pbyFileBuf, wFileBufLen, 1000);//1000us
+            dwRet = task_sendReliableSync(pArg, pbyFileBuf, wFileBufLen, 1000);//1000us
             if(dwRet != SUCCESS)
             {
                 log_error("reliableSync_send error!");
-
+                free(pcStdinBuf);
+                free(pcFilename);
                 free(pbyFileBuf);
                 return FAILE;
             }
 
             free(pbyFileBuf);
+            free(pcFilename);
         }
     }
 
@@ -315,7 +498,7 @@ INT main(INT argc, CHAR *argv[])
         return FAILE;
     }
     BOOL bMstOrSlv = TRUE;
-    INT iMstAddr = 0, iSlvAddr = 0;
+    INT iMstAddr = ADDR_1, iSlvAddr = ADDR_2;
     if(strcmp(argv[1], "master") == SUCCESS)
     {
         bMstOrSlv = TRUE;
@@ -364,14 +547,14 @@ INT main(INT argc, CHAR *argv[])
     }
 
     /* 业务流程初始化 */
-    g_clsTask = new task(bMstOrSlv, bMstOrSlv ? (BYTE)iMstAddr : (BYTE)iSlvAddr);
-    g_clsTask->task_Init();
+    task *pclsTask = new task(bMstOrSlv, bMstOrSlv ? (BYTE)iMstAddr : (BYTE)iSlvAddr);
+    pclsTask->task_Init();
 
     /* 业务流程epoll循环 */
-    g_clsTask->task_Loop();
+    pclsTask->task_Loop();
 
     /* 业务流程退出 */
-    g_clsTask->task_Free();
+    pclsTask->task_Free();
     log_debug("Main Task Ending.");
     log_free();
     

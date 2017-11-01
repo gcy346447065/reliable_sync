@@ -10,7 +10,7 @@ extern BYTE g_slv_byMstAddr;
 extern BYTE g_slv_bySlvAddr;
 extern mbufer *g_pSlvMbufer;
 
-static WORD g_wSeq = 0;
+static WORD g_dwSeq = 0;
 
 DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen)
 {
@@ -79,21 +79,21 @@ VOID *slave_alloc_reqMsg(WORD wCmd)
             return NULL;
     }
 
-    MSG_HEADER_S *pstMsgHeader = (MSG_HEADER_S *)malloc(wMsgLen);
-    if(pstMsgHeader)
+    MSG_HDR_S *pstMsgHdr = (MSG_HDR_S *)malloc(wMsgLen);
+    if(pstMsgHdr)
     {
-        pstMsgHeader->wSig  = htons(START_FLAG_1);
-        pstMsgHeader->bySrcAddr = g_slv_bySlvAddr;
-        pstMsgHeader->byDstAddr = g_slv_byMstAddr;
-        pstMsgHeader->wSeq = g_wSeq++;
-        pstMsgHeader->wCmd = wCmd;
-        pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
+        pstMsgHdr->wSig  = htons(START_SIG_1);
+        pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
+        pstMsgHdr->byDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->dwSeq = g_dwSeq++;
+        pstMsgHdr->wCmd = wCmd;
+        pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
     }
 
-    return (VOID *)pstMsgHeader;
+    return (VOID *)pstMsgHdr;
 }
 
-VOID *slave_alloc_rspMsg(WORD wSeq, WORD wCmd)
+VOID *slave_alloc_rspMsg(WORD dwSeq, WORD wCmd)
 {
     WORD wMsgLen = 0;
     switch(wCmd)
@@ -110,35 +110,35 @@ VOID *slave_alloc_rspMsg(WORD wSeq, WORD wCmd)
             return NULL;
     }
 
-    MSG_HEADER_S *pstMsgHeader = (MSG_HEADER_S *)malloc(wMsgLen);
-    if(pstMsgHeader)
+    MSG_HDR_S *pstMsgHdr = (MSG_HDR_S *)malloc(wMsgLen);
+    if(pstMsgHdr)
     {
-        pstMsgHeader->wSig  = htons(START_FLAG_1);
-        pstMsgHeader->bySrcAddr = g_slv_bySlvAddr;
-        pstMsgHeader->byDstAddr = g_slv_byMstAddr;
-        pstMsgHeader->wSeq = wSeq;
-        pstMsgHeader->wCmd = wCmd;
-        pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
+        pstMsgHdr->wSig  = htons(START_SIG_1);
+        pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
+        pstMsgHdr->byDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->dwSeq = dwSeq;
+        pstMsgHdr->wCmd = wCmd;
+        pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
     }
 
-    return (VOID *)pstMsgHeader;
+    return (VOID *)pstMsgHdr;
 }
 
-VOID *slave_alloc_dataWaitedRspMsg(WORD wSeq, WORD wDataQty)
+VOID *slave_alloc_dataWaitedRspMsg(WORD dwSeq, WORD wDataQty)
 {
     WORD wMsgLen = sizeof(MSG_DATA_INSTANT_RSP_S) + wDataQty * sizeof(DATA_RESULT_S);
 
-    MSG_HEADER_S *pstMsgHeader = (MSG_HEADER_S *)malloc(wMsgLen);
-    if(pstMsgHeader)
+    MSG_HDR_S *pstMsgHdr = (MSG_HDR_S *)malloc(wMsgLen);
+    if(pstMsgHdr)
     {
-        pstMsgHeader->wSig  = htons(START_FLAG_1);
-        pstMsgHeader->bySrcAddr = g_slv_bySlvAddr;
-        pstMsgHeader->byDstAddr = g_slv_byMstAddr;
-        pstMsgHeader->wSeq = wSeq;
-        pstMsgHeader->wCmd = CMD_DATA_WAITED;
-        pstMsgHeader->wLen  = htons(wMsgLen - MSG_HEADER_LEN);
+        pstMsgHdr->wSig  = htons(START_SIG_1);
+        pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
+        pstMsgHdr->byDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->dwSeq = dwSeq;
+        pstMsgHdr->wCmd = CMD_DATA_WAITED;
+        pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
     }
 
-    return (VOID *)pstMsgHeader;
+    return (VOID *)pstMsgHdr;
 }
 

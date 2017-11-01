@@ -37,18 +37,20 @@ public:
     DWORD slave_keepaliveTimerProc(void *pObj);*/
 
 private:
-    BYTE byMstAddr;
-    BYTE bySlvAddr;
-    map<WORD, MSG_DATA_S> mapBatchData;
-    map<WORD, MSG_DATA_S> mapInstantData;
-    map<WORD, MSG_DATA_S> mapWaitedData;
+    
 
     vos *pVos;
     dmm *pDmm;
+
+public:
     mbufer *pMbufer;
 
-    
-    
+    BYTE byMstAddr;
+    BYTE bySlvAddr;
+    map<WORD, DATA_BATCH_PKG_S> mapDataBatch;
+    map<WORD, DATA_PKG_S> mapDataInstant;
+    map<WORD, DATA_PKG_S> mapDataWaited;
+
 };
 
 #endif//_SLAVE_H_
