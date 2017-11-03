@@ -84,7 +84,7 @@ VOID *slave_alloc_reqMsg(WORD wCmd)
     {
         pstMsgHdr->wSig  = htons(START_SIG_1);
         pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
-        pstMsgHdr->byDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->wDstAddr = g_slv_byMstAddr;
         pstMsgHdr->dwSeq = g_dwSeq++;
         pstMsgHdr->wCmd = wCmd;
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
@@ -115,7 +115,7 @@ VOID *slave_alloc_rspMsg(WORD dwSeq, WORD wCmd)
     {
         pstMsgHdr->wSig  = htons(START_SIG_1);
         pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
-        pstMsgHdr->byDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->wDstAddr = g_slv_byMstAddr;
         pstMsgHdr->dwSeq = dwSeq;
         pstMsgHdr->wCmd = wCmd;
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
@@ -133,7 +133,7 @@ VOID *slave_alloc_dataWaitedRspMsg(WORD dwSeq, WORD wDataQty)
     {
         pstMsgHdr->wSig  = htons(START_SIG_1);
         pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
-        pstMsgHdr->byDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->wDstAddr = g_slv_byMstAddr;
         pstMsgHdr->dwSeq = dwSeq;
         pstMsgHdr->wCmd = CMD_DATA_WAITED;
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);

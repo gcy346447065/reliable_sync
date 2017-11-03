@@ -159,10 +159,9 @@ static MSG_PROC_MAP g_msgProcs[] =
     {CMD_DATA_WAITED,       master_dataWaited}
 };
 
-static DWORD master_SyncMsgHandle(void *pMst, const MSG_HDR_S *pstMsgHdr)
+static DWORD master_MsgHandleOne(void *pMst, const MSG_HDR_S *pstMsgHdr)
 {
-    //log_debug("master_SyncMsgHandle.");
-
+    //log_debug("master_MsgHandleOne.");
     for(UINT i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
     {
         if(g_msgProcs[i].wCmd == pstMsgHdr->wCmd)
@@ -178,42 +177,11 @@ static DWORD master_SyncMsgHandle(void *pMst, const MSG_HDR_S *pstMsgHdr)
     return FAILE;//未解析出函数说明异常
 }
 
-static DWORD master_IssueMsgHandle(void *pMst, const MSG_DATA_S *pstDataNET)
-{
-    //log_debug("master_IssueMsgHandle.");
-
-    if(!pstDataNET)
-    {
-        log_error("pstDataNET empty!");
-        return FAILE;
-    }
-    //dwMasterHEHE++;//用于test发来的数据包计数测试
-
-    //log_debug("wDataSeq(%d), byDataType(%d), wDataLen(%d).", ntohs(pstDataNET->wDataSeq), pstDataNET->byDataType, ntohs(pstDataNET->wDataLen));
-    //log_debug("wDataID(%d), wBatchStart(%d), wBatchEnd(%d).", ntohs(pstDataNET->wDataID), ntohs(pstDataNET->wBatchStart), ntohs(pstDataNET->wBatchEnd));
-
-    /*DWORD dwRet = g_mst_pDataList->data_insert(pstDataNET);
-    if(dwRet != SUCCESS)
-    {
-        log_error("data_insert error!");
-        return FAILE;
-    }*/
-
-    /*INT iValue;
-    socklen_t optlen;
-    getsockopt(g_pMstMbufer->g_dwSocketFd, SOL_SOCKET, SO_RCVBUF, &iValue, &optlen);
-    log_debug("SO_RCVBUF(%d)", iValue);*/
-
-    //log_hex((const BYTE *)pstDataNET, 15);//WORD wDataID; WORD wBatchStart; WORD wBatchEnd;
-
-    return SUCCESS;
-}
-
 DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
 {
-    if(wMsgLen < MSG_HDR_LEN && wMsgLen < sizeof(MSG_DATA_S))
+    if(wMsgLen < MSG_HDR_LEN)
     {
-        log_error("message length error(%u<%luor%lu)!", wMsgLen, MSG_HDR_LEN, sizeof(MSG_DATA_S));
+        log_error("message length error(%u<%lu)!", wMsgLen, MSG_HDR_LEN);
         return FAILE;
     }
 
@@ -223,46 +191,23 @@ DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
     const BYTE *pbyMsg = (const BYTE *)pMsg;
     const WORD *pwSig = (const WORD *)pbyMsg;
     WORD wLeftLen = wMsgLen;
-    while(ntohs(pwSig[0]) == START_SIG_1 || ntohs(pwSig[0]) == START_SIG_2)
+    while(ntohs(pwSig[0]) == START_SIG_1 || ntohs(pwSig[0]) == START_SIG_2)//为了处理粘包
     {
-        if(ntohs(pwSig[0]) == START_SIG_1)
+        const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pbyMsg;
+        if(wLeftLen < sizeof(MSG_HDR_S))
         {
-            //log_debug("START_SIG_1.");
-            const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pbyMsg;
-            if(wLeftLen < sizeof(MSG_HDR_S))
-            {
-                break;
-            }
-
-            //log_debug("wLeftLen(%d).", wLeftLen);
+            break;
+        }
         wLeftLen = wLeftLen - sizeof(MSG_HDR_S) - ntohs(pstMsgHdr->wLen);
-            pbyMsg = pbyMsg + wMsgLen - wLeftLen;
-            //log_debug("wLeftLen(%d).", wLeftLen);
-            if(pstMsgHdr->byDstAddr != byMstAddr)
-            {
-                log_error("byDstAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHdr->byDstAddr, byMstAddr);
-                continue;
-            }
+        pbyMsg = pbyMsg + wMsgLen - wLeftLen;
 
-            master_SyncMsgHandle(pMst, pstMsgHdr);
-        }
-        else if(ntohs(pwSig[0]) == START_SIG_2)
+        if(ntohs(pstMsgHdr->wDstAddr) != (WORD)byMstAddr)
         {
-            //log_debug("START_SIG_2.");
-            const MSG_DATA_S *pstDataNET = (const MSG_DATA_S *)pbyMsg;
-            if(wLeftLen < sizeof(MSG_DATA_S))
-            {
-                break;
-            }
-
-            //log_debug("wLeftLen(%d).", wLeftLen);
-            wLeftLen = wLeftLen - sizeof(MSG_DATA_S) - ntohs(pstDataNET->wDataLen);
-            //log_debug("wLeftLen(%d).", wLeftLen);
-            pbyMsg = pbyMsg + wMsgLen - wLeftLen;
-
-            master_IssueMsgHandle(pMst, pstDataNET);//业务流程发来的下发消息
+            log_error("wDstAddr(%u) not equal to byMstAddr(%u)", ntohs(pstMsgHdr->wDstAddr), byMstAddr);
+            continue;
         }
-
+            
+        master_MsgHandleOne(pMst, pstMsgHdr);//ntohs(pwSig[0])：START_SIG_1时为主机业务线程下发数据的消息，START_SIG_2时为备机主备线程回复的消息
         pwSig = (const WORD *)pbyMsg;
     }
     

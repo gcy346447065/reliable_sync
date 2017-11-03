@@ -65,19 +65,72 @@
                             syslog(LOG_DEBUG, "%02d: %02x %02x %02x %02x %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff, *((char *)buf+line*10+5) & 0xff, *((char *)buf+line*10+6) & 0xff, *((char *)buf+line*10+7) & 0xff, *((char *)buf+line*10+8) & 0xff); \
                             break; \
                     } \
-                } while (0)
+                }while (0)
+
+    #define log_hex_8(buf, buflen) \
+                                        do { \
+                                            if(buflen == 0) \
+                                            { \
+                                                break; \
+                                            } \
+                                            syslog(LOG_DEBUG, "    01 02 03 04 05 06 07 08"); \
+                                            int line = 0; \
+                                            while(line < buflen / 8) \
+                                            { \
+                                                syslog(LOG_DEBUG, "%02d: %02x %02x %02x %02x %02x %02x %02x %02x", \
+                                                    (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff, \
+                                                    *((char *)buf+line*10+5) & 0xff, *((char *)buf+line*10+6) & 0xff, *((char *)buf+line*10+7) & 0xff); \
+                                                line++; \
+                                            } \
+                                            switch(buflen % 8) \
+                                            { \
+                                                case 0: \
+                                                    break; \
+                                                case 1: \
+                                                    syslog(LOG_DEBUG, "%02d: %02x", (int)(line+1), *((char *)buf+line*10) & 0xff); \
+                                                    break; \
+                                                case 2: \
+                                                    syslog(LOG_DEBUG, "%02d: %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff); \
+                                                    break; \
+                                                case 3: \
+                                                    syslog(LOG_DEBUG, "%02d: %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff); \
+                                                    break; \
+                                                case 4: \
+                                                    syslog(LOG_DEBUG, "%02d: %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff); \
+                                                    break; \
+                                                case 5: \
+                                                    syslog(LOG_DEBUG, "%02d: %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff); \
+                                                    break; \
+                                                case 6: \
+                                                    syslog(LOG_DEBUG, "%02d: %02x %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff, *((char *)buf+line*10+5) & 0xff); \
+                                                    break; \
+                                                case 7: \
+                                                    syslog(LOG_DEBUG, "%02d: %02x %02x %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff, *((char *)buf+line*10+5) & 0xff, *((char *)buf+line*10+6) & 0xff); \
+                                                    break; \
+                                            } \
+                                        }while (0)
+
+
 #else
     #define log_error(...)
     #define log_warning(...)
     #define log_info(...)
     #define log_debug(...)
     #define log_hex(buf, buflen)
+    #define log_hex_8(buf, buflen)
 #endif
 
 //it will return true for all time
-#define log_init(label) \
+#define log_init(label, local) \
     do { \
-        openlog(label, 0, LOG_LOCAL1); \
+        if(local == 1) \
+            openlog(label, 0, LOG_LOCAL1); \
+        else if(local == 2) \
+            openlog(label, 0, LOG_LOCAL2); \
+        else if(local == 3) \
+            openlog(label, 0, LOG_LOCAL3); \
+        else if(local == 4) \
+            openlog(label, 0, LOG_LOCAL4); \
     } while (0)
 
 #define log_free() \

@@ -53,7 +53,7 @@ DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
         return FAILE;
     }
 
-    log_hex(pRecvBuf, 10);
+    log_hex_8(pRecvBuf, 48);
     //log_hex(pRecvBuf, wBufLen);
     dwRet = master_msgHandle(pArg, pRecvBuf, wBufLen);
     if(dwRet != SUCCESS)
@@ -77,7 +77,7 @@ DWORD master_keepaliveTimerProc(void *pArg)
 
 DWORD master::master_Init()
 {
-    log_init("MASTER");
+    log_init("MASTER", 1);
     log_debug("Master Task Beginning.");
     DWORD dwRet = SUCCESS;
 

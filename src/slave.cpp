@@ -12,7 +12,6 @@
 #include "slave_send.h"
 #include "slave_recv.h"
 #include "protocol.h"
-#include "list_data.h"
 
 DWORD dwSlaveHEHE = 0;
 
@@ -23,7 +22,6 @@ timer *g_pSlvRegTimer;
 
 BYTE g_slv_byMstAddr;
 BYTE g_slv_bySlvAddr;
-list_data *g_slv_pDataList;
 
 DWORD slave_stdinProc(void *pObj)
 {
@@ -98,84 +96,9 @@ DWORD slave_registerTimerProc(void *pObj)
     return dwRet;
 }
 
-DWORD slave_InitAndLoop(BYTE byMasterAddr, BYTE bySlaveAddr)
-{
-    DWORD dwRet = SUCCESS;
-    log_debug("byMasterAddr(%d), bySlaveAddr(%d).", byMasterAddr, bySlaveAddr);
-
-    /* 初始化事件调用机制vos（用epoll模拟实现） */
-    g_pSlaveVos = new vos;
-    dwRet = g_pSlaveVos->vos_Init();
-    if(dwRet != SUCCESS)
-    {
-        log_error("VOS_Init error!");
-        return FAILE;
-    }
-
-    /* 初始化网络通信mbufer，并创建邮箱 */
-    g_slv_byMstAddr = byMasterAddr;//实际只使用该位对应ip加端口号
-    g_slv_bySlvAddr = bySlaveAddr;//实际只使用该位对应ip加端口号
-    g_pSlaveDmm = new dmm;//实际上在create_mailbox中确定mbufer中的g_dwSocketFd，也就是记录vos中的EventFd
-    g_pSlvMbufer = new mbufer;
-    dwRet = g_pSlaveDmm->create_mailbox(&g_pSlvMbufer, bySlaveAddr, "mailbox");
-    if(dwRet != SUCCESS)
-    {
-        log_error("create_mailbox error!");
-        return FAILE;
-    }
-
-    dwRet = g_pSlaveVos->vos_RegTask("stdin", STDIN_FILENO, slave_stdinProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("vos_RegTask error!");
-        return FAILE;
-    }
-
-    /* 将mbufer添加到vos中，需要利用Macro关联EventFd和Func */
-    dwRet = g_pSlaveVos->vos_RegTask("mailbox", g_pSlvMbufer->dwSocketFd, slave_mailboxProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("vos_RegTask error!");
-        return FAILE;
-    }
-
-    /* 初始化发起注册的定时器 */
-    g_pSlvRegTimer = new timer;
-    dwRet = g_pSlvRegTimer->init();
-    if(dwRet != SUCCESS)
-    {
-        log_error("g_pSlvRegTimer->init error!");
-        return FAILE;
-    }
-    //log_debug("g_pSlvRegTimer->dwTimerFd(%lu)", g_pSlvRegTimer->dwTimerFd);
-    //g_pSlvRegTimer->get(&dwRet);
-    //log_debug("g_pSlvRegTimer->get(%lu)", dwRet);
-    
-    /* 将pRegisterTimer添加到vos中，需要利用Macro关联EventFd和Func */
-    dwRet = g_pSlaveVos->vos_RegTask("regtimer", g_pSlvRegTimer->dwTimerFd, slave_registerTimerProc, NULL);
-    if(dwRet != SUCCESS)
-    {
-        log_error("vos_RegTask error!");
-        return FAILE;
-    }
-
-    dwRet = g_pSlvRegTimer->start(REGISTER_TIMER_VALUE);
-    if(dwRet != SUCCESS)
-    {
-        log_error("g_pSlvRegTimer->start error!");
-        return FAILE;
-    }
-
-    /* 进入vos循环 */
-    g_pSlaveVos->vos_EpollWait(); //while(1)!!!
-
-    return dwRet;
-}
-
-
 DWORD slave::slave_Init()
 {
-    log_init("SLAVE");
+    log_init("SLAVE", 2);//slave的log输出到/var/log/local2.log文件
     log_debug("Slave Task Beginning.");
     DWORD dwRet = SUCCESS;
 

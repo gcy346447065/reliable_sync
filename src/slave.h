@@ -9,8 +9,6 @@ using std::map;
 #include "vos.h"
 #include "mbufer.h"
 
-DWORD slave_InitAndLoop(BYTE byMasterAddr, BYTE bySlaveAddr);
-
 class slave
 {
 public:
@@ -32,13 +30,7 @@ public:
     VOID slave_Free();
     VOID slave_Loop();
 
-    /*DWORD slave_stdinProc(void *pObj);
-    DWORD slave_mailboxProc(void *pObj);
-    DWORD slave_keepaliveTimerProc(void *pObj);*/
-
 private:
-    
-
     vos *pVos;
     dmm *pDmm;
 

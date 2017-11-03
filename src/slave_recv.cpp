@@ -62,11 +62,11 @@ static DWORD slave_login(const BYTE *pbyMsg)
         return FAILE;
     }
 
-    log_debug("bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHdr.byDstAddr, pstRsp->byLoginResult);
+    log_debug("bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHdr.wDstAddr, pstRsp->byLoginResult);
     if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
     {
         //收到登录成功回复包
-        log_info("This bySlvAddr(%d) logged success.", pstRsp->stMsgHdr.byDstAddr);
+        log_info("This bySlvAddr(%d) logged success.", pstRsp->stMsgHdr.wDstAddr);
 
         dwRet = g_pSlvRegTimer->stop();
         if(dwRet != SUCCESS)
@@ -175,9 +175,9 @@ DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
         return FAILE;
     }
 
-    if(pstMsgHdr->byDstAddr != g_slv_bySlvAddr)
+    if(pstMsgHdr->wDstAddr != g_slv_bySlvAddr)
     {
-        log_error("byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHdr->byDstAddr, g_slv_bySlvAddr);
+        log_error("byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHdr->wDstAddr, g_slv_bySlvAddr);
         return FAILE;
     }
 
