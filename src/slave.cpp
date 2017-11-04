@@ -23,23 +23,27 @@ timer *g_pSlvRegTimer;
 BYTE g_slv_byMstAddr;
 BYTE g_slv_bySlvAddr;
 
-DWORD slave_stdinProc(void *pObj)
+DWORD slave_stdinProc(void *pSlv)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("slave_stdinProc(), dwSlaveHEHE(%lu)", dwSlaveHEHE);
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_stdinProc(), dwSlaveHEHE(%lu)", dwSlaveHEHE);
 
     return dwRet;
 }
 
-DWORD slave_mailboxProc(void *pObj)
+DWORD slave_mailboxProc(void *pSlv)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("slave_mailboxProc()");
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_mailboxProc().");
 
     BYTE *pbyRecvBuf = slave_alloc_RecvBuffer(MAX_RECV_LEN);
     if(pbyRecvBuf == NULL)
     {
-        log_error("slave_alloc_RecvBuffer error!");
+        log_error(byLogNum, "slave_alloc_RecvBuffer error!");
         return FAILE;
     }
 
@@ -47,16 +51,15 @@ DWORD slave_mailboxProc(void *pObj)
     dwRet = slave_recv(pbyRecvBuf, &wBufLen);
     if(dwRet != SUCCESS)
     {
-        log_error("slave_recv error!");
+        log_error(byLogNum, "slave_recv error!");
         return FAILE;
     }
 
-    log_hex(pbyRecvBuf, wBufLen);
-
+    log_hex(byLogNum, pbyRecvBuf, wBufLen);
     dwRet = slave_msgHandle(pbyRecvBuf, wBufLen);
     if(dwRet != SUCCESS)
     {
-        log_error("slave_MsgHandle error!");
+        log_error(byLogNum, "slave_MsgHandle error!");
         return FAILE;
     }
 
@@ -64,23 +67,25 @@ DWORD slave_mailboxProc(void *pObj)
     return dwRet;
 }
 
-DWORD slave_registerTimerProc(void *pObj)
+DWORD slave_registerTimerProc(void *pSlv)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("slave_registerTimerProc()");
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_registerTimerProc()");
 
     /* 拼接主备模块消息体 */
     MSG_LOGIN_REQ_S *pstReq = (MSG_LOGIN_REQ_S *)slave_alloc_reqMsg(CMD_LOGIN);
     if(!pstReq)
     {
-        log_error("alloc_slave_reqMsg error!");
+        log_error(byLogNum, "alloc_slave_reqMsg error!");
         return FAILE;
     }
 
     dwRet = slave_send((BYTE *)pstReq, sizeof(MSG_LOGIN_REQ_S));
     if(dwRet != SUCCESS)
     {
-        log_error("slave_send error!");
+        log_error(byLogNum, "slave_send error!");
         return FAILE;
     }
 
@@ -89,7 +94,7 @@ DWORD slave_registerTimerProc(void *pObj)
     dwRet = g_pSlvRegTimer->start(REGISTER_TIMER_VALUE);
     if(dwRet != SUCCESS)
     {
-        log_error("g_pSlvRegTimer->start error!");
+        log_error(byLogNum, "g_pSlvRegTimer->start error!");
         return FAILE;
     }
     
@@ -98,36 +103,36 @@ DWORD slave_registerTimerProc(void *pObj)
 
 DWORD slave::slave_Init()
 {
-    log_init("SLAVE", 2);//slave的log输出到/var/log/local2.log文件
-    log_debug("Slave Task Beginning.");
+    log_init(byLogNum, "");//slave的log输出到/var/log/local2.log文件
+    log_debug(byLogNum, "Slave Task Beginning.");
     DWORD dwRet = SUCCESS;
 
     mapDataBatch.clear();
     mapDataInstant.clear();
     mapDataWaited.clear();
 
-    pVos = new vos;
+    pVos = new vos(byLogNum);
     dwRet = pVos->vos_Init();//实际为创建epoll
     if(dwRet != SUCCESS)
     {
-        log_error("vos_Init error!");
+        log_error(byLogNum, "vos_Init error!");
         return FAILE;
     }
-    pDmm = new dmm;
-    pMbufer = new mbufer;
+    pDmm = new dmm(byLogNum);
+    pMbufer = new mbufer(byLogNum);
 
     /* 创建邮箱并注册到vos */
-    log_debug("byMstAddr(%d), bySlvAddr(%d).", byMstAddr, bySlvAddr);
+    log_debug(byLogNum, "byMstAddr(%d), bySlvAddr(%d).", byMstAddr, bySlvAddr);
     dwRet = pDmm->create_mailbox(&pMbufer, bySlvAddr, "slv_mb");
     if(dwRet != SUCCESS)
     {
-        log_error("create_mailbox error!");
+        log_error(byLogNum, "create_mailbox error!");
         return FAILE;
     }
-    dwRet = pVos->vos_RegTask("slv_mb", pMbufer->dwSocketFd, slave_mailboxProc, NULL);
+    dwRet = pVos->vos_RegTask("slv_mb", pMbufer->dwSocketFd, slave_mailboxProc, this);
     if(dwRet != SUCCESS)
     {
-        log_error("vos_RegTask error!");
+        log_error(byLogNum, "vos_RegTask error!");
         return FAILE;
     }
 
@@ -147,7 +152,7 @@ VOID slave::slave_Free()
 VOID slave::slave_Loop()
 {
     /* 进入vos循环 */
-    log_debug("slave_Loop begin.");
+    log_debug(byLogNum, "slave_Loop begin.");
     pVos->vos_EpollWait(); //while(1)!!!
     return;
 }

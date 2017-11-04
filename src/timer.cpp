@@ -9,13 +9,13 @@ DWORD timer::init()
     INT iRet = timerfd_create(CLOCK_MONOTONIC, 0); //absolute time from when the system on
     if(iRet < 0)
     {
-        log_error("timerfd create error!");
+        log_error(byLogNum, "timerfd create error!");
         return FAILE;
     }
 
     dwTimerFd = iRet;
 
-    log_info("timerfd(%lu) create ok.", dwTimerFd);
+    log_info(byLogNum, "timerfd(%lu) create ok.", dwTimerFd);
     return SUCCESS;
 }
 
@@ -23,7 +23,7 @@ DWORD timer::start(DWORD dwMS)
 {
     if(dwMS == 0) 
     {
-        log_error("timer start dwMS(%lu) error!", dwMS);
+        log_error(byLogNum, "timer start dwMS(%lu) error!", dwMS);
         return FAILE;
     }
 
@@ -36,11 +36,11 @@ DWORD timer::start(DWORD dwMS)
 
     if(timerfd_settime(dwTimerFd, 0, &stTimerSpec, NULL) < 0) //0 for a time relative to the current value of the clock
     {
-        log_error("timerfd settime error!");
+        log_error(byLogNum, "timerfd settime error!");
         return FAILE;
     }
 
-    log_info("timerfd(%lu) settime ok.", dwTimerFd);
+    log_info(byLogNum, "timerfd(%lu) settime ok.", dwTimerFd);
     return SUCCESS;
 }
 
@@ -50,7 +50,7 @@ DWORD timer::stop()
     memset(&stTimerSpec, 0, sizeof(struct itimerspec));
     if(timerfd_settime(dwTimerFd, 0, &stTimerSpec, NULL) < 0)
     {
-        log_error("timerfd settime error!");
+        log_error(byLogNum, "timerfd settime error!");
         return FAILE;
     }
 
@@ -64,7 +64,7 @@ DWORD timer::get(DWORD *pdwMS)
 
     if(timerfd_gettime(dwTimerFd, &stTimerSpec) < 0)
     {
-        log_error("timerfd gettime error!");
+        log_error(byLogNum, "timerfd gettime error!");
         return FAILE;
     }
 

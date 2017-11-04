@@ -41,6 +41,12 @@ class mbufer
 
 public:
     DWORD dwSocketFd;
+    BYTE byLogNum;
+
+    mbufer(BYTE byNum)
+    {
+        byLogNum = byNum;
+    }
     
     DWORD alloc_msg(void **ppSendBuf, WORD wMsgLen);
     DWORD free_msg(void *pSendBuf);
@@ -62,6 +68,13 @@ class dmm
 {
 
 public:
+    BYTE byLogNum;
+
+    dmm(BYTE byNum)
+    {
+        byLogNum = byNum;
+    }
+
     DWORD create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskName);
     DWORD delete_mailbox(mbufer *pMbufer);
 };

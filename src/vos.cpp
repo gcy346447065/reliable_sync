@@ -9,7 +9,7 @@ DWORD vos::vos_Init()
     INT iRet = epoll_create(MAX_EPOLL_NUM);
     if(iRet < 0)
     {
-        log_error("epoll create error(%d)!", iRet);
+        log_error(byLogNum, "epoll create error(%d)!", iRet);
         return FAILE;
     }
     dwEpollFd = iRet;
@@ -41,7 +41,7 @@ DWORD vos::vos_RegTask(const CHAR *pcTaskName, DWORD dwTaskEventFd, TASK_FUNC pT
 	    //
 	}
     
-    //log_debug("vos_RegTask ok.");
+    //log_debug(byLogNum, "vos_RegTask ok.");
     return SUCCESS;
 }
 
@@ -54,13 +54,13 @@ DWORD vos::vos_DisregTask(const CHAR *pcTaskName)
         mapTask.erase(itTask);
     }
 
-    //log_debug("vos_DisregTask ok.");
+    //log_debug(byLogNum, "vos_DisregTask ok.");
 	return SUCCESS;
 }
 
 DWORD vos::vos_EpollWait()
 {
-    log_info("epoll_wait begin, dwEpollFd(%lu)...", dwEpollFd);
+    log_info(byLogNum, "epoll_wait begin, dwEpollFd(%lu)...", dwEpollFd);
 
     struct epoll_event stEvents[MAX_EPOLL_NUM];
     while(TRUE)
@@ -68,10 +68,10 @@ DWORD vos::vos_EpollWait()
         INT iEpollNum = epoll_wait(dwEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(INT i = 0; i < iEpollNum; i++)
         {
-            //log_debug("stEvents[i].data.fd(%d).", stEvents[i].data.fd);
+            //log_debug(byLogNum, "stEvents[i].data.fd(%d).", stEvents[i].data.fd);
             for(map<const CHAR *, VOS_TASK_S>::iterator itTask = mapTask.begin(); itTask != mapTask.end(); itTask++)
             {
-                //log_debug("itTask->second.dwTaskEventFd(%d).", itTask->second.dwTaskEventFd);
+                //log_debug(byLogNum, "itTask->second.dwTaskEventFd(%d).", itTask->second.dwTaskEventFd);
                 if((DWORD)stEvents[i].data.fd == itTask->second.dwTaskEventFd)
                 {
                     itTask->second.pTaskFunc(itTask->second.pArg);
@@ -94,7 +94,7 @@ DWORD vos::vos_addEvent(DWORD dwEventFd, bool bETorLT)
         return FAILE;
     }
 
-    //log_info("vos_addEvent ok, EpollFd(%d), EventFd(%d).", dwEpollFd, dwEventFd);
+    //log_info(byLogNum, "vos_addEvent ok, EpollFd(%d), EventFd(%d).", dwEpollFd, dwEventFd);
     return SUCCESS;
 }
 
@@ -109,7 +109,7 @@ DWORD vos::vos_deleteEvent(DWORD dwEventFd)
         return FAILE;
     }
 
-    //log_info("vos_deleteEvent ok, EpollFd(%d), EventFd(%d).", dwEpollFd, dwEventFd);
+    //log_info(byLogNum, "vos_deleteEvent ok, EpollFd(%d), EventFd(%d).", dwEpollFd, dwEventFd);
     return SUCCESS;
 }
 

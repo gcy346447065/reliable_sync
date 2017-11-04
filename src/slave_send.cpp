@@ -53,7 +53,7 @@ DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen)
     dwRet = g_pSlvMbufer->send_message(g_slv_byMstAddr, stSendMsgInfo, wOffset);
     if (dwRet != SUCCESS)
     {
-        log_error("send_message error!");
+        log_error(LOG1, "send_message error!");
         g_pSlvMbufer->free_msg(pbySendBuf);
         return dwRet;
     }

@@ -10,19 +10,22 @@ using std::map;
 #include "protocol.h"
 #include "vos.h"
 #include "mbufer.h"
+#include "log.h"
 
 class master
 {
 public:
-    master(BYTE byAddr = 1)
+    master(BYTE byAddr = 1, BYTE byNum = LOG1)
     {
         if(byAddr >= ADDR_MIN && byAddr <= ADDR_MAX)
         {
             byMstAddr = byAddr;
+            byLogNum = byNum;
         }
         else
         {
             byMstAddr = ADDR_MIN;
+            byLogNum = byNum;
         }
     }
 
@@ -35,6 +38,7 @@ private:
     dmm *pDmm;
     
 public:
+    BYTE byLogNum;
     BYTE byMstAddr;
     vector<BYTE> vecSlvAddr;
     map<WORD, DATA_BATCH_PKG_S> mapDataBatch;

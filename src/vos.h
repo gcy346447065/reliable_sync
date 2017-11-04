@@ -19,6 +19,13 @@ typedef struct
 class vos
 {
 public:
+    BYTE byLogNum;
+
+    vos(BYTE byNum)
+    {
+        byLogNum = byNum;
+    }
+
     DWORD vos_Init();
     void  vos_free();
     DWORD vos_RegTask(const CHAR *pcTaskName, DWORD dwTaskEventFd, TASK_FUNC pTaskFunc, void *pArg);//dwTaskEventFd在创建相应事件句柄时确定

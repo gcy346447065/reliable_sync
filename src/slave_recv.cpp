@@ -38,7 +38,7 @@ DWORD slave_recv(BYTE *pbyRecvBuf, WORD *pwBufLen)
     dwRet = g_pSlvMbufer->receive_message(pbyRecvBuf, pwBufLen, DMM_NO_WAIT);
     if(dwRet != DMM_SUCCESS)
     {
-        log_error("receive_message error!");
+        log_error(LOG1, "receive_message error!");
         return FAILE;
     }
 
@@ -48,30 +48,30 @@ DWORD slave_recv(BYTE *pbyRecvBuf, WORD *pwBufLen)
 static DWORD slave_login(const BYTE *pbyMsg)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("slave_login.");
+    log_debug(LOG1, "slave_login.");
 
     const MSG_LOGIN_RSP_S *pstRsp = (const MSG_LOGIN_RSP_S *)pbyMsg;
     if(!pstRsp)
     {
-        log_error("msg handle empty!");
+        log_error(LOG1, "msg handle empty!");
         return FAILE;
     }
     if(ntohs(pstRsp->stMsgHdr.wLen) < sizeof(MSG_LOGIN_RSP_S) - MSG_HDR_LEN)
     {
-        log_error("msg length not enough!");
+        log_error(LOG1, "msg length not enough!");
         return FAILE;
     }
 
-    log_debug("bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHdr.wDstAddr, pstRsp->byLoginResult);
+    log_debug(LOG1, "bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHdr.wDstAddr, pstRsp->byLoginResult);
     if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
     {
         //收到登录成功回复包
-        log_info("This bySlvAddr(%d) logged success.", pstRsp->stMsgHdr.wDstAddr);
+        log_info(LOG1, "This bySlvAddr(%d) logged success.", pstRsp->stMsgHdr.wDstAddr);
 
         dwRet = g_pSlvRegTimer->stop();
         if(dwRet != SUCCESS)
         {
-            log_error("g_pSlvRegTimer->stop error!");
+            log_error(LOG1, "g_pSlvRegTimer->stop error!");
             return FAILE;
         }
     }
@@ -81,31 +81,31 @@ static DWORD slave_login(const BYTE *pbyMsg)
 
 static DWORD slave_keepAlive(const BYTE *pbyMsg)
 {
-    log_debug("slave_keepAlive.");
+    log_debug(LOG1, "slave_keepAlive.");
 
     const MSG_KEEP_ALIVE_REQ_S *pstReq = (const MSG_KEEP_ALIVE_REQ_S *)pbyMsg;
     if(!pstReq)
     {
-        log_error("msg handle empty!");
+        log_error(LOG1, "msg handle empty!");
         return FAILE;
     }
     if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_KEEP_ALIVE_REQ_S) - MSG_HDR_LEN)
     {
-        log_error("msg length not enough!");
+        log_error(LOG1, "msg length not enough!");
         return FAILE;
     }
     
     MSG_KEEP_ALIVE_RSP_S *pstRsp = (MSG_KEEP_ALIVE_RSP_S *)slave_alloc_rspMsg(pstReq->stMsgHdr.dwSeq, CMD_KEEP_ALIVE);
     if(!pstRsp)
     {
-        log_error("slave_alloc_rspMsg error!");
+        log_error(LOG1, "slave_alloc_rspMsg error!");
         return FAILE;
     }
 
     DWORD dwRet = slave_send((BYTE *)pstRsp, sizeof(MSG_KEEP_ALIVE_RSP_S));
     if(dwRet != SUCCESS)
     {
-        log_error("slave_send error!");
+        log_error(LOG1, "slave_send error!");
         return FAILE;
     }
     free(pstRsp);
@@ -115,13 +115,13 @@ static DWORD slave_keepAlive(const BYTE *pbyMsg)
 
 static DWORD slave_dataInstant(const BYTE *pbyMsg)
 {
-    log_debug("slave_dataInstant.");
+    log_debug(LOG1, "slave_dataInstant.");
     return SUCCESS;
 }
 
 static DWORD slave_dataWaited(const BYTE *pbyMsg)
 {
-    log_debug("slave_dataWaited.");
+    log_debug(LOG1, "slave_dataWaited.");
     return SUCCESS;
 }
 
@@ -160,24 +160,24 @@ static DWORD slave_msgHandleOne(const BYTE *pbyMsg)
 
 DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
 {
-    log_debug("slave_msgHandle.");
+    log_debug(LOG1, "slave_msgHandle.");
     const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pbyMsg;
 
     if(wMsgLen < MSG_HDR_LEN)
     {
-        log_error("sync message length not enough(%u<%lu)", wMsgLen, MSG_HDR_LEN);
+        log_error(LOG1, "sync message length not enough(%u<%lu)", wMsgLen, MSG_HDR_LEN);
         return FAILE;
     }
 
     if(pstMsgHdr->wSrcAddr != g_slv_byMstAddr)
     {
-        log_error("wSrcAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHdr->wSrcAddr, g_slv_byMstAddr);
+        log_error(LOG1, "wSrcAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHdr->wSrcAddr, g_slv_byMstAddr);
         return FAILE;
     }
 
     if(pstMsgHdr->wDstAddr != g_slv_bySlvAddr)
     {
-        log_error("byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHdr->wDstAddr, g_slv_bySlvAddr);
+        log_error(LOG1, "byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHdr->wDstAddr, g_slv_bySlvAddr);
         return FAILE;
     }
 
@@ -187,7 +187,7 @@ DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
         const BYTE *pbyStatus = (const BYTE *)(&(pstMsgHdr->wSig));
         if((pbyStatus[0] != START_SIG_1 / 0x100) || (pbyStatus[1] != START_SIG_1 % 0x100))
         {
-            log_error("signature error(%x)!", (unsigned)ntohs(pstMsgHdr->wSig));
+            log_error(LOG1, "signature error(%x)!", (unsigned)ntohs(pstMsgHdr->wSig));
             return FAILE;
         }
 

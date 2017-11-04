@@ -10,17 +10,17 @@ DWORD event::init(DWORD dwInitVal)
     INT iRet = eventfd(dwInitVal, EFD_NONBLOCK); //iInitVal(0) for event flag init value, EFD_NONBLOCK for reading zero no block
     if(iRet < 0)
     {
-        log_error("eventfd error(%d)!", iRet);
+        log_error(byLogNum, "eventfd error(%d)!", iRet);
         return FAILE;
     }
 
-    g_dwEventFd = iRet;
+    dwEventFd = iRet;
     return SUCCESS;
 }
 
 DWORD event::getEventFlags(QWORD *pqwEventFlag)
 {
-    INT iRet = read(g_dwEventFd, pqwEventFlag, sizeof(QWORD));
+    INT iRet = read(dwEventFd, pqwEventFlag, sizeof(QWORD));
     if(iRet != sizeof(QWORD))
     {
         if(errno == EAGAIN) //EAGAIN for pqwEventFlag zero
@@ -30,7 +30,7 @@ DWORD event::getEventFlags(QWORD *pqwEventFlag)
         }
         else
         {
-            log_error("read g_dwEventFd error(%d,%s)!", errno, strerror(errno)); 
+            log_error(byLogNum, "read g_dwEventFd error(%d,%s)!", errno, strerror(errno)); 
             return FAILE;
         }
     }
@@ -44,21 +44,21 @@ DWORD event::setEventFlags(QWORD qwEventFlag)
     INT iRet = getEventFlags(&qwEventRead);
     if(iRet < 0)
     {
-        log_error("getEventFlags error(%d)!", iRet);
+        log_error(byLogNum, "getEventFlags error(%d)!", iRet);
         return FAILE;
     }
 
     if(qwEventRead & qwEventFlag)
     {
-        log_debug("qwEventRead(%llx) has been setted at qwEventFlag(%llx).", qwEventRead, qwEventFlag);
+        log_debug(byLogNum, "qwEventRead(%llx) has been setted at qwEventFlag(%llx).", qwEventRead, qwEventFlag);
         return SUCCESS;
     }
     
     QWORD qwEventWrite = qwEventRead | qwEventFlag;
-    iRet = write(g_dwEventFd, &qwEventWrite, sizeof(QWORD));
+    iRet = write(dwEventFd, &qwEventWrite, sizeof(QWORD));
     if(iRet != sizeof(QWORD))
     {
-        log_error("write g_dwEventFd error(%s)!", strerror(errno));
+        log_error(byLogNum, "write g_dwEventFd error(%s)!", strerror(errno));
         return FAILE;
     }
 
@@ -71,21 +71,21 @@ DWORD event::resetEventFlags(QWORD qwEventFlag)
     INT iRet = getEventFlags(&qwEventRead);
     if(iRet < 0)
     {
-        log_error("getEventFlags error(%d)!", iRet);
+        log_error(byLogNum, "getEventFlags error(%d)!", iRet);
         return FAILE;
     }
 
     if(~qwEventRead & qwEventFlag)
     {
-        log_debug("qwEventRead(%llx) has been resetted at qwEventFlag(%llx).", qwEventRead, qwEventFlag);
+        log_debug(byLogNum, "qwEventRead(%llx) has been resetted at qwEventFlag(%llx).", qwEventRead, qwEventFlag);
         return SUCCESS;
     }
     
     QWORD qwEventWrite = qwEventRead & ~qwEventFlag;
-    iRet = write(g_dwEventFd, &qwEventWrite, sizeof(QWORD));
+    iRet = write(dwEventFd, &qwEventWrite, sizeof(QWORD));
     if(iRet != sizeof(QWORD))
     {
-        log_error("write g_dwEventFd error(%s)!", strerror(errno));
+        log_error(byLogNum, "write g_dwEventFd error(%s)!", strerror(errno));
         return FAILE;
     }
 

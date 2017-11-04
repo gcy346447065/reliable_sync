@@ -29,12 +29,14 @@ void master_free(void *pBuf)
 DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
 {
     DWORD dwRet = SUCCESS;
-    log_debug("master_mailboxProc().");
+    master *pclsMst = (master *)pArg;
+    BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_mailboxProc().");
 
     void *pRecvBuf = master_alloc(MAX_RECV_LEN);
     if(pRecvBuf == NULL)
     {
-        log_error("master_alloc_RecvBuffer error!");
+        log_error(byLogNum, "master_alloc_RecvBuffer error!");
         return FAILE;
     }
 
@@ -42,23 +44,23 @@ DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
     dwRet = master_recv(pArg, pRecvBuf, &wBufLen);
     if(dwRet != SUCCESS)
     {
-        log_error("master_recv error!");
+        log_error(byLogNum, "master_recv error!");
         master_free(pRecvBuf);
         return FAILE;
     }
     if(pRecvBuf == NULL || wBufLen == 0)
     {
-        log_error("pbyRecvBuf or wBufLen error!");
+        log_error(byLogNum, "pbyRecvBuf or wBufLen error!");
         master_free(pRecvBuf);
         return FAILE;
     }
 
-    log_hex_8(pRecvBuf, 48);
-    //log_hex(pRecvBuf, wBufLen);
+    log_hex_8(byLogNum, pRecvBuf, 32);
+    //log_hex(byLogNum, pRecvBuf, wBufLen);
     dwRet = master_msgHandle(pArg, pRecvBuf, wBufLen);
     if(dwRet != SUCCESS)
     {
-        log_error("master_msgHandle error!");
+        log_error(byLogNum, "master_msgHandle error!");
         master_free(pRecvBuf);
         return FAILE;
     }
@@ -70,15 +72,17 @@ DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
 DWORD master_keepaliveTimerProc(void *pArg)
 {
     DWORD dwRet = SUCCESS;
-    log_debug("master_keepaliveTimerProc().");
+    master *pclsMst = (master *)pArg;
+    BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_keepaliveTimerProc().");
     
     return dwRet;
 }
 
 DWORD master::master_Init()
 {
-    log_init("MASTER", 1);
-    log_debug("Master Task Beginning.");
+    log_init(byLogNum, "");
+    log_debug(byLogNum, "Master Task Beginning.");
     DWORD dwRet = SUCCESS;
 
     vecSlvAddr.clear();
@@ -86,28 +90,28 @@ DWORD master::master_Init()
     mapDataInstant.clear();
     mapDataWaited.clear();
 
-    pVos = new vos;
+    pVos = new vos(byLogNum);
     dwRet = pVos->vos_Init();//实际为创建epoll
     if(dwRet != SUCCESS)
     {
-        log_error("vos_Init error!");
+        log_error(byLogNum, "vos_Init error!");
         return FAILE;
     }
-    pDmm = new dmm;
-    pMbufer = new mbufer;
+    pDmm = new dmm(byLogNum);
+    pMbufer = new mbufer(byLogNum);
 
     /* 创建邮箱并注册到vos */
-    log_debug("byMstAddr(%d).", byMstAddr);
+    log_debug(byLogNum, "byMstAddr(%d).", byMstAddr);
     dwRet = pDmm->create_mailbox(&pMbufer, byMstAddr, "mst_mb");
     if(dwRet != SUCCESS)
     {
-        log_error("create_mailbox error!");
+        log_error(byLogNum, "create_mailbox error!");
         return FAILE;
     }
     dwRet = pVos->vos_RegTask("mst_mb", pMbufer->dwSocketFd, master_mailboxProc, this);
     if(dwRet != SUCCESS)
     {
-        log_error("vos_RegTask error!");
+        log_error(byLogNum, "vos_RegTask error!");
         return FAILE;
     }
 
@@ -127,7 +131,7 @@ VOID master::master_Free()
 VOID master::master_Loop()
 {
     /* 进入vos循环 */
-    log_debug("master_Loop begin.");
+    log_debug(byLogNum, "master_Loop begin.");
     pVos->vos_EpollWait(); //while(1)!!!
     return;
 }

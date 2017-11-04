@@ -33,13 +33,14 @@ DWORD master_recv(void *pMst, void *pRecvBuf, WORD *pwBufLen)
     DWORD dwRet = SUCCESS;
 
     master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
     mbufer *pclsMbufer = (mbufer *)pclsMst->pMbufer;
 
     /* 从mbufer中接收到消息体 */
     dwRet = pclsMbufer->receive_message(pRecvBuf, pwBufLen, DMM_NO_WAIT);
     if(dwRet != DMM_SUCCESS)
     {
-        log_error("receive_message error!");
+        log_error(byLogNum, "receive_message error!");
         return FAILE;
     }
 
@@ -48,30 +49,30 @@ DWORD master_recv(void *pMst, void *pRecvBuf, WORD *pwBufLen)
 
 static DWORD master_login(void *pMst, const void *pMsg)
 {
-    DWORD dwRet = SUCCESS;
-    log_debug("master_login.");
-
     master *pclsMst = (master *)pMst;
     BYTE byMstAddr = pclsMst->byMstAddr;
+    BYTE byLogNum = pclsMst->byLogNum;
+    DWORD dwRet = SUCCESS;
+    log_debug(byLogNum, "master_login.");
 
     const MSG_LOGIN_REQ_S *pstReq = (const MSG_LOGIN_REQ_S *)pMsg;
     if(!pstReq)
     {
-        log_error("msg handle empty!");
+        log_error(byLogNum, "msg handle empty!");
         return FAILE;
     }
     if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_LOGIN_REQ_S) - MSG_HDR_LEN)
     {
-        log_error("msg length not enough!");
+        log_error(byLogNum, "msg length not enough!");
         return FAILE;
     }
     BYTE bySlvAddr = pstReq->stMsgHdr.wSrcAddr;
-    log_debug("bySlvAddr(%d).", bySlvAddr);
+    log_debug(byLogNum, "bySlvAddr(%d).", bySlvAddr);
     
     MSG_LOGIN_RSP_S *pstRsp = (MSG_LOGIN_RSP_S *)master_alloc_rspMsg(byMstAddr, bySlvAddr, pstReq->stMsgHdr.dwSeq, CMD_LOGIN);
     if(!pstRsp)
     {
-        log_error("master_alloc_rspMsg error!");
+        log_error(byLogNum, "master_alloc_rspMsg error!");
         return FAILE;
     }
 
@@ -79,23 +80,23 @@ static DWORD master_login(void *pMst, const void *pMsg)
     if(dwRet == FAILE)
     {
         pstRsp->byLoginResult = LOGIN_RESULT_ERROR;
-        log_info("This bySlvAddr(%d) register failed.", bySlvAddr);
+        log_info(byLogNum, "This bySlvAddr(%d) register failed.", bySlvAddr);
     }
     else if(dwRet == SLV_HAS_REGED)
     {
         pstRsp->byLoginResult = LOGIN_RESULT_REGED;
-        log_info("This bySlvAddr(%d) has registered.", bySlvAddr);
+        log_info(byLogNum, "This bySlvAddr(%d) has registered.", bySlvAddr);
     }
     else if(dwRet == SUCCESS)
     {
         pstRsp->byLoginResult = LOGIN_RESULT_SUCCEED;
-        log_info("This bySlvAddr(%d) is registering.", bySlvAddr);
+        log_info(byLogNum, "This bySlvAddr(%d) is registering.", bySlvAddr);
     }
 
     //dwRet = master_sendToOne(bySlvAddr, (BYTE *)pstRsp, sizeof(MSG_LOGIN_RSP_S));
     if(dwRet != SUCCESS)
     {
-        log_error("master_sendToOne error!");
+        log_error(byLogNum, "master_sendToOne error!");
         return FAILE;
     }
     
@@ -105,27 +106,29 @@ static DWORD master_login(void *pMst, const void *pMsg)
 
 static DWORD master_keepAlive(void *pMst, const void *pMsg)
 {
-    log_debug("master_keepAlive.");
+    master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_keepAlive.");
     DWORD dwRet = SUCCESS;
 
     const MSG_KEEP_ALIVE_RSP_S *pstRsp = (const MSG_KEEP_ALIVE_RSP_S *)pMsg;
     if(!pstRsp)
     {
-        log_error("msg handle empty!");
+        log_error(byLogNum, "msg handle empty!");
         return FAILE;
     }
     if(ntohs(pstRsp->stMsgHdr.wLen) < sizeof(MSG_KEEP_ALIVE_RSP_S) - MSG_HDR_LEN)
     {
-        log_error("msg length not enough!");
+        log_error(byLogNum, "msg length not enough!");
         return FAILE;
     }
     BYTE bySlvAddr = pstRsp->stMsgHdr.wSrcAddr;
-    log_debug("bySlvAddr(%d).", bySlvAddr);
+    log_debug(byLogNum, "bySlvAddr(%d).", bySlvAddr);
 
     //dwRet = g_mst_pSlvList->slv_resetKeepaliveSendTimes(bySlvAddr);
     if(dwRet != SUCCESS)
     {
-        log_error("slv_resetKeepaliveSendTimes error!");
+        log_error(byLogNum, "slv_resetKeepaliveSendTimes error!");
         return FAILE;
     }
 
@@ -134,13 +137,17 @@ static DWORD master_keepAlive(void *pMst, const void *pMsg)
 
 static DWORD master_dataInstant(void *pMst, const void *pMsg)
 {
-    log_debug("master_dataInstant.");
+    master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_dataInstant.");
     return SUCCESS;
 }
 
 static DWORD master_dataWaited(void *pMst, const void *pMsg)
 {
-    log_debug("master_dataWaited.");
+    master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_dataWaited.");
     return SUCCESS;
 }
 
@@ -161,7 +168,10 @@ static MSG_PROC_MAP g_msgProcs[] =
 
 static DWORD master_MsgHandleOne(void *pMst, const MSG_HDR_S *pstMsgHdr)
 {
-    //log_debug("master_MsgHandleOne.");
+    //master *pclsMst = (master *)pMst;
+    //BYTE byLogNum = pclsMst->byLogNum;
+    //log_debug(byLogNum, "master_MsgHandleOne.");
+    
     for(UINT i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
     {
         if(g_msgProcs[i].wCmd == pstMsgHdr->wCmd)
@@ -179,14 +189,15 @@ static DWORD master_MsgHandleOne(void *pMst, const MSG_HDR_S *pstMsgHdr)
 
 DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
 {
-    if(wMsgLen < MSG_HDR_LEN)
-    {
-        log_error("message length error(%u<%lu)!", wMsgLen, MSG_HDR_LEN);
-        return FAILE;
-    }
-
     master *pclsMst = (master *)pMst;
     BYTE byMstAddr = pclsMst->byMstAddr;
+    BYTE byLogNum = pclsMst->byLogNum;
+
+    if(wMsgLen < MSG_HDR_LEN)
+    {
+        log_error(byLogNum, "message length error(%u<%lu)!", wMsgLen, MSG_HDR_LEN);
+        return FAILE;
+    }
 
     const BYTE *pbyMsg = (const BYTE *)pMsg;
     const WORD *pwSig = (const WORD *)pbyMsg;
@@ -203,7 +214,7 @@ DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
 
         if(ntohs(pstMsgHdr->wDstAddr) != (WORD)byMstAddr)
         {
-            log_error("wDstAddr(%u) not equal to byMstAddr(%u)", ntohs(pstMsgHdr->wDstAddr), byMstAddr);
+            log_error(byLogNum, "wDstAddr(%u) not equal to byMstAddr(%u)", ntohs(pstMsgHdr->wDstAddr), byMstAddr);
             continue;
         }
             

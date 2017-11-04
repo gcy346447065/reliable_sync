@@ -8,21 +8,24 @@ using std::map;
 #include "protocol.h"
 #include "vos.h"
 #include "mbufer.h"
+#include "log.h"
 
 class slave
 {
 public:
-    slave(BYTE byMstAddr = ADDR_MIN, BYTE bySlvAddr = ADDR_2)
+    slave(BYTE byMstAddr = ADDR_MIN, BYTE bySlvAddr = ADDR_2, BYTE byNum = LOG1)
     {
         if(byMstAddr >= ADDR_MIN && byMstAddr <= ADDR_MAX)
         {
             this->byMstAddr = byMstAddr;
             this->bySlvAddr = bySlvAddr;
+            byLogNum = byNum;
         }
         else
         {
             this->byMstAddr = ADDR_MIN;
             this->bySlvAddr = ADDR_2;
+            byLogNum = byNum;
         }
     }
 
@@ -35,10 +38,10 @@ private:
     dmm *pDmm;
 
 public:
-    mbufer *pMbufer;
-
+    BYTE byLogNum;
     BYTE byMstAddr;
     BYTE bySlvAddr;
+    mbufer *pMbufer;
     map<WORD, DATA_BATCH_PKG_S> mapDataBatch;
     map<WORD, DATA_PKG_S> mapDataInstant;
     map<WORD, DATA_PKG_S> mapDataWaited;

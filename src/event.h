@@ -15,7 +15,13 @@ class event
 {
 
 public:
-    DWORD g_dwEventFd;
+    DWORD dwEventFd;
+    BYTE byLogNum;
+
+    event(BYTE byNum)
+    {
+        byLogNum = byNum;
+    }
 
     DWORD init(DWORD dwInitVal);
     DWORD getEventFlags(QWORD *pqwEventFlag);

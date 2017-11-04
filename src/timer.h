@@ -11,6 +11,12 @@ class timer
 
 public:
     DWORD dwTimerFd;
+    BYTE byLogNum;
+
+    timer(BYTE byNum)
+    {
+        byLogNum = byNum;
+    }
 
     DWORD init();
     DWORD start(DWORD dwMS);

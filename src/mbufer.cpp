@@ -17,7 +17,7 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
     INT iSockFd = socket(AF_INET, SOCK_DGRAM, 0);
     if(iSockFd < 0)
     {
-        log_error("Create socket error!");
+        log_error(byLogNum, "Create socket error!");
         return FAILE;
     }
 
@@ -26,7 +26,7 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
     INT iCtlRet = ioctl(iSockFd, FIONBIO, &iMode);
     if(iCtlRet < 0)
     {
-        log_error("Set socket no block error!");
+        log_error(byLogNum, "Set socket no block error!");
         return FAILE;
     }
 
@@ -91,20 +91,20 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
             break;
 
         default:
-            log_error("byMsgAddr error(%d)!", byMsgAddr);
+            log_error(byLogNum, "byMsgAddr error(%d)!", byMsgAddr);
             return FAILE;
     }
     //绑定本端地址
     if(bind(iSockFd, (struct sockaddr *)&stLclAddr, sizeof(stLclAddr)) < 0)
     {
-        log_error("socket bind(%d) error(%d, %s)!", byMsgAddr, errno, strerror(errno));
+        log_error(byLogNum, "socket bind(%d) error(%d, %s)!", byMsgAddr, errno, strerror(errno));
         return FAILE;
     }
 
     socklen_t optlen;
     getsockopt(iSockFd, SOL_SOCKET, SO_SNDBUF, &iSendValue, &optlen);
     getsockopt(iSockFd, SOL_SOCKET, SO_RCVBUF, &iRecvValue, &optlen);
-    //log_debug("SO_SNDBUF(%d), SO_RCVBUF(%d)", iSendValue, iRecvValue);
+    //log_debug(LOG1, "SO_SNDBUF(%d), SO_RCVBUF(%d)", iSendValue, iRecvValue);
     
     (*ppMbufer)->dwSocketFd = iSockFd;//将socket句柄记录在邮箱mbufer中
     return SUCCESS;
@@ -122,7 +122,7 @@ DWORD mbufer::alloc_msg(void **ppSendBuf, WORD wMsgLen)
     *ppSendBuf = malloc(wMsgLen);
     if(ppSendBuf == NULL)
     {
-        log_error("malloc error!");
+        log_error(byLogNum, "malloc error!");
         return FAILE;
     }
 
@@ -154,7 +154,7 @@ DWORD mbufer::add_to_packet(void *pSendBuf, CMD_S *pstCmdHeader, WORD *pwOffset)
 DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset)
 {
     INT iRet = 0;
-    //log_debug("byDstMsgAddr(%d).", byDstMsgAddr);
+    //log_debug(LOG1, "byDstMsgAddr(%d).", byDstMsgAddr);
     struct sockaddr_in stDstAddr;
     memset(&stDstAddr, 0, sizeof(stDstAddr));
     stDstAddr.sin_family = AF_INET;
@@ -196,30 +196,30 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
             break;
 
         default:
-            log_error("byDstMsgAddr error(%d)!", byDstMsgAddr);
+            log_error(byLogNum, "byDstMsgAddr error(%d)!", byDstMsgAddr);
             return FAILE;
     }
     
     /*getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
-    log_debug("SO_SNDBUF(%d)", iValue);*/
+    log_debug(byLogNum, "SO_SNDBUF(%d)", iValue);*/
 
-    //log_debug("g_dwSocketFd(%d).", g_dwSocketFd);
+    //log_debug(byLogNum, "g_dwSocketFd(%d).", g_dwSocketFd);
     BYTE *pbySendBuf = (BYTE *)(stMsgInfo.dwMsgBuf);
     if((iRet = sendto(dwSocketFd, pbySendBuf, wOffset, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {
-        log_error("send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
+        log_error(byLogNum, "send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
         return FAILE;
     }
-    //log_debug("sendto(%d).", iRet);
+    //log_debug(byLogNum, "sendto(%d).", iRet);
 
     /*INT iValue = 0;
     socklen_t optlen = 0;
     getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
-    log_debug("SO_SNDBUF(%d), sendto(%d)", iValue, iRet);*/
+    log_debug(LObyLogNumG1, "SO_SNDBUF(%d), sendto(%d)", iValue, iRet);*/
     
     /*if((iRet = sendto(g_dwSocketFd, "test", 4, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {
-        log_error("send_message error(%d)!", iRet);
+        log_error(byLogNum, "send_message error(%d)!", iRet);
     }*/
 
     return SUCCESS;
@@ -228,7 +228,7 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
 DWORD mbufer::send_message(BYTE byDstMsgAddr, void *pData, WORD wDataLen)
 {
     INT iRet = 0;
-    //log_debug("byDstMsgAddr(%d).", byDstMsgAddr);
+    //log_debug(byLogNum, "byDstMsgAddr(%d).", byDstMsgAddr);
     struct sockaddr_in stDstAddr;
     memset(&stDstAddr, 0, sizeof(stDstAddr));
     stDstAddr.sin_family = AF_INET;
@@ -270,29 +270,29 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, void *pData, WORD wDataLen)
             break;
 
         default:
-            log_error("byDstMsgAddr error(%d)!", byDstMsgAddr);
+            log_error(byLogNum, "byDstMsgAddr error(%d)!", byDstMsgAddr);
             return FAILE;
     }
     
     /*getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
-    log_debug("SO_SNDBUF(%d)", iValue);*/
+    log_debug(byLogNum, "SO_SNDBUF(%d)", iValue);*/
 
-    //log_debug("g_dwSocketFd(%d).", g_dwSocketFd);
+    //log_debug(byLogNum, "g_dwSocketFd(%d).", g_dwSocketFd);
     if((iRet = sendto(dwSocketFd, pData, wDataLen, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {
-        log_error("send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
+        log_error(byLogNum, "send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
         return FAILE;
     }
-    //log_debug("sendto(%d).", iRet);
+    //log_debug(byLogNum, "sendto(%d).", iRet);
 
     /*INT iValue = 0;
     socklen_t optlen = 0;
     getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
-    log_debug("SO_SNDBUF(%d), sendto(%d)", iValue, iRet);*/
+    log_debug(byLogNum, "SO_SNDBUF(%d), sendto(%d)", iValue, iRet);*/
     
     /*if((iRet = sendto(g_dwSocketFd, "test", 4, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {
-        log_error("send_message error(%d)!", iRet);
+        log_error(byLogNums "send_message error(%d)!", iRet);
     }*/
 
     return SUCCESS;
@@ -318,12 +318,12 @@ DWORD mbufer::receive_message(void *pRecvBuf, WORD *pwBufLen, DWORD dwWaitTime)
     INT iRet = 0;
     if((iRet = recv(dwSocketFd, pRecvBuf, MAX_RECV_LEN, iFlags)) < 0)
     {
-        log_error("recv error(%d), errno(%d, %s)!", iRet, errno, strerror(errno));
+        log_error(byLogNum, "recv error(%d), errno(%d, %s)!", iRet, errno, strerror(errno));
         return FAILE;
     }
     *pwBufLen = (DWORD)iRet;
 
-    //log_debug("recv(%d).", iRet);
+    //log_debug(byLogNum, "recv(%d).", iRet);
     return SUCCESS;
 }
 
