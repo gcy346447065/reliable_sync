@@ -21,14 +21,14 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
         return FAILE;
     }
 
-    /* 将socket设置为非阻塞模式 */
+    /* 将socket设置为非阻塞模式 
     INT iMode = 1; 
     INT iCtlRet = ioctl(iSockFd, FIONBIO, &iMode);
     if(iCtlRet < 0)
     {
         log_error(byLogNum, "Set socket no block error!");
         return FAILE;
-    }
+    }*/
 
     INT iSendValue = 500 * 1024;//缓冲区大小为此值2倍
     INT iRecvValue = 500 * 1024;//缓冲区大小为此值2倍
@@ -101,10 +101,10 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
         return FAILE;
     }
 
-    socklen_t optlen;
+    /*socklen_t optlen;
     getsockopt(iSockFd, SOL_SOCKET, SO_SNDBUF, &iSendValue, &optlen);
     getsockopt(iSockFd, SOL_SOCKET, SO_RCVBUF, &iRecvValue, &optlen);
-    //log_debug(LOG1, "SO_SNDBUF(%d), SO_RCVBUF(%d)", iSendValue, iRecvValue);
+    log_debug(LOG1, "SO_SNDBUF(%d), SO_RCVBUF(%d)", iSendValue, iRecvValue);*/
     
     (*ppMbufer)->dwSocketFd = iSockFd;//将socket句柄记录在邮箱mbufer中
     return SUCCESS;

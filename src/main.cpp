@@ -25,13 +25,13 @@ public:
         if(bMstOrSlv == TRUE)
         {
             byTaskAddr = ADDR_10;//master
-            byDestAddr = byAddr;
+            byMstAddr = byAddr;
             byLogNum = byNum;
         }
         else
         {
             byTaskAddr = ADDR_9;//slave
-            byDestAddr = byAddr;
+            byMstAddr = byAddr;
             byLogNum = byNum;
         }
     }
@@ -90,7 +90,7 @@ private:
 public:
     BYTE byLogNum;
     BYTE byTaskAddr;
-    BYTE byDestAddr;//与task相连的master或者slave线程的地址
+    BYTE byMstAddr;//与task相连的master或者slave线程的地址
     mbufer *pMbufer;
 };
 
@@ -142,11 +142,11 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
     DWORD dwRet = SUCCESS;
 
     task *pclsTask = (task *)pArg;
-    BYTE byDestAddr = pclsTask->byDestAddr;
+    BYTE byMstAddr = pclsTask->byMstAddr;
     mbufer *pMbufer = pclsTask->pMbufer;
 
     /* 向主机主备线程接收端口发送数据 */
-    dwRet = pMbufer->send_message(byDestAddr, pData, wDataLen);
+    dwRet = pMbufer->send_message(byMstAddr, pData, wDataLen);
     if(dwRet != SUCCESS)
     {
         log_error(LOG1, "send_message error!");
@@ -185,15 +185,16 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
     return dwRet;
 }
 
-static DWORD g_dwDataSeq = 0;
+static DWORD g_dwDataSeq = 1;
 
 static DWORD g_dwBatchID = 0;
 static DWORD g_dwInstantID = 0;
 static DWORD g_dwWaitedID = 0;
 
+//此函数申请的内存会在同一次批量备份时复用多次
 void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
 {
-    log_debug(LOG1, "wPkgCount(%d)", wPkgCount);
+    log_debug(LOG1, "wPkgCount(%d).", wPkgCount);
     MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)malloc(sizeof(MSG_DATA_BATCH_REQ_S) + MAX_PKG_LEN);
     if(pstBatch)
     {
@@ -205,8 +206,8 @@ void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
         pstBatch->stMsgHdr.wCmd = htons(CMD_DATA_BATCH);
         pstBatch->stMsgHdr.wLen = htons(0);//后面在循环中写入
 
-        pstBatch->stData.dwDataStart = htons(g_dwBatchID);
-        pstBatch->stData.dwDataEnd = htons(g_dwBatchID + wPkgCount - 1);
+        pstBatch->stData.dwDataStart = htonl(g_dwBatchID);
+        pstBatch->stData.dwDataEnd = htonl(g_dwBatchID + wPkgCount - 1);
         pstBatch->stData.stData.dwDataID = htonl(0);//后面在循环中写入
         pstBatch->stData.stData.wDataLen = htons(0);//后面在循环中写入
         pstBatch->stData.stData.wDataChecksum = htons(0);//在主机下发时不填
@@ -278,7 +279,7 @@ DWORD task_stdinProc(void *pArg)
 
     task *pclsTask = (task *)pArg;
     BYTE byTaskAddr = pclsTask->byTaskAddr;
-    BYTE byDestAddr = pclsTask->byDestAddr;
+    BYTE byMstAddr = pclsTask->byMstAddr;
 
     //从控制台读取键入字符串
     CHAR *pcStdinBuf = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
@@ -318,7 +319,7 @@ DWORD task_stdinProc(void *pArg)
             log_debug(LOG1, "batch iFileLen(%d).", iFileLen);
 
             WORD wPkgCount = (iFileLen + MAX_PKG_LEN - 1) / MAX_PKG_LEN;
-            MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)task_allocDataBatch(byTaskAddr, byDestAddr, wPkgCount);
+            MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)task_allocDataBatch(byTaskAddr, byMstAddr, wPkgCount);
             if(!pstBatch)
             {
                 log_error(LOG1, "task_allocDataBatch error!");
@@ -347,7 +348,7 @@ DWORD task_stdinProc(void *pArg)
                 pstBatch->stData.stData.wDataLen = htons(wFileBufLen);
 
                 log_hex_8(LOG1, pstBatch, 32);
-                iRet = task_sendReliableSync(pArg, pstBatch, wFileBufLen, 1000 * 1000);//1000 * 1000us = 1s
+                iRet = task_sendReliableSync(pArg, pstBatch, wFileBufLen, 10 * 1000 * 1000);//单位us
                 if(iRet == FAILE)
                 {
                     log_error(LOG1, "task_sendReliableSync error(%d)!", iRet);
@@ -530,6 +531,8 @@ INT main(INT argc, CHAR *argv[])
         return FAILE;
     }
     //log_debug(byLogNum, "bMstOrSlv(%d), iMstAddr(%d), iSlvAddr(%d).", bMstOrSlv, iMstAddr, iSlvAddr);
+    log_debug(LOG1, "short(%lu), int(%lu), long(%lu), long long(%lu).", sizeof(short), sizeof(int), sizeof(long), sizeof(long long));
+    log_debug(LOG1, "WORD(%lu), DWORD(%lu), QWORD(%lu).", sizeof(WORD), sizeof(DWORD), sizeof(QWORD));
 
     /* 创建新线程作为主备线程，主线程作为业务线程 */
     pthread_t syncThreadId;

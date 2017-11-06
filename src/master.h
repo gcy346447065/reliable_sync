@@ -15,7 +15,7 @@ using std::map;
 class master
 {
 public:
-    master(BYTE byAddr = 1, BYTE byNum = LOG1)
+    master(BYTE byAddr = ADDR_MIN, BYTE byNum = LOG1)
     {
         if(byAddr >= ADDR_MIN && byAddr <= ADDR_MAX)
         {

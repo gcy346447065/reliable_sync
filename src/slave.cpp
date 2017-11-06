@@ -28,7 +28,7 @@ DWORD slave_stdinProc(void *pSlv)
     DWORD dwRet = SUCCESS;
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave_stdinProc(), dwSlaveHEHE(%lu)", dwSlaveHEHE);
+    log_debug(byLogNum, "slave_stdinProc(), dwSlaveHEHE(%u)", dwSlaveHEHE);
 
     return dwRet;
 }

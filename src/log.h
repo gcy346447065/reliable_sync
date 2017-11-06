@@ -143,8 +143,8 @@
             while(line < buflen / 8) \
             { \
                 syslog(flag, "%02d: %02x %02x %02x %02x %02x %02x %02x %02x", \
-                    (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff, \
-                    *((char *)buf+line*10+5) & 0xff, *((char *)buf+line*10+6) & 0xff, *((char *)buf+line*10+7) & 0xff); \
+                    (int)(line+1), *((char *)buf+line*8) & 0xff, *((char *)buf+line*8+1) & 0xff, *((char *)buf+line*8+2) & 0xff, *((char *)buf+line*8+3) & 0xff, *((char *)buf+line*8+4) & 0xff, \
+                    *((char *)buf+line*8+5) & 0xff, *((char *)buf+line*8+6) & 0xff, *((char *)buf+line*8+7) & 0xff); \
                 line++; \
             } \
             switch(buflen % 8) \
@@ -152,25 +152,25 @@
                 case 0: \
                     break; \
                 case 1: \
-                    syslog(flag, "%02d: %02x", (int)(line+1), *((char *)buf+line*10) & 0xff); \
+                    syslog(flag, "%02d: %02x", (int)(line+1), *((char *)buf+line*8) & 0xff); \
                     break; \
                 case 2: \
-                    syslog(flag, "%02d: %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff); \
+                    syslog(flag, "%02d: %02x %02x", (int)(line+1), *((char *)buf+line*8) & 0xff, *((char *)buf+line*8+1) & 0xff); \
                     break; \
                 case 3: \
-                    syslog(flag, "%02d: %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff); \
+                    syslog(flag, "%02d: %02x %02x %02x", (int)(line+1), *((char *)buf+line*8) & 0xff, *((char *)buf+line*8+1) & 0xff, *((char *)buf+line*8+2) & 0xff); \
                     break; \
                 case 4: \
-                    syslog(flag, "%02d: %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff); \
+                    syslog(flag, "%02d: %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*8) & 0xff, *((char *)buf+line*8+1) & 0xff, *((char *)buf+line*8+2) & 0xff, *((char *)buf+line*8+3) & 0xff); \
                     break; \
                 case 5: \
-                    syslog(flag, "%02d: %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff); \
+                    syslog(flag, "%02d: %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*8) & 0xff, *((char *)buf+line*8+1) & 0xff, *((char *)buf+line*8+2) & 0xff, *((char *)buf+line*8+3) & 0xff, *((char *)buf+line*8+4) & 0xff); \
                     break; \
                 case 6: \
-                    syslog(flag, "%02d: %02x %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff, *((char *)buf+line*10+5) & 0xff); \
+                    syslog(flag, "%02d: %02x %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*8) & 0xff, *((char *)buf+line*8+1) & 0xff, *((char *)buf+line*8+2) & 0xff, *((char *)buf+line*8+3) & 0xff, *((char *)buf+line*8+4) & 0xff, *((char *)buf+line*8+5) & 0xff); \
                     break; \
                 case 7: \
-                    syslog(flag, "%02d: %02x %02x %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*10) & 0xff, *((char *)buf+line*10+1) & 0xff, *((char *)buf+line*10+2) & 0xff, *((char *)buf+line*10+3) & 0xff, *((char *)buf+line*10+4) & 0xff, *((char *)buf+line*10+5) & 0xff, *((char *)buf+line*10+6) & 0xff); \
+                    syslog(flag, "%02d: %02x %02x %02x %02x %02x %02x %02x", (int)(line+1), *((char *)buf+line*8) & 0xff, *((char *)buf+line*8+1) & 0xff, *((char *)buf+line*8+2) & 0xff, *((char *)buf+line*8+3) & 0xff, *((char *)buf+line*8+4) & 0xff, *((char *)buf+line*8+5) & 0xff, *((char *)buf+line*8+6) & 0xff); \
                     break; \
             } \
         }while (0)

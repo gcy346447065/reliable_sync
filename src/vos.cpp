@@ -60,7 +60,7 @@ DWORD vos::vos_DisregTask(const CHAR *pcTaskName)
 
 DWORD vos::vos_EpollWait()
 {
-    log_info(byLogNum, "epoll_wait begin, dwEpollFd(%lu)...", dwEpollFd);
+    log_info(byLogNum, "epoll_wait begin, dwEpollFd(%u)...", dwEpollFd);
 
     struct epoll_event stEvents[MAX_EPOLL_NUM];
     while(TRUE)

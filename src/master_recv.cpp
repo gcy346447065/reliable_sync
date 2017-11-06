@@ -11,23 +11,6 @@
 
 //extern DWORD dwMasterHEHE;
 
-void *master_allocRecvBuffer(WORD wBufLen)
-{
-    void *pRecvBuf = malloc(wBufLen);
-    if(pRecvBuf == NULL)
-    {
-        return NULL;
-    }
-    memset(pRecvBuf, 0, wBufLen);
-    return pRecvBuf;
-}
-
-DWORD master_freeRecvBuffer(void *pRecvBuf)
-{
-    free(pRecvBuf);
-    return SUCCESS;
-}
-
 DWORD master_recv(void *pMst, void *pRecvBuf, WORD *pwBufLen)
 {
     DWORD dwRet = SUCCESS;
@@ -53,7 +36,7 @@ static DWORD master_login(void *pMst, const void *pMsg)
     BYTE byMstAddr = pclsMst->byMstAddr;
     BYTE byLogNum = pclsMst->byLogNum;
     DWORD dwRet = SUCCESS;
-    log_debug(byLogNum, "master_login.");
+    log_debug(byLogNum, "master_login().");
 
     const MSG_LOGIN_REQ_S *pstReq = (const MSG_LOGIN_REQ_S *)pMsg;
     if(!pstReq)
@@ -108,7 +91,7 @@ static DWORD master_keepAlive(void *pMst, const void *pMsg)
 {
     master *pclsMst = (master *)pMst;
     BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_keepAlive.");
+    log_debug(byLogNum, "master_keepAlive().");
     DWORD dwRet = SUCCESS;
 
     const MSG_KEEP_ALIVE_RSP_S *pstRsp = (const MSG_KEEP_ALIVE_RSP_S *)pMsg;
@@ -135,11 +118,45 @@ static DWORD master_keepAlive(void *pMst, const void *pMsg)
     return SUCCESS;
 }
 
+static DWORD master_dataBatch(void *pMst, const void *pMsg)
+{
+    master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_dataBatch().");
+
+    const MSG_DATA_BATCH_REQ_S *pstBatch = (const MSG_DATA_BATCH_REQ_S *)pMsg;
+    if(!pstBatch)
+    {
+        log_error(byLogNum, "msg handle empty!");
+        return FAILE;
+    }
+    if(ntohs(pstBatch->stMsgHdr.wSig) != START_SIG_1)
+    {
+        log_error(byLogNum, "msg wSig error!");
+        return FAILE;
+    }
+    if(ntohs(pstBatch->stMsgHdr.wLen) < sizeof(MSG_DATA_BATCH_REQ_S) - MSG_HDR_LEN)
+    {
+        log_error(byLogNum, "msg wLen not enough!");
+        return FAILE;
+    }
+
+    //log_debug(byLogNum, "%4x, %4x, %4x, %4x", pstBatch->stMsgHdr.wSig, pstBatch->stMsgHdr.wVer, pstBatch->stMsgHdr.wSrcAddr, pstBatch->stMsgHdr.wDstAddr);
+    //log_debug(byLogNum, "%8x, %4x, %4x", pstBatch->stMsgHdr.dwSeq, pstBatch->stMsgHdr.wCmd, pstBatch->stMsgHdr.wLen);
+    //log_debug(byLogNum, "%8x, %8x", pstBatch->stData.dwDataStart, pstBatch->stData.dwDataStart);
+    //log_debug(byLogNum, "%8x, %4x, %4x", pstBatch->stData.stData.dwDataID, pstBatch->stData.stData.wDataLen, pstBatch->stData.stData.wDataChecksum);
+                
+    
+    
+    return SUCCESS;
+}
+
 static DWORD master_dataInstant(void *pMst, const void *pMsg)
 {
     master *pclsMst = (master *)pMst;
     BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_dataInstant.");
+    log_debug(byLogNum, "master_dataInstant().");
+    
     return SUCCESS;
 }
 
@@ -147,7 +164,8 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
 {
     master *pclsMst = (master *)pMst;
     BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_dataWaited.");
+    log_debug(byLogNum, "master_dataWaited().");
+    
     return SUCCESS;
 }
 
@@ -162,19 +180,20 @@ static MSG_PROC_MAP g_msgProcs[] =
 {
     {CMD_LOGIN,             master_login},
     {CMD_KEEP_ALIVE,        master_keepAlive},
+    {CMD_DATA_BATCH,        master_dataBatch},
     {CMD_DATA_INSTANT,      master_dataInstant},
     {CMD_DATA_WAITED,       master_dataWaited}
 };
 
-static DWORD master_MsgHandleOne(void *pMst, const MSG_HDR_S *pstMsgHdr)
+static DWORD master_msgHandleOne(void *pMst, const MSG_HDR_S *pstMsgHdr)
 {
-    //master *pclsMst = (master *)pMst;
-    //BYTE byLogNum = pclsMst->byLogNum;
-    //log_debug(byLogNum, "master_MsgHandleOne.");
+    master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_msgHandleOne().");
     
     for(UINT i = 0; i < sizeof(g_msgProcs) / sizeof(g_msgProcs[0]); i++)
     {
-        if(g_msgProcs[i].wCmd == pstMsgHdr->wCmd)
+        if(g_msgProcs[i].wCmd == ntohs(pstMsgHdr->wCmd))
         {
             MSG_PROC pfn = g_msgProcs[i].pfn;
             if(pfn)
@@ -192,6 +211,7 @@ DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
     master *pclsMst = (master *)pMst;
     BYTE byMstAddr = pclsMst->byMstAddr;
     BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_msgHandle().");
 
     if(wMsgLen < MSG_HDR_LEN)
     {
@@ -218,7 +238,7 @@ DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
             continue;
         }
             
-        master_MsgHandleOne(pMst, pstMsgHdr);//ntohs(pwSig[0])：START_SIG_1时为主机业务线程下发数据的消息，START_SIG_2时为备机主备线程回复的消息
+        master_msgHandleOne(pMst, pstMsgHdr);//ntohs(pwSig[0])：START_SIG_1时为主机业务线程下发数据的消息，START_SIG_2时为备机主备线程回复的消息
         pwSig = (const WORD *)pbyMsg;
     }
     
