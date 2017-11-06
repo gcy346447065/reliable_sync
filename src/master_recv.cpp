@@ -122,31 +122,50 @@ static DWORD master_dataBatch(void *pMst, const void *pMsg)
 {
     master *pclsMst = (master *)pMst;
     BYTE byLogNum = pclsMst->byLogNum;
+    mbufer *pMbufer = pclsMst->pMbufer;
+    if(!pMbufer)
+    {
+        log_error(byLogNum, "pMbufer error!");
+        return FAILE;
+    }
     log_debug(byLogNum, "master_dataBatch().");
 
-    const MSG_DATA_BATCH_REQ_S *pstBatch = (const MSG_DATA_BATCH_REQ_S *)pMsg;
-    if(!pstBatch)
+    const MSG_DATA_BATCH_REQ_S *pstReq = (const MSG_DATA_BATCH_REQ_S *)pMsg;
+    if(!pstReq)
     {
         log_error(byLogNum, "msg handle empty!");
         return FAILE;
     }
-    if(ntohs(pstBatch->stMsgHdr.wSig) != START_SIG_1)
+    if(ntohs(pstReq->stMsgHdr.wSig) != START_SIG_1)
     {
         log_error(byLogNum, "msg wSig error!");
         return FAILE;
     }
-    if(ntohs(pstBatch->stMsgHdr.wLen) < sizeof(MSG_DATA_BATCH_REQ_S) - MSG_HDR_LEN)
+    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_BATCH_REQ_S) - MSG_HDR_LEN)
     {
         log_error(byLogNum, "msg wLen not enough!");
         return FAILE;
     }
 
-    //log_debug(byLogNum, "%4x, %4x, %4x, %4x", pstBatch->stMsgHdr.wSig, pstBatch->stMsgHdr.wVer, pstBatch->stMsgHdr.wSrcAddr, pstBatch->stMsgHdr.wDstAddr);
-    //log_debug(byLogNum, "%8x, %4x, %4x", pstBatch->stMsgHdr.dwSeq, pstBatch->stMsgHdr.wCmd, pstBatch->stMsgHdr.wLen);
-    //log_debug(byLogNum, "%8x, %8x", pstBatch->stData.dwDataStart, pstBatch->stData.dwDataStart);
-    //log_debug(byLogNum, "%8x, %4x, %4x", pstBatch->stData.stData.dwDataID, pstBatch->stData.stData.wDataLen, pstBatch->stData.stData.wDataChecksum);
-                
-    
+    //log_debug(byLogNum, "%4x, %4x, %4x, %4x", pstReq->stMsgHdr.wSig, pstReq->stMsgHdr.wVer, pstReq->stMsgHdr.wSrcAddr, pstReq->stMsgHdr.wDstAddr);
+    //log_debug(byLogNum, "%8x, %4x, %4x", pstReq->stMsgHdr.dwSeq, pstReq->stMsgHdr.wCmd, pstReq->stMsgHdr.wLen);
+    //log_debug(byLogNum, "%8x, %8x", pstReq->stData.dwDataStart, pstReq->stData.dwDataStart);
+    //log_debug(byLogNum, "%8x, %4x, %4x", pstReq->stData.stData.dwDataID, pstReq->stData.stData.wDataLen, pstReq->stData.stData.wDataChecksum);
+
+    MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)malloc(sizeof(MSG_DATA_BATCH_RSP_S));
+    pstRsp->stMsgHdr.wSig = pstReq->stMsgHdr.wSig;
+    pstRsp->stMsgHdr.wVer = htons(VERSION_INT);
+    pstRsp->stMsgHdr.wSrcAddr = pstReq->stMsgHdr.wDstAddr;
+    pstRsp->stMsgHdr.wDstAddr = pstReq->stMsgHdr.wSrcAddr;
+    pstRsp->stMsgHdr.dwSeq = pstReq->stMsgHdr.dwSeq;
+    pstRsp->stMsgHdr.wCmd = pstReq->stMsgHdr.wCmd;
+    pstRsp->stMsgHdr.wLen = htons(sizeof(MSG_DATA_BATCH_RSP_S));
+
+    pstRsp->stDataResult.dwDataID = pstReq->stData.stData.dwDataID;
+    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
+
+    BYTE byDstMsgAddr = (BYTE)ntohs(pstReq->stMsgHdr.wSrcAddr);
+    pMbufer->send_message(byDstMsgAddr, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
     
     return SUCCESS;
 }

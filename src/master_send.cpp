@@ -53,6 +53,18 @@ VOID *master_alloc_rspMsg(BYTE byMstAddr, BYTE bySlvAddr, WORD dwSeq, WORD wCmd)
             wMsgLen = sizeof(MSG_KEEP_ALIVE_RSP_S);
             break;
 
+        case CMD_DATA_BATCH:
+            wMsgLen = sizeof(MSG_DATA_BATCH_RSP_S);
+            break;
+
+        case CMD_DATA_INSTANT:
+            wMsgLen = sizeof(MSG_DATA_INSTANT_RSP_S);
+            break;
+
+        case CMD_DATA_WAITED:
+            wMsgLen = sizeof(MSG_DATA_WAITED_RSP_S);
+            break;
+
         default:
             return NULL;
     }
@@ -71,4 +83,10 @@ VOID *master_alloc_rspMsg(BYTE byMstAddr, BYTE bySlvAddr, WORD dwSeq, WORD wCmd)
 
     return (VOID *)pstMsgHdr;
 }
+
+DWORD master_send(void *pArg, void *pData, WORD wDataLen, DWORD dwTimeout)
+{
+    
+}
+
 

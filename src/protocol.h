@@ -120,9 +120,15 @@ typedef struct
 typedef struct
 {
     MSG_HDR_S stMsgHdr;
+    DATA_PKG_S stData;
+}__attribute__((__packed__)) MSG_DATA_WAITED_REQ_S;
+
+typedef struct
+{
+    MSG_HDR_S stMsgHdr;
     DWORD dwDataCount;
     DATA_PKG_S astDatas[];
-}__attribute__((__packed__)) MSG_DATA_WAITED_REQ_S;
+}__attribute__((__packed__)) MSG_DATA_WAITED_PKGS_REQ_S;
 
 enum
 {
@@ -152,9 +158,16 @@ typedef struct
 typedef struct
 {
     MSG_HDR_S stMsgHdr;
+    DATA_RESULT_S stDataResult;
+}__attribute__((__packed__)) MSG_DATA_WAITED_RSP_S;
+
+
+typedef struct
+{
+    MSG_HDR_S stMsgHdr;
     DWORD dwDataCount;
     DATA_RESULT_S astDataResults[];
-}__attribute__((__packed__)) MSG_DATA_WAITED_RSP_S;
+}__attribute__((__packed__)) MSG_DATA_WAITED_PKGS_RSP_S;
 
 #pragma pack(pop)
 
