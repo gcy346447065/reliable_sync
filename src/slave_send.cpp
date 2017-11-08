@@ -6,8 +6,8 @@
 #include "mbufer.h"
 #include "log.h"
 
-extern BYTE g_slv_byMstAddr;
-extern BYTE g_slv_bySlvAddr;
+extern WORD g_slv_wMstAddr;
+extern WORD g_slv_wSlvAddr;
 extern mbufer *g_pSlvMbufer;
 
 static WORD g_dwSeq = 0;
@@ -51,7 +51,7 @@ DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen)
     /* 将mbufer发送消息体发送出去 */
     //MSG_INFO_S stSendMsgInfo = {0, (DWORD)pbySendBuf, 0, 0};
     MSG_INFO_S stSendMsgInfo = {0, 0, 0, 0};
-    dwRet = g_pSlvMbufer->send_message(g_slv_byMstAddr, stSendMsgInfo, wOffset);
+    dwRet = g_pSlvMbufer->send_message(g_slv_wMstAddr, stSendMsgInfo, wOffset);
     if (dwRet != SUCCESS)
     {
         log_error(LOG1, "send_message error!");
@@ -84,8 +84,8 @@ VOID *slave_alloc_reqMsg(WORD wCmd)
     if(pstMsgHdr)
     {
         pstMsgHdr->wSig  = htons(START_SIG_1);
-        pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
-        pstMsgHdr->wDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->wSrcAddr = g_slv_wSlvAddr;
+        pstMsgHdr->wDstAddr = g_slv_wMstAddr;
         pstMsgHdr->dwSeq = g_dwSeq++;
         pstMsgHdr->wCmd = wCmd;
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
@@ -115,8 +115,8 @@ VOID *slave_alloc_rspMsg(WORD dwSeq, WORD wCmd)
     if(pstMsgHdr)
     {
         pstMsgHdr->wSig  = htons(START_SIG_1);
-        pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
-        pstMsgHdr->wDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->wSrcAddr = g_slv_wSlvAddr;
+        pstMsgHdr->wDstAddr = g_slv_wMstAddr;
         pstMsgHdr->dwSeq = dwSeq;
         pstMsgHdr->wCmd = wCmd;
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
@@ -133,8 +133,8 @@ VOID *slave_alloc_dataWaitedRspMsg(WORD dwSeq, WORD wDataQty)
     if(pstMsgHdr)
     {
         pstMsgHdr->wSig  = htons(START_SIG_1);
-        pstMsgHdr->wSrcAddr = g_slv_bySlvAddr;
-        pstMsgHdr->wDstAddr = g_slv_byMstAddr;
+        pstMsgHdr->wSrcAddr = g_slv_wSlvAddr;
+        pstMsgHdr->wDstAddr = g_slv_wMstAddr;
         pstMsgHdr->dwSeq = dwSeq;
         pstMsgHdr->wCmd = CMD_DATA_WAITED;
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);

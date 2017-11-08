@@ -37,9 +37,7 @@ DWORD vos::vos_RegTask(const CHAR *pcTaskName, DWORD dwTaskEventFd, TASK_FUNC pT
         mapTask.insert(make_pair(pcTaskName, stVosTask));
     }
 	else//该pcTaskName已经注册过
-	{
-	    //
-	}
+	{}
     
     //log_debug(byLogNum, "vos_RegTask ok.");
     return SUCCESS;

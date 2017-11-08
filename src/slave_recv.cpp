@@ -8,8 +8,8 @@
 #include "timer.h"
 #include "log.h"
 
-extern BYTE g_slv_byMstAddr;
-extern BYTE g_slv_bySlvAddr;
+extern WORD g_slv_wMstAddr;
+extern WORD g_slv_wSlvAddr;
 extern mbufer *g_pSlvMbufer;
 extern timer *g_pSlvRegTimer;
 
@@ -62,11 +62,11 @@ static DWORD slave_login(const BYTE *pbyMsg)
         return FAILE;
     }
 
-    log_debug(LOG1, "bySlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHdr.wDstAddr, pstRsp->byLoginResult);
+    log_debug(LOG1, "wSlvAddr(%d), byLoginResult(%d).", pstRsp->stMsgHdr.wDstAddr, pstRsp->byLoginResult);
     if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
     {
         //收到登录成功回复包
-        log_info(LOG1, "This bySlvAddr(%d) logged success.", pstRsp->stMsgHdr.wDstAddr);
+        log_info(LOG1, "This wSlvAddr(%d) logged success.", pstRsp->stMsgHdr.wDstAddr);
 
         dwRet = g_pSlvRegTimer->stop();
         if(dwRet != SUCCESS)
@@ -169,15 +169,15 @@ DWORD slave_msgHandle(const BYTE *pbyMsg, WORD wMsgLen)
         return FAILE;
     }
 
-    if(pstMsgHdr->wSrcAddr != g_slv_byMstAddr)
+    if(pstMsgHdr->wSrcAddr != g_slv_wMstAddr)
     {
-        log_error(LOG1, "wSrcAddr(%u) not equal to g_byMstAddr(%u)", pstMsgHdr->wSrcAddr, g_slv_byMstAddr);
+        log_error(LOG1, "wSrcAddr(%u) not equal to g_wMstAddr(%u)", pstMsgHdr->wSrcAddr, g_slv_wMstAddr);
         return FAILE;
     }
 
-    if(pstMsgHdr->wDstAddr != g_slv_bySlvAddr)
+    if(pstMsgHdr->wDstAddr != g_slv_wSlvAddr)
     {
-        log_error(LOG1, "byDstAddr(%u) not equal to g_bySlvAddr(%u)", pstMsgHdr->wDstAddr, g_slv_bySlvAddr);
+        log_error(LOG1, "byDstAddr(%u) not equal to g_wSlvAddr(%u)", pstMsgHdr->wDstAddr, g_slv_wSlvAddr);
         return FAILE;
     }
 

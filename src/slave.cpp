@@ -20,15 +20,15 @@ dmm *g_pSlaveDmm;
 mbufer *g_pSlvMbufer;
 timer *g_pSlvRegTimer;
 
-BYTE g_slv_byMstAddr;
-BYTE g_slv_bySlvAddr;
+WORD g_slv_wMstAddr;
+WORD g_slv_wSlvAddr;
 
 DWORD slave_stdinProc(void *pSlv)
 {
     DWORD dwRet = SUCCESS;
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave_stdinProc(), dwSlaveHEHE(%u)", dwSlaveHEHE);
+    log_debug(byLogNum, "slave_stdinProc(), dwSlaveHEHE(%u).", dwSlaveHEHE);
 
     return dwRet;
 }
@@ -122,8 +122,8 @@ DWORD slave::slave_Init()
     pMbufer = new mbufer(byLogNum);
 
     /* 创建邮箱并注册到vos */
-    log_debug(byLogNum, "byMstAddr(%d), bySlvAddr(%d).", byMstAddr, bySlvAddr);
-    dwRet = pDmm->create_mailbox(&pMbufer, bySlvAddr, "slv_mb");
+    log_debug(byLogNum, "wMstAddr(%d), wSlvAddr(%d).", wMstAddr, wSlvAddr);
+    dwRet = pDmm->create_mailbox(&pMbufer, wSlvAddr, "slv_mb");
     if(dwRet != SUCCESS)
     {
         log_error(byLogNum, "create_mailbox error!");

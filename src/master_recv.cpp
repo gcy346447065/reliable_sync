@@ -32,10 +32,16 @@ DWORD master_recv(void *pMst, void *pRecvBuf, WORD *pwBufLen)
 
 static DWORD master_login(void *pMst, const void *pMsg)
 {
-    master *pclsMst = (master *)pMst;
-    BYTE byMstAddr = pclsMst->byMstAddr;
-    BYTE byLogNum = pclsMst->byLogNum;
     DWORD dwRet = SUCCESS;
+    master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+    WORD wMstAddr = pclsMst->wMstAddr;
+    mbufer *pMbufer = pclsMst->pMbufer;
+    if(!pMbufer)
+    {
+        log_error(byLogNum, "pMbufer error!");
+        return FAILE;
+    }
     log_debug(byLogNum, "master_login().");
 
     const MSG_LOGIN_REQ_S *pstReq = (const MSG_LOGIN_REQ_S *)pMsg;
@@ -46,45 +52,62 @@ static DWORD master_login(void *pMst, const void *pMsg)
     }
     if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_LOGIN_REQ_S) - MSG_HDR_LEN)
     {
-        log_error(byLogNum, "msg length not enough!");
-        return FAILE;
-    }
-    BYTE bySlvAddr = pstReq->stMsgHdr.wSrcAddr;
-    log_debug(byLogNum, "bySlvAddr(%d).", bySlvAddr);
-    
-    MSG_LOGIN_RSP_S *pstRsp = (MSG_LOGIN_RSP_S *)master_alloc_rspMsg(byMstAddr, bySlvAddr, pstReq->stMsgHdr.dwSeq, CMD_LOGIN);
-    if(!pstRsp)
-    {
-        log_error(byLogNum, "master_alloc_rspMsg error!");
+        log_error(byLogNum, "msg wLen not enough!");
         return FAILE;
     }
 
-    //dwRet = g_mst_pSlvList->slv_insert(bySlvAddr);
-    if(dwRet == FAILE)
+    if(ntohs(pstReq->stMsgHdr.wSig) == START_SIG_1)
     {
-        pstRsp->byLoginResult = LOGIN_RESULT_ERROR;
-        log_info(byLogNum, "This bySlvAddr(%d) register failed.", bySlvAddr);
+        log_debug(byLogNum, "START_SIG_1 login.");
+
+        WORD wTaskAddr = ntohs(pstReq->stMsgHdr.wSrcAddr);
+        if(pclsMst->wTaskAddr == 0)
+        {
+            pclsMst->wTaskAddr = wTaskAddr;
+
+            MSG_LOGIN_RSP_S *pstRsp = (MSG_LOGIN_RSP_S *)master_alloc_rspMsg(wMstAddr, wTaskAddr, 
+                START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_LOGIN);
+            if(!pstRsp)
+            {
+                log_error(byLogNum, "master_alloc_rspMsg error!");
+                return FAILE;
+            }
+            pstRsp->byLoginResult = LOGIN_RESULT_SUCCEED;
+
+            dwRet = master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_LOGIN_RSP_S));
+            if(dwRet != SUCCESS)
+            {
+                log_error(byLogNum, "master_sendToOne error!");
+            }
+            free(pstRsp);
+        }
     }
-    else if(dwRet == SLV_HAS_REGED)
+    else if(ntohs(pstReq->stMsgHdr.wSig) == START_SIG_2)
     {
-        pstRsp->byLoginResult = LOGIN_RESULT_REGED;
-        log_info(byLogNum, "This bySlvAddr(%d) has registered.", bySlvAddr);
-    }
-    else if(dwRet == SUCCESS)
-    {
+        log_debug(byLogNum, "START_SIG_2 login.");
+
+        WORD wSlvAddr = ntohs(pstReq->stMsgHdr.wSrcAddr);
+        log_debug(byLogNum, "wSlvAddr(%d).", wSlvAddr);
+        //记录下wSlvAddr
+
+        MSG_LOGIN_RSP_S *pstRsp = (MSG_LOGIN_RSP_S *)master_alloc_rspMsg(wMstAddr, wSlvAddr, 
+            START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_LOGIN);
+        if(!pstRsp)
+        {
+            log_error(byLogNum, "master_alloc_rspMsg error!");
+            return FAILE;
+        }
         pstRsp->byLoginResult = LOGIN_RESULT_SUCCEED;
-        log_info(byLogNum, "This bySlvAddr(%d) is registering.", bySlvAddr);
+
+        dwRet = master_sendToSlaves(pMst, (void *)pstRsp, sizeof(MSG_LOGIN_RSP_S));
+        if(dwRet != SUCCESS)
+        {
+            log_error(byLogNum, "master_sendToOne error!");
+        }
+        free(pstRsp);
     }
 
-    //dwRet = master_sendToOne(bySlvAddr, (BYTE *)pstRsp, sizeof(MSG_LOGIN_RSP_S));
-    if(dwRet != SUCCESS)
-    {
-        log_error(byLogNum, "master_sendToOne error!");
-        return FAILE;
-    }
-    
-    free(pstRsp);
-    return SUCCESS;
+    return dwRet;
 }
 
 static DWORD master_keepAlive(void *pMst, const void *pMsg)
@@ -105,10 +128,10 @@ static DWORD master_keepAlive(void *pMst, const void *pMsg)
         log_error(byLogNum, "msg length not enough!");
         return FAILE;
     }
-    BYTE bySlvAddr = pstRsp->stMsgHdr.wSrcAddr;
-    log_debug(byLogNum, "bySlvAddr(%d).", bySlvAddr);
+    BYTE wSlvAddr = pstRsp->stMsgHdr.wSrcAddr;
+    log_debug(byLogNum, "wSlvAddr(%d).", wSlvAddr);
 
-    //dwRet = g_mst_pSlvList->slv_resetKeepaliveSendTimes(bySlvAddr);
+    //dwRet = g_mst_pSlvList->slv_resetKeepaliveSendTimes(wSlvAddr);
     if(dwRet != SUCCESS)
     {
         log_error(byLogNum, "slv_resetKeepaliveSendTimes error!");
@@ -152,20 +175,12 @@ static DWORD master_dataBatch(void *pMst, const void *pMsg)
     //log_debug(byLogNum, "%8x, %8x", pstReq->stData.dwDataStart, pstReq->stData.dwDataStart);
     //log_debug(byLogNum, "%8x, %4x, %4x", pstReq->stData.stData.dwDataID, pstReq->stData.stData.wDataLen, pstReq->stData.stData.wDataChecksum);
 
-    MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)malloc(sizeof(MSG_DATA_BATCH_RSP_S));
-    pstRsp->stMsgHdr.wSig = pstReq->stMsgHdr.wSig;
-    pstRsp->stMsgHdr.wVer = htons(VERSION_INT);
-    pstRsp->stMsgHdr.wSrcAddr = pstReq->stMsgHdr.wDstAddr;
-    pstRsp->stMsgHdr.wDstAddr = pstReq->stMsgHdr.wSrcAddr;
-    pstRsp->stMsgHdr.dwSeq = pstReq->stMsgHdr.dwSeq;
-    pstRsp->stMsgHdr.wCmd = pstReq->stMsgHdr.wCmd;
-    pstRsp->stMsgHdr.wLen = htons(sizeof(MSG_DATA_BATCH_RSP_S));
-
+    MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_BATCH);
     pstRsp->stDataResult.dwDataID = pstReq->stData.stData.dwDataID;
     pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
 
-    BYTE byDstMsgAddr = (BYTE)ntohs(pstReq->stMsgHdr.wSrcAddr);
-    pMbufer->send_message(byDstMsgAddr, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
+    master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
     
     return SUCCESS;
 }
@@ -228,7 +243,7 @@ static DWORD master_msgHandleOne(void *pMst, const MSG_HDR_S *pstMsgHdr)
 DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
 {
     master *pclsMst = (master *)pMst;
-    BYTE byMstAddr = pclsMst->byMstAddr;
+    BYTE wMstAddr = pclsMst->wMstAddr;
     BYTE byLogNum = pclsMst->byLogNum;
     log_debug(byLogNum, "master_msgHandle().");
 
@@ -251,9 +266,9 @@ DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
         wLeftLen = wLeftLen - sizeof(MSG_HDR_S) - ntohs(pstMsgHdr->wLen);
         pbyMsg = pbyMsg + wMsgLen - wLeftLen;
 
-        if(ntohs(pstMsgHdr->wDstAddr) != (WORD)byMstAddr)
+        if(ntohs(pstMsgHdr->wDstAddr) != (WORD)wMstAddr)
         {
-            log_error(byLogNum, "wDstAddr(%u) not equal to byMstAddr(%u)", ntohs(pstMsgHdr->wDstAddr), byMstAddr);
+            log_error(byLogNum, "wDstAddr(%u) not equal to wMstAddr(%u)", ntohs(pstMsgHdr->wDstAddr), wMstAddr);
             continue;
         }
             

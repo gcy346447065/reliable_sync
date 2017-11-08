@@ -1,6 +1,7 @@
 #include <stdlib.h> //for malloc
 #include <netinet/in.h> //for htons
 #include "master_send.h"
+#include "master.h"
 #include "macro.h"
 #include "protocol.h"
 #include "mbufer.h"
@@ -8,7 +9,7 @@
 
 static DWORD g_dwSeq = 0;
 
-VOID *master_alloc_reqMsg(BYTE byMstAddr, BYTE bySlvAddr, WORD wCmd)
+VOID *master_alloc_reqMsg(WORD wSrcAddr, WORD wDstAddr, WORD wCmd)
 {
     WORD wMsgLen = 0;
     switch(wCmd)
@@ -30,8 +31,8 @@ VOID *master_alloc_reqMsg(BYTE byMstAddr, BYTE bySlvAddr, WORD wCmd)
     {
         pstMsgHdr->wSig  = htons(START_SIG_1);
         pstMsgHdr->wVer  = htons(VERSION_INT);
-        pstMsgHdr->wSrcAddr = htons((DWORD)byMstAddr);
-        pstMsgHdr->wDstAddr = htons((DWORD)bySlvAddr);
+        pstMsgHdr->wSrcAddr = htons(wSrcAddr);
+        pstMsgHdr->wDstAddr = htons(wDstAddr);
         pstMsgHdr->dwSeq = htonl(g_dwSeq++);
         pstMsgHdr->wCmd = htons(wCmd);
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
@@ -40,7 +41,7 @@ VOID *master_alloc_reqMsg(BYTE byMstAddr, BYTE bySlvAddr, WORD wCmd)
     return (VOID *)pstMsgHdr;
 }
 
-VOID *master_alloc_rspMsg(BYTE byMstAddr, BYTE bySlvAddr, WORD dwSeq, WORD wCmd)
+VOID *master_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, WORD wCmd)
 {
     WORD wMsgLen = 0;
     switch(wCmd)
@@ -72,21 +73,60 @@ VOID *master_alloc_rspMsg(BYTE byMstAddr, BYTE bySlvAddr, WORD dwSeq, WORD wCmd)
     MSG_HDR_S *pstMsgHdr = (MSG_HDR_S *)malloc(wMsgLen);
     if(pstMsgHdr)
     {
-        pstMsgHdr->wSig  = htons(START_SIG_1);
+        pstMsgHdr->wSig  = htons(wSig);
         pstMsgHdr->wVer  = htons(VERSION_INT);
-        pstMsgHdr->wSrcAddr = byMstAddr;
-        pstMsgHdr->wDstAddr = bySlvAddr;
-        pstMsgHdr->dwSeq = dwSeq;
-        pstMsgHdr->wCmd = wCmd;
+        pstMsgHdr->wSrcAddr = htons(wSrcAddr);
+        pstMsgHdr->wDstAddr = htons(wDstAddr);
+        pstMsgHdr->dwSeq = htonl(dwSeq);
+        pstMsgHdr->wCmd = htons(wCmd);
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
     }
 
     return (VOID *)pstMsgHdr;
 }
 
-DWORD master_send(void *pArg, void *pData, WORD wDataLen, DWORD dwTimeout)
+DWORD master_sendToTask(void *pMst, void *pData, WORD wDataLen)
 {
-    
+    DWORD dwRet = SUCCESS;
+
+    master *pclsMst = (master *)pMst;
+    mbufer *pMbufer = pclsMst->pMbufer;
+    BYTE byLogNum = pclsMst->byLogNum;
+    WORD wTaskAddr = pclsMst->wTaskAddr;
+    log_debug(byLogNum, "master_sendToTask().");
+
+    /* 向主机主备线程接收端口发送数据 */
+    dwRet = pMbufer->send_message(wTaskAddr, pData, wDataLen);
+    if(dwRet != SUCCESS)
+    {
+        log_error(LOG1, "send_message error!");
+        return dwRet;
+    }
+        
+
+    return SUCCESS;
+}
+
+DWORD master_sendToSlaves(void *pMst, void *pData, WORD wDataLen)
+{
+    DWORD dwRet = SUCCESS;
+
+    master *pclsMst = (master *)pMst;
+    mbufer *pMbufer = pclsMst->pMbufer;
+    BYTE byLogNum = pclsMst->byLogNum;
+    WORD wTaskAddr = pclsMst->wTaskAddr;
+    log_debug(byLogNum, "master_sendToSlaves().");
+
+    /* 向主机主备线程接收端口发送数据 */
+    dwRet = pMbufer->send_message(wTaskAddr, pData, wDataLen);
+    if(dwRet != SUCCESS)
+    {
+        log_error(LOG1, "send_message error!");
+        return dwRet;
+    }
+        
+
+    return SUCCESS;
 }
 
 

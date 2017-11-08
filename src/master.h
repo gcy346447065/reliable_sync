@@ -15,18 +15,20 @@ using std::map;
 class master
 {
 public:
-    master(BYTE byAddr = ADDR_MIN, BYTE byNum = LOG1)
+    master(WORD wAddr = ADDR_MIN, BYTE byNum = LOG1)
     {
-        if(byAddr >= ADDR_MIN && byAddr <= ADDR_MAX)
+        if(wAddr >= ADDR_MIN && wAddr <= ADDR_MAX)
         {
-            byMstAddr = byAddr;
+            wMstAddr = wAddr;
             byLogNum = byNum;
         }
         else
         {
-            byMstAddr = ADDR_MIN;
+            wMstAddr = ADDR_MIN;
             byLogNum = byNum;
         }
+        
+        wTaskAddr = 0;//在START_SIG_1的login消息中记录
     }
 
     DWORD master_Init();
@@ -39,7 +41,8 @@ private:
     
 public:
     BYTE byLogNum;
-    BYTE byMstAddr;
+    WORD wMstAddr;
+    WORD wTaskAddr;
     vector<BYTE> vecSlvAddr;
     map<WORD, DATA_BATCH_PKG_S> mapDataBatch;
     map<WORD, DATA_PKG_S> mapDataInstant;
