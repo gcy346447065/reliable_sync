@@ -11,7 +11,7 @@
 
 
 //实际只使用了ppDmmMailbox、stMailboxAddr、dwTaskMacro三个参数
-DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskName)
+DWORD dmm::create_mailbox(mbufer **ppMbufer, WORD wMsgAddr, const CHAR *pcTaskName)
 {
     /* 创建UDP的socket句柄 */
     INT iSockFd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -21,6 +21,7 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
         return FAILE;
     }
 
+    //由于recv时有定时需求，所以在每次调用时自行确定是否为非阻塞
     /* 将socket设置为非阻塞模式 
     INT iMode = 1; 
     INT iCtlRet = ioctl(iSockFd, FIONBIO, &iMode);
@@ -38,7 +39,7 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
     struct sockaddr_in stLclAddr;
     memset(&stLclAddr, 0, sizeof(stLclAddr));
     stLclAddr.sin_family = AF_INET;
-    switch(byMsgAddr)//从创建邮箱的地址映射出实际使用的ip:port
+    switch(wMsgAddr)//从创建邮箱的地址映射出实际使用的ip:port
     {
         case ADDR_1:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_1);
@@ -91,13 +92,13 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskN
             break;
 
         default:
-            log_error(byLogNum, "byMsgAddr error(%d)!", byMsgAddr);
+            log_error(byLogNum, "wMsgAddr error(%d)!", wMsgAddr);
             return FAILE;
     }
     //绑定本端地址
     if(bind(iSockFd, (struct sockaddr *)&stLclAddr, sizeof(stLclAddr)) < 0)
     {
-        log_error(byLogNum, "socket bind(%d) error(%d, %s)!", byMsgAddr, errno, strerror(errno));
+        log_error(byLogNum, "socket bind(%d) error(%d, %s)!", wMsgAddr, errno, strerror(errno));
         return FAILE;
     }
 
@@ -151,14 +152,14 @@ DWORD mbufer::add_to_packet(void *pSendBuf, CMD_S *pstCmdHeader, WORD *pwOffset)
     return SUCCESS;
 }
 
-DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset)
+DWORD mbufer::send_message(WORD wDstAddr, MSG_INFO_S stMsgInfo, WORD wOffset)
 {
     INT iRet = 0;
     //log_debug(LOG1, "byDstMsgAddr(%d).", byDstMsgAddr);
     struct sockaddr_in stDstAddr;
     memset(&stDstAddr, 0, sizeof(stDstAddr));
     stDstAddr.sin_family = AF_INET;
-    switch(byDstMsgAddr)//从创建邮箱的地址映射出实际使用的ip:port
+    switch(wDstAddr)//从创建邮箱的地址映射出实际使用的ip:port
     {
         case ADDR_1:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_1);
@@ -195,8 +196,23 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
             stDstAddr.sin_port = htons(PORT_7);
             break;
 
+        case ADDR_8:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_8);
+            stDstAddr.sin_port = htons(PORT_8);
+            break;
+            
+        case ADDR_9:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_9);
+            stDstAddr.sin_port = htons(PORT_9);
+            break;
+
+        case ADDR_10:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_10);
+            stDstAddr.sin_port = htons(PORT_10);
+            break;
+
         default:
-            log_error(byLogNum, "byDstMsgAddr error(%d)!", byDstMsgAddr);
+            log_error(byLogNum, "wDstAddr error(%d)!", wDstAddr);
             return FAILE;
     }
     
@@ -204,7 +220,7 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
     log_debug(byLogNum, "SO_SNDBUF(%d)", iValue);*/
 
     //log_debug(byLogNum, "g_dwSocketFd(%d).", g_dwSocketFd);
-    BYTE *pbySendBuf = (BYTE *)(stMsgInfo.dwMsgBuf);
+    BYTE *pbySendBuf = (BYTE *)((QWORD)stMsgInfo.dwMsgBuf);
     if((iRet = sendto(dwSocketFd, pbySendBuf, wOffset, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
     {
         log_error(byLogNum, "send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
@@ -225,14 +241,14 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, MSG_INFO_S stMsgInfo, WORD wOffset
     return SUCCESS;
 }
 
-DWORD mbufer::send_message(BYTE byDstMsgAddr, void *pData, WORD wDataLen)
+DWORD mbufer::send_message(WORD wDstAddr, void *pData, WORD wDataLen)
 {
     INT iRet = 0;
     //log_debug(byLogNum, "byDstMsgAddr(%d).", byDstMsgAddr);
     struct sockaddr_in stDstAddr;
     memset(&stDstAddr, 0, sizeof(stDstAddr));
     stDstAddr.sin_family = AF_INET;
-    switch(byDstMsgAddr)//从创建邮箱的地址映射出实际使用的ip:port
+    switch(wDstAddr)//从创建邮箱的地址映射出实际使用的ip:port
     {
         case ADDR_1:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_1);
@@ -269,8 +285,23 @@ DWORD mbufer::send_message(BYTE byDstMsgAddr, void *pData, WORD wDataLen)
             stDstAddr.sin_port = htons(PORT_7);
             break;
 
+        case ADDR_8:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_8);
+            stDstAddr.sin_port = htons(PORT_8);
+            break;
+            
+        case ADDR_9:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_9);
+            stDstAddr.sin_port = htons(PORT_9);
+            break;
+
+        case ADDR_10:
+            stDstAddr.sin_addr.s_addr = inet_addr(IP_10);
+            stDstAddr.sin_port = htons(PORT_10);
+            break;
+
         default:
-            log_error(byLogNum, "byDstMsgAddr error(%d)!", byDstMsgAddr);
+            log_error(byLogNum, "wDstAddr error(%d)!", wDstAddr);
             return FAILE;
     }
     

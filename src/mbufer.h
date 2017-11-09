@@ -52,8 +52,8 @@ public:
     DWORD free_msg(void *pSendBuf);
     DWORD set_cmd_head_flag(void *pSendBuf, DWORD dwSendFlag);
     DWORD add_to_packet(void *pSendBuf, CMD_S *pstCmdHeader, WORD *pwOffset);
-    DWORD send_message(BYTE byDstMsgAddr, MSG_INFO_S stCmdHeader, WORD wOffset);
-    DWORD send_message(BYTE byDstMsgAddr, void *pData, WORD wDataLen);
+    DWORD send_message(WORD wDstAddr, MSG_INFO_S stCmdHeader, WORD wOffset);
+    DWORD send_message(WORD wDstAddr, void *pData, WORD wDataLen);
     
     DWORD receive_message(void *pRecvBuf, WORD *pwBufLen, DWORD dwWaitTime);//单位为微秒
     DWORD get_from_packet(void *pRecvBuf, CMD_S *pstCmdHeader, WORD *pwOffset);
@@ -75,7 +75,7 @@ public:
         byLogNum = byNum;
     }
 
-    DWORD create_mailbox(mbufer **ppMbufer, BYTE byMsgAddr, const CHAR *pcTaskName);
+    DWORD create_mailbox(mbufer **ppMbufer, WORD wMsgAddr, const CHAR *pcTaskName);
     DWORD delete_mailbox(mbufer *pMbufer);
 };
 

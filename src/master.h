@@ -15,7 +15,7 @@ using std::map;
 class master
 {
 public:
-    master(WORD wAddr = ADDR_MIN, BYTE byNum = LOG1)
+    master(BYTE byNum = LOG2, WORD wAddr = ADDR_MIN)
     {
         if(wAddr >= ADDR_MIN && wAddr <= ADDR_MAX)
         {
@@ -43,7 +43,7 @@ public:
     BYTE byLogNum;
     WORD wMstAddr;
     WORD wTaskAddr;
-    vector<BYTE> vecSlvAddr;
+    vector<WORD> vecSlvAddr;
     map<WORD, DATA_BATCH_PKG_S> mapDataBatch;
     map<WORD, DATA_PKG_S> mapDataInstant;
     map<WORD, DATA_PKG_S> mapDataWaited;

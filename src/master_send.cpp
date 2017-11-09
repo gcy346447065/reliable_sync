@@ -88,7 +88,6 @@ VOID *master_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, 
 DWORD master_sendToTask(void *pMst, void *pData, WORD wDataLen)
 {
     DWORD dwRet = SUCCESS;
-
     master *pclsMst = (master *)pMst;
     mbufer *pMbufer = pclsMst->pMbufer;
     BYTE byLogNum = pclsMst->byLogNum;
@@ -99,29 +98,28 @@ DWORD master_sendToTask(void *pMst, void *pData, WORD wDataLen)
     dwRet = pMbufer->send_message(wTaskAddr, pData, wDataLen);
     if(dwRet != SUCCESS)
     {
-        log_error(LOG1, "send_message error!");
+        log_error(byLogNum, "send_message error!");
         return dwRet;
     }
         
-
     return SUCCESS;
 }
 
 DWORD master_sendToSlaves(void *pMst, void *pData, WORD wDataLen)
 {
     DWORD dwRet = SUCCESS;
-
     master *pclsMst = (master *)pMst;
     mbufer *pMbufer = pclsMst->pMbufer;
     BYTE byLogNum = pclsMst->byLogNum;
-    WORD wTaskAddr = pclsMst->wTaskAddr;
+    vector<WORD> vecSlvAddr = pclsMst->vecSlvAddr;
     log_debug(byLogNum, "master_sendToSlaves().");
 
+    WORD wSlvAddr = vecSlvAddr.front();
     /* 向主机主备线程接收端口发送数据 */
-    dwRet = pMbufer->send_message(wTaskAddr, pData, wDataLen);
+    dwRet = pMbufer->send_message(wSlvAddr, pData, wDataLen);
     if(dwRet != SUCCESS)
     {
-        log_error(LOG1, "send_message error!");
+        log_error(byLogNum, "send_message error!");
         return dwRet;
     }
         

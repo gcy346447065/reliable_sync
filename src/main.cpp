@@ -20,7 +20,7 @@ DWORD task_stdinProc(void *pArg);
 class task
 {
 public:
-    task(BOOL bMstOrSlv, WORD wAddr, BYTE byNum)
+    task(BYTE byNum, BOOL bMstOrSlv, WORD wAddr)
     {
         if(bMstOrSlv == TRUE)
         {
@@ -108,7 +108,7 @@ VOID *main_syncThread(VOID *pArg)
     if(pstSyncThread->bMstOrSlv == TRUE)
     {
         //master开机初始化
-        master *pclsMst = new master(pstSyncThread->wMstAddr, LOG2);
+        master *pclsMst = new master(LOG2, pstSyncThread->wMstAddr);
         pclsMst->master_Init();
 
         //master循环
@@ -120,7 +120,7 @@ VOID *main_syncThread(VOID *pArg)
     else
     {
         //slave开机初始化
-        slave *pclsSlv = new slave(pstSyncThread->wMstAddr, pstSyncThread->wSlvAddr, LOG3);
+        slave *pclsSlv = new slave(LOG3, pstSyncThread->wMstAddr, pstSyncThread->wSlvAddr);
         pclsSlv->slave_Init();
 
         //slave循环
@@ -188,6 +188,24 @@ static DWORD g_dwBatchID = 0;
 static DWORD g_dwInstantID = 0;
 static DWORD g_dwWaitedID = 0;
 
+void *task_allocLogin(WORD wSrcAddr, WORD wDstAddr)
+{
+    //log_debug(LOG1, "wPkgCount(%d).", wPkgCount);
+    MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)malloc(sizeof(MSG_LOGIN_REQ_S));
+    if(pstLogin)
+    {
+        pstLogin->stMsgHdr.wSig = htons(START_SIG_1);
+        pstLogin->stMsgHdr.wVer = htons(VERSION_INT);
+        pstLogin->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstLogin->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstLogin->stMsgHdr.dwSeq = htonl(g_dwDataSeq++);
+        pstLogin->stMsgHdr.wCmd = htons(CMD_LOGIN);
+        pstLogin->stMsgHdr.wLen = htons(0);
+    }
+
+    return (void *)pstLogin;
+}
+
 //此函数申请的内存会在同一次批量备份时复用多次
 void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
 {
@@ -227,7 +245,7 @@ void *task_allocDataInstant(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufL
         pstInstant->stMsgHdr.wDstAddr = htons(wDstAddr);
         pstInstant->stMsgHdr.dwSeq = htonl(g_dwDataSeq++);
         pstInstant->stMsgHdr.wCmd = htons(CMD_DATA_INSTANT);
-        pstInstant->stMsgHdr.wLen = htons(wMsgLen);
+        pstInstant->stMsgHdr.wLen = htons(wMsgLen - MSG_HDR_LEN);
 
         pstInstant->stData.dwDataID = htonl(g_dwInstantID++);
         pstInstant->stData.wDataLen = htons(wBufLen);
@@ -256,7 +274,7 @@ void *task_allocDataWaited(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufLe
         pstWaited->stMsgHdr.wDstAddr = htons(wDstAddr);
         pstWaited->stMsgHdr.dwSeq = htonl(g_dwDataSeq++);
         pstWaited->stMsgHdr.wCmd = htons(CMD_DATA_WAITED);
-        pstWaited->stMsgHdr.wLen = htons(wMsgLen);//后面在循环中写入
+        pstWaited->stMsgHdr.wLen = htons(wMsgLen - MSG_HDR_LEN);
 
         pstWaited->stData.dwDataID = htonl(g_dwWaitedID++);
         pstWaited->stData.wDataLen = htons(wBufLen);
@@ -267,6 +285,7 @@ void *task_allocDataWaited(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufLe
     return (void *)pstWaited;
 }
 
+static bool bTaskLogin = FALSE;
 
 DWORD task_stdinProc(void *pArg)
 {
@@ -276,6 +295,26 @@ DWORD task_stdinProc(void *pArg)
     WORD wTaskAddr = pclsTask->wTaskAddr;
     WORD wMstAddr = pclsTask->wMstAddr;
     log_debug(byLogNum, "task_stdinProc().");
+
+    /* 第一次触发时向master发送一次登录包，以方便记录wTaskAddr */
+    if(bTaskLogin == FALSE)
+    {
+        MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)task_allocLogin(wTaskAddr, wMstAddr);
+        if(!pstLogin)
+        {
+            log_error(byLogNum, "task_allocLogin error!");
+            return FAILE;
+        }
+
+        dwRet = task_sendReliableSync(pArg, pstLogin, sizeof(MSG_LOGIN_REQ_S), 1 * 1000 * 1000);//单位us
+        if(dwRet == FAILE)
+        {
+            log_error(byLogNum, "task_sendReliableSync error(%u)!", dwRet);
+            return FAILE;
+        }
+
+        bTaskLogin = TRUE;
+    }
 
     //从控制台读取键入字符串
     CHAR *pcStdinBuf = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
@@ -288,13 +327,13 @@ DWORD task_stdinProc(void *pArg)
         return FAILE;
     }
     pcStdinBuf[iRet - 1] = '\0'; //-1 for '\n' turn to '\0'
-    //log_debug(LOG1, "pcStdinBuf(%s)", pcStdinBuf);
+    //log_debug(byLogNum, "pcStdinBuf(%s)", pcStdinBuf);
 
     INT iFileNum = 0;
     CHAR acTmpBuf[2];
     if(sscanf(pcStdinBuf, "?%d%[KM]file", &iFileNum, acTmpBuf) == 2)//%[M]提取M是因为否则2Kfile也能进入第一个流程，这样对M敏感后可以避免此BUG
     {
-        //log_debug(LOG1, "batchFile(%d,%s)", iFileNum, acTmpBuf);
+        //log_debug(byLogNum, "batchFile(%d,%s)", iFileNum, acTmpBuf);
         //批量备份，最大60M
         CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
         memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
@@ -534,8 +573,8 @@ INT main(INT argc, CHAR *argv[])
     pthread_t syncThreadId;
     SYNC_THREAD_S stSyncThread;
     stSyncThread.bMstOrSlv = bMstOrSlv;
-    stSyncThread.wMstAddr = (BYTE)iMstAddr;
-    stSyncThread.wSlvAddr = (BYTE)iSlvAddr;
+    stSyncThread.wMstAddr = (WORD)iMstAddr;
+    stSyncThread.wSlvAddr = (WORD)iSlvAddr;
     INT iRet = pthread_create(&syncThreadId, NULL, main_syncThread, (void *)&stSyncThread);
     if(iRet != SUCCESS)
     {
@@ -544,7 +583,7 @@ INT main(INT argc, CHAR *argv[])
     }
 
     /* 业务流程初始化 */
-    task *pclsTask = new task(bMstOrSlv, bMstOrSlv ? (BYTE)iMstAddr : (BYTE)iSlvAddr, byLogNum);
+    task *pclsTask = new task(byLogNum, bMstOrSlv, bMstOrSlv ? (WORD)iMstAddr : (WORD)iSlvAddr);
     pclsTask->task_Init();
 
     /* 业务流程epoll循环 */

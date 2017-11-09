@@ -13,7 +13,7 @@ using std::map;
 class slave
 {
 public:
-    slave(BYTE wMstAddr = ADDR_MIN, BYTE wSlvAddr = ADDR_2, BYTE byNum = LOG1)
+    slave(BYTE byNum = LOG3, BYTE wMstAddr = ADDR_MIN, BYTE wSlvAddr = ADDR_2)
     {
         if(wMstAddr >= ADDR_MIN && wMstAddr <= ADDR_MAX)
         {

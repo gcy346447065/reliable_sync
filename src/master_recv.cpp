@@ -274,6 +274,10 @@ DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
             
         master_msgHandleOne(pMst, pstMsgHdr);//ntohs(pwSig[0])：START_SIG_1时为主机业务线程下发数据的消息，START_SIG_2时为备机主备线程回复的消息
         pwSig = (const WORD *)pbyMsg;
+        if(wLeftLen == 0)
+        {
+            break;
+        }
     }
     
     return SUCCESS;
