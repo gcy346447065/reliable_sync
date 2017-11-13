@@ -50,8 +50,7 @@ DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen)
 
     /* 将mbufer发送消息体发送出去 */
     //MSG_INFO_S stSendMsgInfo = {0, (DWORD)pbySendBuf, 0, 0};
-    MSG_INFO_S stSendMsgInfo = {0, 0, 0, 0};
-    dwRet = g_pSlvMbufer->send_message(g_slv_wMstAddr, stSendMsgInfo, wOffset);
+    dwRet = g_pSlvMbufer->send_message(g_slv_wMstAddr, pbySendBuf, wOffset);
     if (dwRet != SUCCESS)
     {
         log_error(LOG1, "send_message error!");

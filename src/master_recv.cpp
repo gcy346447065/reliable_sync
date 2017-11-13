@@ -58,7 +58,7 @@ static DWORD master_login(void *pMst, const void *pMsg)
 
     if(ntohs(pstReq->stMsgHdr.wSig) == START_SIG_1)
     {
-        log_debug(byLogNum, "START_SIG_1 login.");
+        log_debug(byLogNum, "START_SIG_1 login, task to master.");
 
         WORD wTaskAddr = ntohs(pstReq->stMsgHdr.wSrcAddr);
         if(pclsMst->wTaskAddr == 0)
@@ -84,7 +84,7 @@ static DWORD master_login(void *pMst, const void *pMsg)
     }
     else if(ntohs(pstReq->stMsgHdr.wSig) == START_SIG_2)
     {
-        log_debug(byLogNum, "START_SIG_2 login.");
+        log_debug(byLogNum, "START_SIG_2 login, slave to master.");
 
         WORD wSlvAddr = ntohs(pstReq->stMsgHdr.wSrcAddr);
         log_debug(byLogNum, "wSlvAddr(%d).", wSlvAddr);
@@ -189,7 +189,37 @@ static DWORD master_dataInstant(void *pMst, const void *pMsg)
 {
     master *pclsMst = (master *)pMst;
     BYTE byLogNum = pclsMst->byLogNum;
+    mbufer *pMbufer = pclsMst->pMbufer;
+    if(!pMbufer)
+    {
+        log_error(byLogNum, "pMbufer error!");
+        return FAILE;
+    }
     log_debug(byLogNum, "master_dataInstant().");
+
+    const MSG_DATA_INSTANT_REQ_S *pstReq = (const MSG_DATA_INSTANT_REQ_S *)pMsg;
+    if(!pstReq)
+    {
+        log_error(byLogNum, "msg handle empty!");
+        return FAILE;
+    }
+    if(ntohs(pstReq->stMsgHdr.wSig) != START_SIG_1)
+    {
+        log_error(byLogNum, "msg wSig error!");
+        return FAILE;
+    }
+    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_INSTANT_REQ_S) - MSG_HDR_LEN)
+    {
+        log_error(byLogNum, "msg wLen not enough!");
+        return FAILE;
+    }
+
+    MSG_DATA_INSTANT_RSP_S *pstRsp = (MSG_DATA_INSTANT_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_INSTANT);
+    pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
+    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
+
+    master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_INSTANT_RSP_S));
     
     return SUCCESS;
 }
@@ -198,7 +228,37 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
 {
     master *pclsMst = (master *)pMst;
     BYTE byLogNum = pclsMst->byLogNum;
+    mbufer *pMbufer = pclsMst->pMbufer;
+    if(!pMbufer)
+    {
+        log_error(byLogNum, "pMbufer error!");
+        return FAILE;
+    }
     log_debug(byLogNum, "master_dataWaited().");
+
+    const MSG_DATA_WAITED_REQ_S *pstReq = (const MSG_DATA_WAITED_REQ_S *)pMsg;
+    if(!pstReq)
+    {
+        log_error(byLogNum, "msg handle empty!");
+        return FAILE;
+    }
+    if(ntohs(pstReq->stMsgHdr.wSig) != START_SIG_1)
+    {
+        log_error(byLogNum, "msg wSig error!");
+        return FAILE;
+    }
+    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_WAITED_REQ_S) - MSG_HDR_LEN)
+    {
+        log_error(byLogNum, "msg wLen not enough!");
+        return FAILE;
+    }
+
+    MSG_DATA_WAITED_RSP_S *pstRsp = (MSG_DATA_WAITED_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_INSTANT);
+    pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
+    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
+
+    master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_WAITED_RSP_S));
     
     return SUCCESS;
 }

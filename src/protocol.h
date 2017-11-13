@@ -161,7 +161,6 @@ typedef struct
     DATA_RESULT_S stDataResult;
 }__attribute__((__packed__)) MSG_DATA_WAITED_RSP_S;
 
-
 typedef struct
 {
     MSG_HDR_S stMsgHdr;

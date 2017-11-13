@@ -13,20 +13,21 @@ using std::map;
 class slave
 {
 public:
-    slave(BYTE byNum = LOG3, BYTE wMstAddr = ADDR_MIN, BYTE wSlvAddr = ADDR_2)
+    slave(BYTE byNum, BYTE wMstAddr, BYTE wSlvAddr)
     {
-        if(wMstAddr >= ADDR_MIN && wMstAddr <= ADDR_MAX)
+        if(wMstAddr >= ADDR_MIN && wMstAddr <= ADDR_MAX && wSlvAddr >= ADDR_MIN && wSlvAddr <= ADDR_MAX)
         {
             this->wMstAddr = wMstAddr;
             this->wSlvAddr = wSlvAddr;
-            byLogNum = byNum;
         }
         else
         {
+            log_error(byNum, "slave addr error!");
             this->wMstAddr = ADDR_MIN;
-            this->wSlvAddr = ADDR_2;
-            byLogNum = byNum;
+            this->wSlvAddr = ADDR_MIN;
         }
+
+        this->byLogNum = byNum;
     }
 
     DWORD slave_Init();

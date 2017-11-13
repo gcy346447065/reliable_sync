@@ -43,48 +43,48 @@ typedef char                *PCHAR;
 #define MAX_STDIN_FILE_LEN 128
 #define MAX_EPOLL_NUM 64
 
-#define ADDR_1      1
+#define ADDR_1_114  1
 #define IP_1        "192.168.11.114"
 #define PORT_1      8761
 
-#define ADDR_2      2
+#define ADDR_2_114  2
 #define IP_2        "192.168.11.114"
 #define PORT_2      8762
 
-#define ADDR_3      3
+#define ADDR_3_114  3
 #define IP_3        "192.168.11.114"
 #define PORT_3      8763
 
-#define ADDR_4      4
+#define ADDR_4_114  4
 #define IP_4        "192.168.11.114"
 #define PORT_4      8764
 
-#define ADDR_5      5
+#define ADDR_5_114  5
 #define IP_5        "192.168.11.114"
 #define PORT_5      8765
 
-#define ADDR_6      6
-#define IP_6        "192.168.11.114"
+#define ADDR_6_119  6
+#define IP_6        "192.168.11.119"
 #define PORT_6      8766
 
-#define ADDR_7      7
-#define IP_7        "192.168.11.114"
+#define ADDR_7_119  7
+#define IP_7        "192.168.11.119"
 #define PORT_7      8767
 
-#define ADDR_8      8
-#define IP_8        "192.168.11.114"
+#define ADDR_8_119  8
+#define IP_8        "192.168.11.119"
 #define PORT_8      8768
 
-#define ADDR_9      9
-#define IP_9        "192.168.11.114"
+#define ADDR_9_119  9
+#define IP_9        "192.168.11.119"
 #define PORT_9      8769
 
-#define ADDR_10     10
-#define IP_10       "192.168.11.114"
+#define ADDR_10_119 10
+#define IP_10       "192.168.11.119"
 #define PORT_10     8770
 
-#define ADDR_MIN    ADDR_1
-#define ADDR_MAX    ADDR_10
+#define ADDR_MIN    ADDR_1_114
+#define ADDR_MAX    ADDR_10_119
 
 
 

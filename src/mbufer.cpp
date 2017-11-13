@@ -41,52 +41,52 @@ DWORD dmm::create_mailbox(mbufer **ppMbufer, WORD wMsgAddr, const CHAR *pcTaskNa
     stLclAddr.sin_family = AF_INET;
     switch(wMsgAddr)//从创建邮箱的地址映射出实际使用的ip:port
     {
-        case ADDR_1:
+        case ADDR_1_114:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_1);
             stLclAddr.sin_port = htons(PORT_1);
             break;
 
-        case ADDR_2:
+        case ADDR_2_114:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_2);
             stLclAddr.sin_port = htons(PORT_2);
             break;
 
-        case ADDR_3:
+        case ADDR_3_114:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_3);
             stLclAddr.sin_port = htons(PORT_3);
             break;
 
-        case ADDR_4:
+        case ADDR_4_114:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_4);
             stLclAddr.sin_port = htons(PORT_4);
             break;
 
-        case ADDR_5:
+        case ADDR_5_114:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_5);
             stLclAddr.sin_port = htons(PORT_5);
             break;
 
-        case ADDR_6:
+        case ADDR_6_119:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_6);
             stLclAddr.sin_port = htons(PORT_6);
             break;
 
-        case ADDR_7:
+        case ADDR_7_119:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_7);
             stLclAddr.sin_port = htons(PORT_7);
             break;
 
-        case ADDR_8:
+        case ADDR_8_119:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_8);
             stLclAddr.sin_port = htons(PORT_8);
             break;
 
-        case ADDR_9:
+        case ADDR_9_119:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_9);
             stLclAddr.sin_port = htons(PORT_9);
             break;
 
-        case ADDR_10:
+        case ADDR_10_119:
             stLclAddr.sin_addr.s_addr = inet_addr(IP_10);
             stLclAddr.sin_port = htons(PORT_10);
             break;
@@ -152,95 +152,6 @@ DWORD mbufer::add_to_packet(void *pSendBuf, CMD_S *pstCmdHeader, WORD *pwOffset)
     return SUCCESS;
 }
 
-DWORD mbufer::send_message(WORD wDstAddr, MSG_INFO_S stMsgInfo, WORD wOffset)
-{
-    INT iRet = 0;
-    //log_debug(LOG1, "byDstMsgAddr(%d).", byDstMsgAddr);
-    struct sockaddr_in stDstAddr;
-    memset(&stDstAddr, 0, sizeof(stDstAddr));
-    stDstAddr.sin_family = AF_INET;
-    switch(wDstAddr)//从创建邮箱的地址映射出实际使用的ip:port
-    {
-        case ADDR_1:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_1);
-            stDstAddr.sin_port = htons(PORT_1);
-            break;
-
-        case ADDR_2:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_2);
-            stDstAddr.sin_port = htons(PORT_2);
-            break;
-
-        case ADDR_3:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_3);
-            stDstAddr.sin_port = htons(PORT_3);
-            break;
-
-        case ADDR_4:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_4);
-            stDstAddr.sin_port = htons(PORT_4);
-            break;
-
-        case ADDR_5:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_5);
-            stDstAddr.sin_port = htons(PORT_5);
-            break;
-
-        case ADDR_6:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_6);
-            stDstAddr.sin_port = htons(PORT_6);
-            break;
-
-        case ADDR_7:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_7);
-            stDstAddr.sin_port = htons(PORT_7);
-            break;
-
-        case ADDR_8:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_8);
-            stDstAddr.sin_port = htons(PORT_8);
-            break;
-            
-        case ADDR_9:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_9);
-            stDstAddr.sin_port = htons(PORT_9);
-            break;
-
-        case ADDR_10:
-            stDstAddr.sin_addr.s_addr = inet_addr(IP_10);
-            stDstAddr.sin_port = htons(PORT_10);
-            break;
-
-        default:
-            log_error(byLogNum, "wDstAddr error(%d)!", wDstAddr);
-            return FAILE;
-    }
-    
-    /*getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
-    log_debug(byLogNum, "SO_SNDBUF(%d)", iValue);*/
-
-    //log_debug(byLogNum, "g_dwSocketFd(%d).", g_dwSocketFd);
-    BYTE *pbySendBuf = (BYTE *)((QWORD)stMsgInfo.dwMsgBuf);
-    if((iRet = sendto(dwSocketFd, pbySendBuf, wOffset, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
-    {
-        log_error(byLogNum, "send_message error(%d), errno(%d,%s)!", iRet, errno, strerror(errno));
-        return FAILE;
-    }
-    //log_debug(byLogNum, "sendto(%d).", iRet);
-
-    /*INT iValue = 0;
-    socklen_t optlen = 0;
-    getsockopt(g_dwSocketFd, SOL_SOCKET, SO_SNDBUF, &iValue, &optlen);
-    log_debug(LObyLogNumG1, "SO_SNDBUF(%d), sendto(%d)", iValue, iRet);*/
-    
-    /*if((iRet = sendto(g_dwSocketFd, "test", 4, 0, (struct sockaddr *)&stDstAddr, sizeof(stDstAddr))) < 0)
-    {
-        log_error(byLogNum, "send_message error(%d)!", iRet);
-    }*/
-
-    return SUCCESS;
-}
-
 DWORD mbufer::send_message(WORD wDstAddr, void *pData, WORD wDataLen)
 {
     INT iRet = 0;
@@ -250,52 +161,52 @@ DWORD mbufer::send_message(WORD wDstAddr, void *pData, WORD wDataLen)
     stDstAddr.sin_family = AF_INET;
     switch(wDstAddr)//从创建邮箱的地址映射出实际使用的ip:port
     {
-        case ADDR_1:
+        case ADDR_1_114:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_1);
             stDstAddr.sin_port = htons(PORT_1);
             break;
 
-        case ADDR_2:
+        case ADDR_2_114:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_2);
             stDstAddr.sin_port = htons(PORT_2);
             break;
 
-        case ADDR_3:
+        case ADDR_3_114:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_3);
             stDstAddr.sin_port = htons(PORT_3);
             break;
 
-        case ADDR_4:
+        case ADDR_4_114:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_4);
             stDstAddr.sin_port = htons(PORT_4);
             break;
 
-        case ADDR_5:
+        case ADDR_5_114:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_5);
             stDstAddr.sin_port = htons(PORT_5);
             break;
 
-        case ADDR_6:
+        case ADDR_6_119:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_6);
             stDstAddr.sin_port = htons(PORT_6);
             break;
 
-        case ADDR_7:
+        case ADDR_7_119:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_7);
             stDstAddr.sin_port = htons(PORT_7);
             break;
 
-        case ADDR_8:
+        case ADDR_8_119:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_8);
             stDstAddr.sin_port = htons(PORT_8);
             break;
             
-        case ADDR_9:
+        case ADDR_9_119:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_9);
             stDstAddr.sin_port = htons(PORT_9);
             break;
 
-        case ADDR_10:
+        case ADDR_10_119:
             stDstAddr.sin_addr.s_addr = inet_addr(IP_10);
             stDstAddr.sin_port = htons(PORT_10);
             break;

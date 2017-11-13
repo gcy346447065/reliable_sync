@@ -15,19 +15,19 @@ using std::map;
 class master
 {
 public:
-    master(BYTE byNum = LOG2, WORD wAddr = ADDR_MIN)
+    master(BYTE byNum, WORD wAddr)
     {
         if(wAddr >= ADDR_MIN && wAddr <= ADDR_MAX)
         {
             wMstAddr = wAddr;
-            byLogNum = byNum;
         }
         else
         {
+            log_error(byNum, "master addr error!");
             wMstAddr = ADDR_MIN;
-            byLogNum = byNum;
         }
         
+        byLogNum = byNum;
         wTaskAddr = 0;//在START_SIG_1的login消息中记录
     }
 

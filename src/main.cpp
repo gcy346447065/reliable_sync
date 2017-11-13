@@ -14,8 +14,11 @@
 #include "mbufer.h"
 #include "master.h"
 #include "slave.h"
+#include "protocol.h"
 
 DWORD task_stdinProc(void *pArg);
+void *task_allocLogin(WORD wSrcAddr, WORD wDstAddr);
+DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTimeout);
 
 class task
 {
@@ -24,13 +27,13 @@ public:
     {
         if(bMstOrSlv == TRUE)
         {
-            wTaskAddr = ADDR_10;//master
+            wTaskAddr = ADDR_2_114;//master task
             wMstAddr = wAddr;
             byLogNum = byNum;
         }
         else
         {
-            wTaskAddr = ADDR_9;//slave
+            wTaskAddr = ADDR_6_119;//slave task
             wMstAddr = wAddr;
             byLogNum = byNum;
         }
@@ -66,6 +69,21 @@ public:
             log_error(byLogNum, "vos_RegTask error!");
             return FAILE;
         }
+
+        /* 向master发送一次登录包，以方便记录wTaskAddr */
+        MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)task_allocLogin(wTaskAddr, wMstAddr);
+        if(!pstLogin)
+        {
+            log_error(byLogNum, "task_allocLogin error!");
+            return FAILE;
+        }
+        //log_hex_8(byLogNum, pstLogin, 16);
+        dwRet = task_sendReliableSync((void *)this, pstLogin, sizeof(MSG_LOGIN_REQ_S), 1 * 1000 * 1000);//单位us
+        if(dwRet == FAILE)
+        {
+            log_error(byLogNum, "task_sendReliableSync error(%u)!", dwRet);
+            return FAILE;
+        }        
 
         return dwRet;
     }
@@ -168,16 +186,61 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
         free(pRecvBuf);
         return FAILE;
     }
-    
-    MSG_DATA_INSTANT_RSP_S *pstRsp = (MSG_DATA_INSTANT_RSP_S *)pRecvBuf;
-    if(pstRsp->stDataResult.byResult == DATA_RESULT_SUCCEED)
+
+    MSG_HDR_S *pstMsgHdr = (MSG_HDR_S *)pRecvBuf;
+    if(ntohs(pstMsgHdr->wCmd) == CMD_LOGIN)
     {
-        dwRet = SUCCESS;
+        log_hex_8(byLogNum, pRecvBuf, (WORD)sizeof(MSG_LOGIN_RSP_S));
+        MSG_LOGIN_RSP_S *pstRsp = (MSG_LOGIN_RSP_S *)pRecvBuf;
+        if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
+        {
+            log_debug(byLogNum, "MSG_LOGIN_RSP_S succeed.");
+        }
+        else
+        {
+            log_debug(byLogNum, "MSG_LOGIN_RSP_S error.");
+        }
     }
-    else
+    else if(ntohs(pstMsgHdr->wCmd) == CMD_DATA_BATCH)
     {
-        dwRet = FAILE;
+        log_hex_8(byLogNum, pRecvBuf, (WORD)sizeof(MSG_DATA_BATCH_RSP_S));
+        MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)pRecvBuf;
+        if(pstRsp->stDataResult.byResult == DATA_RESULT_SUCCEED)
+        {
+            log_debug(byLogNum, "MSG_DATA_BATCH_RSP_S succeed.");
+        }
+        else
+        {
+            log_debug(byLogNum, "MSG_DATA_BATCH_RSP_S error.");
+        }
     }
+    else if(ntohs(pstMsgHdr->wCmd) == CMD_DATA_INSTANT)
+    {
+        log_hex_8(byLogNum, pRecvBuf, (WORD)sizeof(MSG_DATA_INSTANT_RSP_S));
+        MSG_DATA_INSTANT_RSP_S *pstRsp = (MSG_DATA_INSTANT_RSP_S *)pRecvBuf;
+        if(pstRsp->stDataResult.byResult == DATA_RESULT_SUCCEED)
+        {
+            log_debug(byLogNum, "MSG_DATA_INSTANT_RSP_S succeed.");
+        }
+        else
+        {
+            log_debug(byLogNum, "MSG_DATA_INSTANT_RSP_S error.");
+        }
+    }
+    else if(ntohs(pstMsgHdr->wCmd) == CMD_DATA_WAITED)
+    {
+        log_hex_8(byLogNum, pRecvBuf, (WORD)sizeof(MSG_DATA_WAITED_RSP_S));
+        MSG_DATA_WAITED_RSP_S *pstRsp = (MSG_DATA_WAITED_RSP_S *)pRecvBuf;
+        if(pstRsp->stDataResult.byResult == DATA_RESULT_SUCCEED)
+        {
+            log_debug(byLogNum, "MSG_DATA_WAITED_RSP_S succeed.");
+        }
+        else
+        {
+            log_debug(byLogNum, "MSG_DATA_WAITED_RSP_S error.");
+        }
+    }
+
     free(pRecvBuf);
     return dwRet;
 }
@@ -285,8 +348,6 @@ void *task_allocDataWaited(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufLe
     return (void *)pstWaited;
 }
 
-static bool bTaskLogin = FALSE;
-
 DWORD task_stdinProc(void *pArg)
 {
     DWORD dwRet = SUCCESS;
@@ -294,27 +355,7 @@ DWORD task_stdinProc(void *pArg)
     BYTE byLogNum = pclsTask->byLogNum;
     WORD wTaskAddr = pclsTask->wTaskAddr;
     WORD wMstAddr = pclsTask->wMstAddr;
-    log_debug(byLogNum, "task_stdinProc().");
-
-    /* 第一次触发时向master发送一次登录包，以方便记录wTaskAddr */
-    if(bTaskLogin == FALSE)
-    {
-        MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)task_allocLogin(wTaskAddr, wMstAddr);
-        if(!pstLogin)
-        {
-            log_error(byLogNum, "task_allocLogin error!");
-            return FAILE;
-        }
-
-        dwRet = task_sendReliableSync(pArg, pstLogin, sizeof(MSG_LOGIN_REQ_S), 1 * 1000 * 1000);//单位us
-        if(dwRet == FAILE)
-        {
-            log_error(byLogNum, "task_sendReliableSync error(%u)!", dwRet);
-            return FAILE;
-        }
-
-        bTaskLogin = TRUE;
-    }
+    log_debug(byLogNum, "task_stdinProc().");    
 
     //从控制台读取键入字符串
     CHAR *pcStdinBuf = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
@@ -378,12 +419,13 @@ DWORD task_stdinProc(void *pArg)
                 }
                 
                 WORD wFileBufLen = (WORD)iFileBufLen;
-                pstBatch->stMsgHdr.wLen = htons(sizeof(MSG_DATA_BATCH_REQ_S) + wFileBufLen);//在循环中每次重新写值
+                WORD wBatchLen = sizeof(MSG_DATA_BATCH_REQ_S) + wFileBufLen;
+                pstBatch->stMsgHdr.wLen = htons(wBatchLen - MSG_HDR_LEN);//在循环中每次重新写值
                 pstBatch->stData.stData.dwDataID = htonl(g_dwBatchID++);
                 pstBatch->stData.stData.wDataLen = htons(wFileBufLen);
 
-                log_hex_8(byLogNum, pstBatch, 32);
-                iRet = task_sendReliableSync(pArg, pstBatch, wFileBufLen, 10 * 1000 * 1000);//单位us
+                //log_hex_8(byLogNum, pstBatch, 32);
+                iRet = task_sendReliableSync(pArg, pstBatch, wBatchLen, 10 * 1000 * 1000);//单位us
                 if(iRet == FAILE)
                 {
                     log_error(byLogNum, "task_sendReliableSync error(%d)!", iRet);
@@ -400,7 +442,7 @@ DWORD task_stdinProc(void *pArg)
     }
     else if(sscanf(pcStdinBuf, "?file%d", &iFileNum) == 1)
     {
-        //log_debug(LOG1, "instantFile(%d)", iFileNum);
+        //log_debug(byLogNum, "instantFile(%d)", iFileNum);
         //实时备份
         CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
         memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
@@ -422,7 +464,7 @@ DWORD task_stdinProc(void *pArg)
             
             if(iFileLen > MAX_PKG_LEN)//instant文件大小保证小于MAX_PKG_LEN，以保证能一次性发送
             {
-                log_error(byLogNum, "iFileLen(%d).", iFileLen);
+                log_error(byLogNum, "iFileLen(%d) is too large!", iFileLen);
                 free(pcStdinBuf);
                 free(pcFilename);
                 return FAILE;
@@ -441,23 +483,32 @@ DWORD task_stdinProc(void *pArg)
             }
             WORD wFileBufLen = (WORD)iFileBufLen;
 
-            dwRet = task_sendReliableSync(pArg, pbyFileBuf, wFileBufLen, 1000);//1000us
-            if(dwRet != SUCCESS)
+            MSG_DATA_INSTANT_REQ_S *pstInstant = (MSG_DATA_INSTANT_REQ_S *)task_allocDataInstant(wTaskAddr, wMstAddr, pbyFileBuf, wFileBufLen);
+            if(!pstInstant)
             {
-                log_error(byLogNum, "reliableSync_send error!");
+                log_error(byLogNum, "task_allocDataInstant error!");
                 free(pcStdinBuf);
                 free(pcFilename);
                 free(pbyFileBuf);
                 return FAILE;
             }
-
             free(pbyFileBuf);
+
+            dwRet = task_sendReliableSync(pArg, pstInstant, sizeof(MSG_DATA_INSTANT_REQ_S) + wFileBufLen, 1 * 1000 * 1000);//单位us
+            if(dwRet != SUCCESS)
+            {
+                log_error(byLogNum, "reliableSync_send error!");
+                free(pcStdinBuf);
+                free(pcFilename);
+                return FAILE;
+            }
+
             free(pcFilename);
         }
     }
     else if(sscanf(pcStdinBuf, "/file%d", &iFileNum) == 1)
     {
-        //log_debug(LOG1, "waitedFile(%d)", iFileNum);
+        //log_debug(byLogNum, "waitedFile(%d)", iFileNum);
         //定时定量备份
         CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
         memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
@@ -498,7 +549,7 @@ DWORD task_stdinProc(void *pArg)
             }
             WORD wFileBufLen = (WORD)iFileBufLen;
 
-            dwRet = task_sendReliableSync(pArg, pbyFileBuf, wFileBufLen, 1000);//1000us
+            dwRet = task_sendReliableSync(pArg, pbyFileBuf, wFileBufLen, 1 * 1000 * 1000);//单位us
             if(dwRet != SUCCESS)
             {
                 log_error(byLogNum, "reliableSync_send error!");
@@ -532,7 +583,7 @@ INT main(INT argc, CHAR *argv[])
         return FAILE;
     }
     BOOL bMstOrSlv = TRUE;
-    INT iMstAddr = ADDR_1, iSlvAddr = ADDR_2;
+    INT iMstAddr = ADDR_1_114, iSlvAddr = ADDR_6_119;
     if(strcmp(argv[1], "master") == SUCCESS)
     {
         bMstOrSlv = TRUE;

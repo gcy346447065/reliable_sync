@@ -55,6 +55,7 @@ DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
         return FAILE;
     }
 
+    log_debug(byLogNum, "pRecvBuf(%u).", wBufLen);
     log_hex_8(byLogNum, pRecvBuf, 32);
     //log_hex(byLogNum, pRecvBuf, wBufLen);
     dwRet = master_msgHandle(pArg, pRecvBuf, wBufLen);
