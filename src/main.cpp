@@ -549,17 +549,26 @@ DWORD task_stdinProc(void *pArg)
             }
             WORD wFileBufLen = (WORD)iFileBufLen;
 
-            dwRet = task_sendReliableSync(pArg, pbyFileBuf, wFileBufLen, 1 * 1000 * 1000);//单位us
-            if(dwRet != SUCCESS)
+            MSG_DATA_WAITED_REQ_S *pstInstant = (MSG_DATA_WAITED_REQ_S *)task_allocDataWaited(wTaskAddr, wMstAddr, pbyFileBuf, wFileBufLen);
+            if(!pstInstant)
             {
-                log_error(byLogNum, "reliableSync_send error!");
+                log_error(byLogNum, "task_allocDataWaited error!");
                 free(pcStdinBuf);
                 free(pcFilename);
                 free(pbyFileBuf);
                 return FAILE;
             }
-
             free(pbyFileBuf);
+
+            dwRet = task_sendReliableSync(pArg, pstInstant, sizeof(MSG_DATA_WAITED_REQ_S) + wFileBufLen, 1 * 1000 * 1000);//单位us
+            if(dwRet != SUCCESS)
+            {
+                log_error(byLogNum, "reliableSync_send error!");
+                free(pcStdinBuf);
+                free(pcFilename);
+                return FAILE;
+            }
+
             free(pcFilename);
         }
     }

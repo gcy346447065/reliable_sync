@@ -254,7 +254,7 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
     }
 
     MSG_DATA_WAITED_RSP_S *pstRsp = (MSG_DATA_WAITED_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
-        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_INSTANT);
+        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_WAITED);
     pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
     pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
 
