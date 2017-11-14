@@ -44,9 +44,9 @@ public:
     WORD wMstAddr;
     WORD wTaskAddr;
     vector<WORD> vecSlvAddr;
-    map<WORD, DATA_BATCH_PKG_S> mapDataBatch;
-    map<WORD, DATA_PKG_S> mapDataInstant;
-    map<WORD, DATA_PKG_S> mapDataWaited;
+    map<DWORD, DATA_BATCH_PKG_S> mapDataBatch;
+    map<DWORD, DATA_PKG_S> mapDataInstant;
+    map<DWORD, DATA_PKG_S> mapDataWaited;
     
     mbufer *pMbufer;
     

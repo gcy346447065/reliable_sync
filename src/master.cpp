@@ -3,6 +3,7 @@
 #include <string.h> //for strcmp memset strstr
 #include <stdio.h> //for sscanf
 #include <errno.h> //for errno
+#include <pthread.h> //for pthread
 #include "master.h"
 #include "macro.h"
 #include "log.h"
@@ -80,6 +81,23 @@ DWORD master_keepaliveTimerProc(void *pArg)
     return dwRet;
 }
 
+typedef struct
+{
+    master *pclsMst;
+}MASTER_PROCTHREAD_S;
+
+VOID *master_procThread(VOID *pArg)
+{
+    MASTER_PROCTHREAD_S *pstProcStruct = (MASTER_PROCTHREAD_S *)pArg;
+    master *pclsMst = pstProcStruct->pclsMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+    log_debug(byLogNum, "master_procThread().");
+
+    
+
+    return (VOID *)SUCCESS;
+}
+
 DWORD master::master_Init()
 {
     log_init(byLogNum, "");
@@ -113,6 +131,17 @@ DWORD master::master_Init()
     if(dwRet != SUCCESS)
     {
         log_error(byLogNum, "vos_RegTask error!");
+        return FAILE;
+    }
+
+    /* 创建该子线程主要用于checksum的计算，将io操作与cpu计算分开有利于提高效率 */
+    pthread_t ProcThreadId;
+    MASTER_PROCTHREAD_S stProcStruct;
+    stProcStruct.pclsMst = this;
+    INT iRet = pthread_create(&ProcThreadId, NULL, master_procThread, (void *)&stProcStruct);
+    if(iRet != SUCCESS)
+    {
+        log_error(byLogNum, "pthread create error(%d)!", iRet);
         return FAILE;
     }
 

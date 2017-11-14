@@ -8,7 +8,6 @@ SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 SET(SRC_LIST
     main.cpp
     master.cpp
-    master_procThread.cpp
     master_send.cpp
     master_recv.cpp
     slave.cpp

@@ -180,7 +180,14 @@ static DWORD master_dataBatch(void *pMst, const void *pMsg)
     pstRsp->stDataResult.dwDataID = pstReq->stData.stData.dwDataID;
     pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
 
-    master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
+    DWORD dwRet = master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "master_sendToTask error!");
+        return FAILE;
+    }
+
+    pclsMst->mapDataBatch.insert(make_pair(ntohl(pstReq->stData.stData.dwDataID), pstReq->stData));
     
     return SUCCESS;
 }
@@ -219,7 +226,14 @@ static DWORD master_dataInstant(void *pMst, const void *pMsg)
     pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
     pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
 
-    master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_INSTANT_RSP_S));
+    DWORD dwRet = master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_INSTANT_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "master_sendToTask error!");
+        return FAILE;
+    }
+
+    pclsMst->mapDataInstant.insert(make_pair(ntohl(pstReq->stData.dwDataID), pstReq->stData));
     
     return SUCCESS;
 }
@@ -258,8 +272,64 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
     pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
     pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
 
-    master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_WAITED_RSP_S));
-    
+    DWORD dwRet = master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_DATA_WAITED_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "master_sendToTask error!");
+        return FAILE;
+    }
+
+    pclsMst->mapDataWaited.insert(make_pair(ntohl(pstReq->stData.dwDataID), pstReq->stData));
+    return SUCCESS;
+}
+
+static DWORD master_getDataCount(void *pMst, const void *pMsg)
+{
+    master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+    mbufer *pMbufer = pclsMst->pMbufer;
+    if(!pMbufer)
+    {
+        log_error(byLogNum, "pMbufer error!");
+        return FAILE;
+    }
+    log_debug(byLogNum, "master_getDataCount().");
+
+    const MSG_GET_DATA_COUNT_REQ_S *pstReq = (const MSG_GET_DATA_COUNT_REQ_S *)pMsg;
+    if(!pstReq)
+    {
+        log_error(byLogNum, "msg handle empty!");
+        return FAILE;
+    }
+    if(ntohs(pstReq->stMsgHdr.wSig) != START_SIG_1)
+    {
+        log_error(byLogNum, "msg wSig error!");
+        return FAILE;
+    }
+    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_GET_DATA_COUNT_REQ_S) - MSG_HDR_LEN)
+    {
+        log_error(byLogNum, "msg wLen not enough!");
+        return FAILE;
+    }
+
+    DWORD dwBatchCount = 0, dwInstantCount = 0, dwWaitedCount = 0;
+    dwBatchCount = pclsMst->mapDataBatch.size();
+    dwInstantCount = pclsMst->mapDataInstant.size();
+    dwWaitedCount = pclsMst->mapDataWaited.size();
+
+    MSG_GET_DATA_COUNT_RSP_S *pstRsp = (MSG_GET_DATA_COUNT_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_GET_DATA_COUNT);
+    pstRsp->dwBatchCount = htonl(dwBatchCount);
+    pstRsp->dwInstantCount = htonl(dwInstantCount);
+    pstRsp->dwWaitedCount = htonl(dwWaitedCount);
+
+    DWORD dwRet = master_sendToTask(pMst, (void *)pstRsp, sizeof(MSG_GET_DATA_COUNT_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "master_sendToTask error!");
+        return FAILE;
+    }
+
     return SUCCESS;
 }
 
@@ -276,7 +346,8 @@ static MSG_PROC_MAP g_msgProcs[] =
     {CMD_KEEP_ALIVE,        master_keepAlive},
     {CMD_DATA_BATCH,        master_dataBatch},
     {CMD_DATA_INSTANT,      master_dataInstant},
-    {CMD_DATA_WAITED,       master_dataWaited}
+    {CMD_DATA_WAITED,       master_dataWaited},
+    {CMD_GET_DATA_COUNT,    master_getDataCount}
 };
 
 static DWORD master_msgHandleOne(void *pMst, const MSG_HDR_S *pstMsgHdr)

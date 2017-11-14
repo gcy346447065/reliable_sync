@@ -66,6 +66,10 @@ VOID *master_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, 
             wMsgLen = sizeof(MSG_DATA_WAITED_RSP_S);
             break;
 
+        case CMD_GET_DATA_COUNT:
+            wMsgLen = sizeof(MSG_GET_DATA_COUNT_RSP_S);
+            break;
+
         default:
             return NULL;
     }

@@ -240,6 +240,16 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
             log_debug(byLogNum, "MSG_DATA_WAITED_RSP_S error.");
         }
     }
+    else if(ntohs(pstMsgHdr->wCmd) == CMD_GET_DATA_COUNT)
+    {
+        DWORD dwBatchCount = 0, dwInstantCount = 0, dwWaitedCount = 0;
+        MSG_GET_DATA_COUNT_RSP_S *pstRsp = (MSG_GET_DATA_COUNT_RSP_S *)pRecvBuf;
+        dwBatchCount = ntohl(pstRsp->dwBatchCount);
+        dwInstantCount = ntohl(pstRsp->dwInstantCount);
+        dwWaitedCount = ntohl(pstRsp->dwWaitedCount);
+        
+        log_debug(byLogNum, "get data count: Batch(%u), Instant(%u), Waited(%u).", dwBatchCount, dwInstantCount, dwWaitedCount);
+    }
 
     free(pRecvBuf);
     return dwRet;
@@ -346,6 +356,23 @@ void *task_allocDataWaited(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufLe
     }
 
     return (void *)pstWaited;
+}
+
+void *task_allocGetDataCount(WORD wSrcAddr, WORD wDstAddr)
+{
+    MSG_GET_DATA_COUNT_REQ_S *pstReq = (MSG_GET_DATA_COUNT_REQ_S *)malloc(sizeof(MSG_GET_DATA_COUNT_REQ_S));
+    if(pstReq)
+    {
+        pstReq->stMsgHdr.wSig = htons(START_SIG_1);
+        pstReq->stMsgHdr.wVer = htons(VERSION_INT);
+        pstReq->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstReq->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstReq->stMsgHdr.dwSeq = htonl(g_dwDataSeq++);
+        pstReq->stMsgHdr.wCmd = htons(CMD_GET_DATA_COUNT);
+        pstReq->stMsgHdr.wLen = htons(0);
+    }
+
+    return (void *)pstReq;
 }
 
 DWORD task_stdinProc(void *pArg)
@@ -570,6 +597,24 @@ DWORD task_stdinProc(void *pArg)
             }
 
             free(pcFilename);
+        }
+    }
+    else if(strcmp(pcStdinBuf, "get") == 0)
+    {
+        MSG_GET_DATA_COUNT_REQ_S *pstReq = (MSG_GET_DATA_COUNT_REQ_S *)task_allocGetDataCount(wTaskAddr, wMstAddr);
+        if(!pstReq)
+        {
+            log_error(byLogNum, "task_allocDataWaited error!");
+            free(pcStdinBuf);
+            return FAILE;
+        }
+
+        dwRet = task_sendReliableSync(pArg, pstReq, sizeof(MSG_GET_DATA_COUNT_REQ_S), 1 * 1000 * 1000);//单位us
+        if(dwRet != SUCCESS)
+        {
+            log_error(byLogNum, "reliableSync_send error!");
+            free(pcStdinBuf);
+            return FAILE;
         }
     }
 

@@ -33,7 +33,8 @@ enum
     CMD_KEEP_ALIVE = 2,
     CMD_DATA_BATCH = 3,
     CMD_DATA_INSTANT = 4,
-    CMD_DATA_WAITED = 5
+    CMD_DATA_WAITED = 5,
+    CMD_GET_DATA_COUNT = 6,
 };
 
 #pragma pack(push, 1)
@@ -92,7 +93,7 @@ typedef struct
  */
 typedef struct
 {
-    DWORD dwDataID;      //数据ID，60M/1K=60K接近于WORD，故而将其设置更大
+    DWORD dwDataID;     //数据ID，60M/1K=60K接近于WORD，故而将其设置更大
     WORD wDataLen;      //数据长度
     WORD wDataChecksum; //数据校验和，在主机主备线程中才会填入，在备机中用于检验
     BYTE abyData[];     //数据消息包
@@ -167,6 +168,23 @@ typedef struct
     DWORD dwDataCount;
     DATA_RESULT_S astDataResults[];
 }__attribute__((__packed__)) MSG_DATA_WAITED_PKGS_RSP_S;
+
+/*
+ * message get data count structure
+ */
+typedef struct
+{
+    MSG_HDR_S stMsgHdr;
+}__attribute__((__packed__)) MSG_GET_DATA_COUNT_REQ_S;
+
+typedef struct
+{
+    MSG_HDR_S stMsgHdr;
+    DWORD dwBatchCount;
+    DWORD dwInstantCount;
+    DWORD dwWaitedCount;
+}__attribute__((__packed__)) MSG_GET_DATA_COUNT_RSP_S;
+
 
 #pragma pack(pop)
 
