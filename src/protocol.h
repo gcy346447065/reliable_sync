@@ -169,6 +169,35 @@ typedef struct
     DATA_RESULT_S astDataResults[];
 }__attribute__((__packed__)) MSG_DATA_WAITED_PKGS_RSP_S;
 
+
+#define MAX_SEND_TIMES 3
+
+typedef struct
+{
+    BYTE byIsReady;
+    BYTE byIsSucceed;
+    BYTE bySendTimes;
+}__attribute__((__packed__)) NODE_STATE_S;
+
+typedef struct
+{
+    NODE_STATE_S stState;
+    DATA_BATCH_PKG_S stBatchNet;//网络序的数据
+}__attribute__((__packed__)) NODE_DATA_BATCH_S;
+
+typedef struct
+{
+    NODE_STATE_S stState;
+    DATA_PKG_S stInstantNet;//网络序的数据
+}__attribute__((__packed__)) NODE_DATA_INSTANT_S;
+
+typedef struct
+{
+    NODE_STATE_S stState;
+    DATA_PKG_S stWaitedNet;//网络序的数据
+}__attribute__((__packed__)) NODE_DATA_WAITED_S;
+
+
 /*
  * message get data count structure
  */

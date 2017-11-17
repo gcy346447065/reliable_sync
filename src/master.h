@@ -7,7 +7,6 @@ using std::vector;
 using std::map;
 
 #include "macro.h"
-#include "protocol.h"
 #include "vos.h"
 #include "mbufer.h"
 #include "log.h"
@@ -44,9 +43,15 @@ public:
     WORD wMstAddr;
     WORD wTaskAddr;
     vector<WORD> vecSlvAddr;
-    map<DWORD, DATA_BATCH_PKG_S> mapDataBatch;
-    map<DWORD, DATA_PKG_S> mapDataInstant;
-    map<DWORD, DATA_PKG_S> mapDataWaited;
+    map<DWORD, void*> mapDataBatch;//NODE_DATA_BATCH_S*
+    map<DWORD, void*> mapDataInstant;//NODE_DATA_INSTANT_S*
+    map<DWORD, void*> mapDataWaited;//NODE_DATA_WAITED_S*
+    BYTE byBatchFlag;
+    DWORD dwBatchNow;
+    BYTE byInstantFlag;
+    DWORD dwInstantNow;
+    BYTE byWaitedFlag;
+    DWORD dwWaitedNow;
     
     mbufer *pMbufer;
     

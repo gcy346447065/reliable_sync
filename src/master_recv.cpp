@@ -187,8 +187,18 @@ static DWORD master_dataBatch(void *pMst, const void *pMsg)
         return FAILE;
     }
 
-    pclsMst->mapDataBatch.insert(make_pair(ntohl(pstReq->stData.stData.dwDataID), pstReq->stData));
-    
+    NODE_DATA_BATCH_S *pstNodeBatch = (NODE_DATA_BATCH_S *)malloc(sizeof(NODE_DATA_BATCH_S));
+    pstNodeBatch->stState.byIsReady = FALSE;
+    pstNodeBatch->stState.byIsSucceed = FALSE;
+    pstNodeBatch->stState.bySendTimes = 0;
+    memcpy(&(pstNodeBatch->stBatchNet), &(pstReq->stData), sizeof(DATA_BATCH_PKG_S));
+
+    DWORD dwBatchID = ntohl(pstReq->stData.stData.dwDataID);
+    pclsMst->dwBatchNow = dwBatchID;//每次Batch单包到达都通知procThread处理，万一不是所有单包都到达map，在slave接收端再作检测
+    pclsMst->byBatchFlag = TRUE;
+    pclsMst->mapDataBatch.insert(make_pair(dwBatchID, (void *)pstNodeBatch));
+
+    free(pstRsp);
     return SUCCESS;
 }
 
@@ -233,8 +243,18 @@ static DWORD master_dataInstant(void *pMst, const void *pMsg)
         return FAILE;
     }
 
-    pclsMst->mapDataInstant.insert(make_pair(ntohl(pstReq->stData.dwDataID), pstReq->stData));
+    NODE_DATA_INSTANT_S *pstNodeInstant = (NODE_DATA_INSTANT_S *)malloc(sizeof(NODE_DATA_INSTANT_S));
+    pstNodeInstant->stState.byIsReady = FALSE;
+    pstNodeInstant->stState.byIsSucceed = FALSE;
+    pstNodeInstant->stState.bySendTimes = 0;
+    memcpy(&(pstNodeInstant->stInstantNet), &(pstReq->stData), sizeof(DATA_PKG_S));
+
+    DWORD dwInstantID = ntohl(pstReq->stData.dwDataID);
+    pclsMst->dwInstantNow = dwInstantID;
+    pclsMst->byInstantFlag = TRUE;
+    pclsMst->mapDataInstant.insert(make_pair(dwInstantID, (void *)pstNodeInstant));
     
+    free(pstRsp);
     return SUCCESS;
 }
 
@@ -279,7 +299,18 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
         return FAILE;
     }
 
-    pclsMst->mapDataWaited.insert(make_pair(ntohl(pstReq->stData.dwDataID), pstReq->stData));
+    NODE_DATA_WAITED_S *pstNodeWaited = (NODE_DATA_WAITED_S *)malloc(sizeof(NODE_DATA_WAITED_S));
+    pstNodeWaited->stState.byIsReady = FALSE;
+    pstNodeWaited->stState.byIsSucceed = FALSE;
+    pstNodeWaited->stState.bySendTimes = 0;
+    memcpy(&(pstNodeWaited->stWaitedNet), &(pstReq->stData), sizeof(DATA_PKG_S));
+
+    DWORD dwWaitedID = ntohl(pstReq->stData.dwDataID);
+    pclsMst->dwWaitedNow = dwWaitedID;
+    pclsMst->byInstantFlag = TRUE;
+    pclsMst->mapDataWaited.insert(make_pair(dwWaitedID, (void *)pstNodeWaited));
+
+    free(pstRsp);
     return SUCCESS;
 }
 

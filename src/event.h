@@ -3,14 +3,15 @@
 
 #include "macro.h"
 
-#define MASTER_EVENT_NULL                  0x0000
-#define MASTER_EVENT_KEYIN_INSTANT         0x0001
-#define MASTER_EVENT_KEYIN_WAITED          0x0002
-#define MASTER_EVENT_SLAVE_RESTART         0x0004
-#define MASTER_EVENT_CHECKALIVE_TIMER      0x0008
+#define MASTER_EVENT_NULL                   0x0000
+#define MASTER_EVENT_DATA_BATCH             0x0001
+#define MASTER_EVENT_DATA_INSTANT           0x0002
+#define MASTER_EVENT_DATA_WAITED            0x0004
+#define MASTER_EVENT_SLAVE_RESTART          0x0008
+#define MASTER_EVENT_CHECKALIVE_TIMER       0x0010
 
 
-
+//这里实例化其实都对应的是同一个系统资源
 class event
 {
 
