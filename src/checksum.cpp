@@ -1,27 +1,29 @@
 #include "checksum.h"
 #include "log.h"
 
-unsigned short checksum(const unsigned char *pData, int iDataLen)
+WORD checksum(const void *pData, WORD wDataLen)
 {
-    //log_debug(LOG1, "checksum iDataLen(%d)", iDataLen);
-    //log_hex(LOG1, pData, iDataLen);
+    //log_debug(LOG1, "checksum wDataLen(%u)", wDataLen);
+    //log_hex(LOG1, pData, wDataLen);
 
-    unsigned long sum = 0;
-    while(iDataLen > 1)
+    DWORD dwSum = 0;
+    const WORD *pwData = (const WORD *)pData;
+    
+    while(wDataLen > 1)
     {
-        sum += *(const unsigned short *)pData++;
-        iDataLen -= 2;
+        dwSum += *pwData++;
+        wDataLen -= (WORD)sizeof(WORD);
     }
-    if(iDataLen > 0)
+    if(wDataLen)//0 or 1
     {
-        sum += *(const unsigned char *)pData;
-    }
-
-    while(sum >> 16)
-    {
-        sum = (sum & 0xffff) + (sum << 16);
+        dwSum += *(const BYTE *)pwData;
     }
 
-    return (unsigned short)~sum;
+    while(dwSum >> 16)
+    {
+        dwSum = (dwSum >> 16) + (dwSum & 0xffff);
+    }
+
+    return (WORD)(~dwSum);
 }
 

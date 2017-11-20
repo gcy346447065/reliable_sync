@@ -258,7 +258,7 @@ DWORD mbufer::receive_message(void *pRecvBuf, WORD *pwBufLen, DWORD dwWaitTime)
     }
 
     INT iRet = 0;
-    if((iRet = recv(dwSocketFd, pRecvBuf, MAX_RECV_LEN, iFlags)) < 0)
+    if((iRet = recv(dwSocketFd, pRecvBuf, *pwBufLen, iFlags)) < 0)
     {
         log_error(byLogNum, "recv error(%d), errno(%d, %s)!", iRet, errno, strerror(errno));
         return FAILE;

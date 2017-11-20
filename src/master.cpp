@@ -37,14 +37,14 @@ DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
     BYTE byLogNum = pclsMst->byLogNum;
     log_debug(byLogNum, "master_mailboxProc().");
 
-    void *pRecvBuf = master_alloc(MAX_RECV_LEN);
+    void *pRecvBuf = master_alloc(MAX_TASK2MST_RECV_LEN);
     if(pRecvBuf == NULL)
     {
         log_error(byLogNum, "master_alloc_RecvBuffer error!");
         return FAILE;
     }
 
-    WORD wBufLen = MAX_RECV_LEN;
+    WORD wBufLen = MAX_TASK2MST_RECV_LEN;
     dwRet = master_recv(pArg, pRecvBuf, &wBufLen);
     if(dwRet != SUCCESS)
     {
@@ -156,8 +156,8 @@ VOID *master_instantProcThread(void *pArg)
                 {
                     //说明该节点未准备好，计算节点checksum等使其准备好，并发送节点
                     log_debug(byLogNum, "being ready, send node.");
-                    //wChecksum = checksum(pNode->stInstantNet.abyData, ntohl(pNode->stInstantNet.wDataLen));
-                    wChecksum = 0;
+                    wChecksum = checksum((const void *)(pNode->stInstantNet.abyData), (WORD)ntohs(pNode->stInstantNet.wDataLen));
+                    //wChecksum = 0;
                     pNode->stInstantNet.wDataChecksum = htons(wChecksum);
                     
                     pNode->stState.byIsReady = TRUE;

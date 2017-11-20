@@ -194,9 +194,9 @@ static DWORD master_dataBatch(void *pMst, const void *pMsg)
     memcpy(&(pstNodeBatch->stBatchNet), &(pstReq->stData), sizeof(DATA_BATCH_PKG_S));
 
     DWORD dwBatchID = ntohl(pstReq->stData.stData.dwDataID);
+    pclsMst->mapDataBatch.insert(make_pair(dwBatchID, (void *)pstNodeBatch));
     pclsMst->dwBatchNow = dwBatchID;//每次Batch单包到达都通知procThread处理，万一不是所有单包都到达map，在slave接收端再作检测
     pclsMst->byBatchFlag = TRUE;
-    pclsMst->mapDataBatch.insert(make_pair(dwBatchID, (void *)pstNodeBatch));
 
     free(pstRsp);
     return SUCCESS;
@@ -250,9 +250,9 @@ static DWORD master_dataInstant(void *pMst, const void *pMsg)
     memcpy(&(pstNodeInstant->stInstantNet), &(pstReq->stData), sizeof(DATA_PKG_S));
 
     DWORD dwInstantID = ntohl(pstReq->stData.dwDataID);
+    pclsMst->mapDataInstant.insert(make_pair(dwInstantID, (void *)pstNodeInstant));
     pclsMst->dwInstantNow = dwInstantID;
     pclsMst->byInstantFlag = TRUE;
-    pclsMst->mapDataInstant.insert(make_pair(dwInstantID, (void *)pstNodeInstant));
     
     free(pstRsp);
     return SUCCESS;
@@ -306,9 +306,9 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
     memcpy(&(pstNodeWaited->stWaitedNet), &(pstReq->stData), sizeof(DATA_PKG_S));
 
     DWORD dwWaitedID = ntohl(pstReq->stData.dwDataID);
+    pclsMst->mapDataWaited.insert(make_pair(dwWaitedID, (void *)pstNodeWaited));
     pclsMst->dwWaitedNow = dwWaitedID;
     pclsMst->byInstantFlag = TRUE;
-    pclsMst->mapDataWaited.insert(make_pair(dwWaitedID, (void *)pstNodeWaited));
 
     free(pstRsp);
     return SUCCESS;
