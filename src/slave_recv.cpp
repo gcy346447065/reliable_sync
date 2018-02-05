@@ -45,7 +45,7 @@ static DWORD slave_login(void *pSlv, const void *pMsg)
         log_error(byLogNum, "pMbufer error!");
         return FAILE;
     }
-	
+
     log_debug(byLogNum, "slave_login.");
 
     const MSG_LOGIN_REQ_S *pstReq = (const MSG_LOGIN_REQ_S *)pMsg;
@@ -151,6 +151,44 @@ static DWORD slave_keepAlive(void *pSlv, const void *pMsg)
     return SUCCESS;
 }
 
+static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
+{
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    //log_debug(byLogNum, "slave_dataBatch.");
+    
+    const MSG_DATA_BATCH_REQ_S *pstReq = (const MSG_DATA_BATCH_REQ_S *)pMsg;
+    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_BATCH_REQ_S) - MSG_HDR_LEN)
+    {
+        log_error(byLogNum, "msg wLen not enough!");
+        return FAILE;
+    }
+
+    if(!(ntohl(pstReq->stData.stData.dwDataID) % 1000))
+    {
+        log_debug(byLogNum, "Receive batch pkg(%u), start:%u ; end:%u.", ntohl(pstReq->stData.stData.dwDataID),
+                ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd));
+    }
+    if(ntohl(pstReq->stData.stData.dwDataID) == ntohl(pstReq->stData.dwDataEnd))
+    {
+        log_debug(byLogNum, "Receive last batch pkg(%u), start:%u ; end:%u.", ntohl(pstReq->stData.stData.dwDataID),
+                ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd));
+    }
+    
+    MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_BATCH);
+    pstRsp->stDataResult.dwDataID = pstReq->stData.stData.dwDataID;
+    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
+    
+    DWORD dwRet = slave_sendMsg(pSlv, pclsSlv->wMstAddr, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "master_sendMsg error!");
+        return FAILE;
+    }
+    return SUCCESS;
+}
+
 static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
 {
     slave *pclsSlv = (slave *)pSlv;
@@ -181,7 +219,10 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
 
 static DWORD slave_dataWaited(void *pSlv, const void *pMsg)
 {
-    log_debug(LOG1, "slave_dataWaited.");
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_dataWaited.");
+    
     return SUCCESS;
 }
 
@@ -189,6 +230,7 @@ static MSG_PROC_MAP g_msgProcs_slv[] =
 {
     {CMD_LOGIN,             slave_login},
     {CMD_KEEP_ALIVE,        slave_keepAlive},
+    {CMD_DATA_BATCH,        slave_dataBatch},
     {CMD_DATA_INSTANT,      slave_dataInstant},
     {CMD_DATA_WAITED,       slave_dataWaited}
 };
@@ -197,7 +239,7 @@ static DWORD slave_msgHandleOne(void *pSlv, const MSG_HDR_S *pstMsgHdr)
 {
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave_msgHandleOne().");
+    //log_debug(byLogNum, "slave_msgHandleOne().");
 	
     for(UINT i = 0; i < sizeof(g_msgProcs_slv) / sizeof(g_msgProcs_slv[0]); i++)
     {
@@ -219,7 +261,7 @@ DWORD slave_msgHandle(void *pSlv, const void *pMsg, WORD wMsgLen)
     slave *pclsSlv = (slave *)pSlv;
     BYTE wSlvAddr = pclsSlv->wSlvAddr;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave_msgHandle.");
+    //log_debug(byLogNum, "slave_msgHandle.");
 
     if(wMsgLen < MSG_HDR_LEN)
     {

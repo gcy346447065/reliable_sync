@@ -35,7 +35,7 @@ DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
     DWORD dwRet = SUCCESS;
     master *pclsMst = (master *)pArg;
     BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_mailboxProc().");
+    //log_debug(byLogNum, "master_mailboxProc().");
 
     void *pRecvBuf = master_alloc(MAX_TASK2MST_RECV_LEN);
     if(pRecvBuf == NULL)
@@ -59,8 +59,8 @@ DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
         return FAILE;
     }
 
-    log_debug(byLogNum, "pRecvBuf(%u).", wBufLen);
-    log_hex(byLogNum, pRecvBuf, wBufLen);
+    //log_debug(byLogNum, "pRecvBuf(%u).", wBufLen);
+    //log_hex(byLogNum, pRecvBuf, wBufLen);
     //log_hex(byLogNum, pRecvBuf, wBufLen);
     dwRet = master_msgHandle(pArg, pRecvBuf, wBufLen);
     if(dwRet != SUCCESS)

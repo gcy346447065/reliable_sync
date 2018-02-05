@@ -148,7 +148,7 @@ DWORD slave_sendMsg(void *pSlv, WORD wDstAddr, void *pData, WORD wDataLen)
     slave *pclsSlv = (slave *)pSlv;
     mbufer *pMbufer = pclsSlv->pMbufer;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave_sendMsg().");
+    //log_debug(byLogNum, "slave_sendMsg().");
 
     /* 向指定地址发送数据 */
     dwRet = pMbufer->send_message(wDstAddr, pData, wDataLen);

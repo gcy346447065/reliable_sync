@@ -11,9 +11,7 @@
 static DWORD g_dwSeq = 0;
 
 static DWORD g_dwMstDataSeq = 1;
-//static DWORD g_dwMstBatchID = 0;
 static DWORD g_dwMstInstantID = 0;
-//static DWORD g_dwMstWaitedID = 0;
 
 VOID *master_alloc_reqMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, WORD wCmd)
 {
@@ -107,7 +105,33 @@ VOID *master_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, 
     return (VOID *)pstMsgHdr;
 }
 
-void *master_alloc_dataInstant(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufLen)
+void *master_alloc_dataBatch(WORD wSrcAddr, WORD wDstAddr, DWORD dwDataStart, DWORD dwDataEnd, 
+                                    DWORD dwDataID, void *pBuf, WORD wBufLen)
+{
+    WORD wMsgLen = sizeof(MSG_DATA_BATCH_REQ_S) + wBufLen;
+    MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)malloc(wMsgLen);
+    if(pstBatch)
+    {
+        pstBatch->stMsgHdr.wSig = htons(START_SIG_2);
+        pstBatch->stMsgHdr.wVer = htons(VERSION_INT);
+        pstBatch->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstBatch->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstBatch->stMsgHdr.dwSeq = htonl(g_dwMstDataSeq++);
+        pstBatch->stMsgHdr.wCmd = htons(CMD_DATA_BATCH);
+        pstBatch->stMsgHdr.wLen = htons(wMsgLen - MSG_HDR_LEN);
+
+        pstBatch->stData.dwDataStart = htonl(dwDataStart);
+        pstBatch->stData.dwDataEnd = htonl(dwDataEnd);
+        pstBatch->stData.stData.dwDataID = htonl(dwDataID);
+        pstBatch->stData.stData.wDataLen = htons(wBufLen);
+        pstBatch->stData.stData.wDataChecksum = htons(0);
+        memcpy(pstBatch->stData.stData.abyData, pBuf, wBufLen);
+    }
+
+    return (void *)pstBatch;
+}
+
+void *master_alloc_dataInstant(WORD wSrcAddr, WORD wDstAddr, DWORD dwDataID, void *pBuf, WORD wBufLen)
 {
     WORD wMsgLen = sizeof(MSG_DATA_INSTANT_REQ_S) + wBufLen;
     MSG_DATA_INSTANT_REQ_S *pstInstant = (MSG_DATA_INSTANT_REQ_S *)malloc(wMsgLen);
@@ -121,7 +145,7 @@ void *master_alloc_dataInstant(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wB
         pstInstant->stMsgHdr.wCmd = htons(CMD_DATA_INSTANT);
         pstInstant->stMsgHdr.wLen = htons(wMsgLen - MSG_HDR_LEN);
 
-        pstInstant->stData.dwDataID = htonl(g_dwMstInstantID++);
+        pstInstant->stData.dwDataID = htonl(dwDataID);
         pstInstant->stData.wDataLen = htons(wBufLen);
         pstInstant->stData.wDataChecksum = htons(0);
         memcpy(pstInstant->stData.abyData, pBuf, wBufLen);
@@ -136,7 +160,7 @@ DWORD master_sendMsg(void *pMst, WORD wDstAddr, void *pData, WORD wDataLen)
     master *pclsMst = (master *)pMst;
     mbufer *pMbufer = pclsMst->pMbufer;
     BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_sendMsg().");
+    //log_debug(byLogNum, "master_sendMsg().");
 
     /* 向指定地址发送数据 */
     dwRet = pMbufer->send_message(wDstAddr, pData, wDataLen);

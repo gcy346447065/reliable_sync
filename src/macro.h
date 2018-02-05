@@ -41,7 +41,7 @@ typedef struct
 
 
 //包的最小值61853288/65535=943
-#define MAX_TASK2MST_PKG_LEN (60 * 1000)
+#define MAX_TASK2MST_PKG_LEN (1 * 1000)
 #define MAX_PKG_LEN 1000
 
 //us
@@ -57,7 +57,7 @@ typedef struct
 
 //0和11是task的默认地址
 #define ADDR_MstTask  0
-#define IP_0        "192.168.11.119"
+#define IP_0        "192.168.11.114"
 #define PORT_0      8760
 
 #define ADDR_1_114  1

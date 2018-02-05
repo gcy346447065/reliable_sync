@@ -248,7 +248,7 @@ DWORD mbufer::send_message(WORD wDstAddr, void *pData, WORD wDataLen)
     }
     else
     {
-        log_debug(byLogNum, "send_message succeed!(%d bytes)", iRet);
+        //log_debug(byLogNum, "send_message succeed!(%d bytes)", iRet);
     }
     //log_debug(byLogNum, "sendto(%d).", iRet);
 
@@ -269,8 +269,8 @@ DWORD mbufer::send_message(WORD wDstAddr, void *pData, WORD wDataLen)
 DWORD mbufer::receive_message(void *pRecvBuf, WORD *pwBufLen, DWORD dwWaitTime)
 {
     INT iFlags = 0;
-	
-    log_debug(byLogNum, "receive_message()_debug_1.");
+
+    //log_debug(byLogNum, "receive_message().");
     if(dwWaitTime == DMM_NO_WAIT)
     {
         iFlags = MSG_DONTWAIT;
@@ -286,17 +286,12 @@ DWORD mbufer::receive_message(void *pRecvBuf, WORD *pwBufLen, DWORD dwWaitTime)
 
 
     INT iRet = 0;
-    log_debug(byLogNum, "receive_message()_debug_22.");
     if((iRet = recv(dwSocketFd, pRecvBuf, *pwBufLen, iFlags)) < 0)
     {
-        log_debug(byLogNum, "receive_message()_debug_3.");
         log_error(byLogNum, "recv error(%d), errno(%d, %s)!", iRet, errno, strerror(errno));
         return FAILE;
     }
     *pwBufLen = (DWORD)iRet;
-
-    log_debug(byLogNum, "receive_message()_debug_4.");
-
 
     //log_debug(byLogNum, "recv(%d).", iRet);
     return SUCCESS;

@@ -182,51 +182,104 @@ static DWORD master_dataBatch(void *pMst, const void *pMsg)
         log_error(byLogNum, "pMbufer error!");
         return FAILE;
     }
-    log_debug(byLogNum, "master_dataBatch().");
+    //log_debug(byLogNum, "master_dataBatch().");
 
-    const MSG_DATA_BATCH_REQ_S *pstReq = (const MSG_DATA_BATCH_REQ_S *)pMsg;
-    if(!pstReq)
+    const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pMsg;
+    if(!pstMsgHdr)
     {
         log_error(byLogNum, "msg handle empty!");
         return FAILE;
     }
-    if(ntohs(pstReq->stMsgHdr.wSig) != START_SIG_1)
+    
+    if(ntohs(pstMsgHdr->wSig) == START_SIG_1)
+    {
+        //收到task下发的batch包，先回复task
+        const MSG_DATA_BATCH_REQ_S *pstReq = (const MSG_DATA_BATCH_REQ_S *)pMsg;
+        if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_BATCH_REQ_S) - MSG_HDR_LEN)
+        {
+            log_error(byLogNum, "msg wLen not enough!");
+            return FAILE;
+        }
+        
+        MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+            ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_BATCH);
+        pstRsp->stDataResult.dwDataID = pstReq->stData.stData.dwDataID;
+        pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
+    
+        DWORD dwRet = master_sendMsg(pMst, pclsMst->wTaskAddr, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
+        if(dwRet != SUCCESS)
+        {
+            log_error(byLogNum, "master_sendMsg error!");
+            return FAILE;
+        }
+    
+        // 将batch包插入到master的batch链表里
+        NODE_DATA_BATCH_S *pstNodeBatch = (NODE_DATA_BATCH_S *)malloc(sizeof(NODE_DATA_BATCH_S));
+        memcpy(&(pstNodeBatch->stBatchNet), &(pstReq->stData), sizeof(DATA_BATCH_PKG_S));
+
+        pstNodeBatch->stState.byIsReady = TRUE;
+        pstNodeBatch->stState.byIsSucceed = FALSE;
+    
+        DWORD dwBatchID = ntohl(pstReq->stData.stData.dwDataID);
+        pclsMst->mapDataBatch.insert(make_pair(dwBatchID, (void *)pstNodeBatch));
+    
+        // 将batch包转发给所有slave
+        //log_debug(byLogNum, "being ready, send node.");
+    
+        SLAVE_S stSlv;
+        MSG_DATA_BATCH_REQ_S *pstBatchPkg;
+        UINT uiSlvIdx;
+        for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
+        {
+            stSlv = pclsMst->vecSlvs[uiSlvIdx];
+            pstBatchPkg = (MSG_DATA_BATCH_REQ_S *)master_alloc_dataBatch(pclsMst->wMstAddr, stSlv.wSlvAddr, ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd),
+                                                          dwBatchID, (void *)pstReq->stData.stData.abyData, ntohs(pstReq->stData.stData.wDataLen));
+            
+            master_sendMsg((void *)pclsMst, stSlv.wSlvAddr, (void *)pstBatchPkg, sizeof(MSG_DATA_BATCH_REQ_S) + htons(pstReq->stData.stData.wDataLen));
+
+            stSlv.byBatchFlag = TRUE;
+            stSlv.dwBatchNow = dwBatchID;
+            stSlv.bySendTimes++;
+            //log_debug(byLogNum, "SendTimes(%u)", stSlv.bySendTimes);
+    
+            free(pstBatchPkg);
+        }
+        free(pstRsp);
+    }
+    else if(ntohs(pstMsgHdr->wSig) == START_SIG_2)
+    {
+        //收到某个slave发送回来的batch回复包
+        const MSG_DATA_BATCH_RSP_S *pstRsp = (const MSG_DATA_BATCH_RSP_S *)pMsg;
+        if(ntohs(pstRsp->stMsgHdr.wLen) < sizeof(MSG_DATA_BATCH_RSP_S) - MSG_HDR_LEN)
+        {
+            log_error(byLogNum, "msg wLen not enough!");
+            return FAILE;
+        }
+
+        //将对应slave的batch标志位复位
+        SLAVE_S stSlv;
+        UINT uiSlvIdx;
+        for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
+        {
+            stSlv = pclsMst->vecSlvs[uiSlvIdx];
+            if(ntohs(pstRsp->stMsgHdr.wSrcAddr) == stSlv.wSlvAddr)
+            {
+                if(!(ntohl(pstRsp->stDataResult.dwDataID) % 1000))
+                {
+                    log_debug(byLogNum, "Slave(%d) has received batch pkg(id:%u)!", stSlv.wSlvAddr, ntohl(pstRsp->stMsgHdr.dwSeq));
+                }
+                stSlv.byBatchFlag = FALSE;
+                stSlv.dwBatchNow = 0;
+                stSlv.bySendTimes = 0;
+            }
+        }
+    }
+    else
     {
         log_error(byLogNum, "msg wSig error!");
         return FAILE;
     }
-    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_BATCH_REQ_S) - MSG_HDR_LEN)
-    {
-        log_error(byLogNum, "msg wLen not enough!");
-        return FAILE;
-    }
 
-    //log_debug(byLogNum, "%4x, %4x, %4x, %4x", pstReq->stMsgHdr.wSig, pstReq->stMsgHdr.wVer, pstReq->stMsgHdr.wSrcAddr, pstReq->stMsgHdr.wDstAddr);
-    //log_debug(byLogNum, "%8x, %4x, %4x", pstReq->stMsgHdr.dwSeq, pstReq->stMsgHdr.wCmd, pstReq->stMsgHdr.wLen);
-    //log_debug(byLogNum, "%8x, %8x", pstReq->stData.dwDataStart, pstReq->stData.dwDataStart);
-    //log_debug(byLogNum, "%8x, %4x, %4x", pstReq->stData.stData.dwDataID, pstReq->stData.stData.wDataLen, pstReq->stData.stData.wDataChecksum);
-
-    MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
-        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_BATCH);
-    pstRsp->stDataResult.dwDataID = pstReq->stData.stData.dwDataID;
-    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
-
-    DWORD dwRet = master_sendMsg(pMst, pclsMst->wTaskAddr, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
-    if(dwRet != SUCCESS)
-    {
-        log_error(byLogNum, "master_sendMsg error!");
-        return FAILE;
-    }
-
-    NODE_DATA_BATCH_S *pstNodeBatch = (NODE_DATA_BATCH_S *)malloc(sizeof(NODE_DATA_BATCH_S));
-    pstNodeBatch->stState.byIsReady = FALSE;
-    pstNodeBatch->stState.byIsSucceed = FALSE;
-    memcpy(&(pstNodeBatch->stBatchNet), &(pstReq->stData), sizeof(DATA_BATCH_PKG_S));
-
-    DWORD dwBatchID = ntohl(pstReq->stData.stData.dwDataID);
-    pclsMst->mapDataBatch.insert(make_pair(dwBatchID, (void *)pstNodeBatch));
-
-    free(pstRsp);
     return SUCCESS;
 }
 
@@ -292,11 +345,11 @@ static DWORD master_dataInstant(void *pMst, const void *pMsg)
         for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
         {
             stSlv = pclsMst->vecSlvs[uiSlvIdx];
-            pstInstantPkg = (MSG_DATA_INSTANT_REQ_S *)master_alloc_dataInstant(pclsMst->wMstAddr, stSlv.wSlvAddr, 
-                                                          (void *)pstReq->stData.abyData, htons(pstReq->stData.wDataLen));
+            pstInstantPkg = (MSG_DATA_INSTANT_REQ_S *)master_alloc_dataInstant(pclsMst->wMstAddr, stSlv.wSlvAddr, dwInstantID,
+                                                          (void *)pstReq->stData.abyData, ntohs(pstReq->stData.wDataLen));
             
-            master_sendMsg((void *)pclsMst, stSlv.wSlvAddr, (void *)pstInstantPkg, sizeof(MSG_DATA_INSTANT_REQ_S) + htons(pstReq->stData.wDataLen));
-    
+            master_sendMsg((void *)pclsMst, stSlv.wSlvAddr, (void *)pstInstantPkg, sizeof(MSG_DATA_INSTANT_REQ_S) + ntohs(pstReq->stData.wDataLen));
+
             stSlv.byInstantFlag = TRUE;
             stSlv.dwInstantNow = dwInstantID;
             stSlv.bySendTimes++;
@@ -456,8 +509,8 @@ static MSG_PROC_MAP g_msgProcs_mst[] =
 static DWORD master_msgHandleOne(void *pMst, const MSG_HDR_S *pstMsgHdr)
 {
     master *pclsMst = (master *)pMst;
-    BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_msgHandleOne().");
+    //BYTE byLogNum = pclsMst->byLogNum;
+    //log_debug(byLogNum, "master_msgHandleOne().");
     
     for(UINT i = 0; i < sizeof(g_msgProcs_mst) / sizeof(g_msgProcs_mst[0]); i++)
     {
@@ -479,7 +532,7 @@ DWORD master_msgHandle(void *pMst, const void *pMsg, WORD wMsgLen)
     master *pclsMst = (master *)pMst;
     BYTE wMstAddr = pclsMst->wMstAddr;
     BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_msgHandle().");
+    //log_debug(byLogNum, "master_msgHandle().");
 
     if(wMsgLen < MSG_HDR_LEN)
     {

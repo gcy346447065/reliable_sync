@@ -62,7 +62,7 @@ DWORD slave_mailboxProc(void *pSlv)
     DWORD dwRet = SUCCESS;
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave_mailboxProc().");
+    //log_debug(byLogNum, "slave_mailboxProc().");
 
     void *pRecvBuf = slave_alloc(MAX_RECV_LEN);
     if(pRecvBuf == NULL)
@@ -72,21 +72,16 @@ DWORD slave_mailboxProc(void *pSlv)
         return FAILE;
     }
 
-    log_debug(byLogNum, "slave_mailboxProc()_debug_1.");
-
     WORD wBufLen = MAX_RECV_LEN;
     dwRet = slave_recv(pSlv, pRecvBuf, &wBufLen);
     if(dwRet != SUCCESS)
     {
-        log_debug(byLogNum, "slave_mailboxProc()_debug_2.");
         log_error(byLogNum, "slave_recv error!");
         slave_free(pRecvBuf);
         return FAILE;
     }
-	
-	log_debug(byLogNum, "slave_mailboxProc()_debug_3.");
 
-    log_hex(byLogNum, pRecvBuf, wBufLen);
+    //log_hex(byLogNum, pRecvBuf, wBufLen);
     dwRet = slave_msgHandle(pSlv, pRecvBuf, wBufLen);
     if(dwRet != SUCCESS)
     {
@@ -94,8 +89,6 @@ DWORD slave_mailboxProc(void *pSlv)
         slave_free(pRecvBuf);
         return FAILE;
     }
-
-    log_debug(byLogNum, "slave_mailboxProc()_debug_4.");
 
     slave_free(pRecvBuf);
     return dwRet;

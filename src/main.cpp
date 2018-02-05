@@ -159,7 +159,7 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
     BYTE byLogNum = pclsTask->byLogNum;
     BYTE wMstSlvAddr = pclsTask->wMstSlvAddr;
     mbufer *pMbufer = pclsTask->pMbufer;
-    log_debug(byLogNum, "task_sendReliableSync().");
+    //log_debug(byLogNum, "task_sendReliableSync().");
     
     /* 向主机主备线程接收端口发送数据 */
     dwRet = pMbufer->send_message(wMstSlvAddr, pData, wDataLen);
@@ -172,18 +172,15 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
     /* 等待主机主备线程接收端口的回复，超时作失败对待 */
     void *pRecvBuf = malloc(MAX_RECV_LEN);
     WORD wRecvBufLen = MAX_RECV_LEN;
-	
-    log_debug(byLogNum, "task_sendReliableSync()_debug_1.");
+
     dwRet = pMbufer->receive_message(pRecvBuf, &wRecvBufLen, dwTimeout);
     if(dwRet != SUCCESS)
     {
-        log_debug(byLogNum, "task_sendReliableSync()_debug_2.");
         log_error(byLogNum, "receive_message error!");
         free(pRecvBuf);
         return dwRet;
     }
 
-    log_debug(byLogNum, "task_sendReliableSync()_debug_3.");
     if(wRecvBufLen == 0)
     {
         //说明recv超时返回0
@@ -208,11 +205,11 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
     }
     else if(ntohs(pstMsgHdr->wCmd) == CMD_DATA_BATCH)
     {
-        log_hex_8(byLogNum, pRecvBuf, (WORD)sizeof(MSG_DATA_BATCH_RSP_S));
+        //log_hex_8(byLogNum, pRecvBuf, (WORD)sizeof(MSG_DATA_BATCH_RSP_S));
         MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)pRecvBuf;
         if(pstRsp->stDataResult.byResult == DATA_RESULT_SUCCEED)
         {
-            log_debug(byLogNum, "MSG_DATA_BATCH_RSP_S succeed.");
+            //log_debug(byLogNum, "MSG_DATA_BATCH_RSP_S succeed.");
         }
         else
         {
@@ -286,7 +283,6 @@ void *task_allocLogin(WORD wSrcAddr, WORD wDstAddr)
 //此函数申请的内存会在同一次批量备份时复用多次
 void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
 {
-    //log_debug(LOG1, "wPkgCount(%d).", wPkgCount);
     MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)malloc(sizeof(MSG_DATA_BATCH_REQ_S) + MAX_TASK2MST_PKG_LEN);
     if(pstBatch)
     {

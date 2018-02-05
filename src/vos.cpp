@@ -66,10 +66,8 @@ DWORD vos::vos_EpollWait()
         INT iEpollNum = epoll_wait(dwEpollFd, stEvents, MAX_EPOLL_NUM, 500); //wait 500ms or get event
         for(INT i = 0; i < iEpollNum; i++)
         {
-            log_debug(byLogNum, "stEvents[%d].data.fd(%d).", i, stEvents[i].data.fd);
             for(map<const CHAR *, VOS_TASK_S>::iterator itTask = mapTask.begin(); itTask != mapTask.end(); itTask++)
             {
-                //log_debug(byLogNum, "itTask->second.dwTaskEventFd(%d).", itTask->second.dwTaskEventFd);
                 if((DWORD)stEvents[i].data.fd == itTask->second.dwTaskEventFd)
                 {
                     itTask->second.pTaskFunc(itTask->second.pArg);
