@@ -3,7 +3,7 @@
 
 typedef unsigned long long  QWORD;
 
-typedef unsigned int       DWORD;//long在32位机长度为4，在64位机长度为8!!!
+typedef unsigned int       DWORD; // long在32位机长度为4，在64位机长度为8!!!
 
 typedef int                 BOOL;
 typedef unsigned char       BYTE;

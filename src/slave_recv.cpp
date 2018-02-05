@@ -201,6 +201,25 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
         log_error(byLogNum, "msg wLen not enough!");
         return FAILE;
     }
+
+    DWORD dwDataID = ntohl(pstReq->stData.dwDataID);
+    WORD wDataLen = ntohs(pstReq->stData.dwDataID);
+    log_debug(byLogNum, "after ntohs: pstReq->stData.dwDataID(%u), pstReq->stData.wDataLen(%u)", dwDataID, wDataLen);
+
+    CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+    sprintf(pcFileName, "instant_%u_%u", dwDataID, wDataLen);
+    INT iFileFd;
+    if (iFileFd = open(pcFileName, O_CREAT) < 0) {
+        log_error(byLogNum, "create %s error!", pcFileName);
+        return FAILE;
+    }
+
+    INT iWriteLen = write(iFileFd, pstReq->stData.abyData, wDataLen);
+    if (iWriteLen == wDataLen) {
+        log_info(byLogNum, "write instant file %s sussccd.", pcFileName);
+    } else {
+        log_error(byLogNum, "write instant file %s error!", pcFileName);
+    }
     
     MSG_DATA_INSTANT_RSP_S *pstRsp = (MSG_DATA_INSTANT_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
         ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_INSTANT);
