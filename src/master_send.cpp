@@ -3,13 +3,19 @@
 #include "master_send.h"
 #include "master.h"
 #include "macro.h"
+#include "memory.h"
 #include "protocol.h"
 #include "mbufer.h"
 #include "log.h"
 
 static DWORD g_dwSeq = 0;
 
-VOID *master_alloc_reqMsg(WORD wSrcAddr, WORD wDstAddr, WORD wCmd)
+static DWORD g_dwMstDataSeq = 1;
+//static DWORD g_dwMstBatchID = 0;
+static DWORD g_dwMstInstantID = 0;
+//static DWORD g_dwMstWaitedID = 0;
+
+VOID *master_alloc_reqMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, WORD wCmd)
 {
     WORD wMsgLen = 0;
     switch(wCmd)
@@ -22,6 +28,18 @@ VOID *master_alloc_reqMsg(WORD wSrcAddr, WORD wDstAddr, WORD wCmd)
             wMsgLen = sizeof(MSG_KEEP_ALIVE_REQ_S);
             break;
 
+        case CMD_DATA_BATCH:
+            wMsgLen = sizeof(MSG_DATA_BATCH_REQ_S);
+            break;
+
+        case CMD_DATA_INSTANT:
+            wMsgLen = sizeof(MSG_DATA_INSTANT_REQ_S);
+            break;
+
+        case CMD_DATA_WAITED:
+            wMsgLen = sizeof(MSG_DATA_WAITED_REQ_S);
+            break;
+
         default:
             return NULL;
     }
@@ -29,7 +47,7 @@ VOID *master_alloc_reqMsg(WORD wSrcAddr, WORD wDstAddr, WORD wCmd)
     MSG_HDR_S *pstMsgHdr = (MSG_HDR_S *)malloc(wMsgLen);
     if(pstMsgHdr)
     {
-        pstMsgHdr->wSig  = htons(START_SIG_1);
+        pstMsgHdr->wSig  = htons(wSig);
         pstMsgHdr->wVer  = htons(VERSION_INT);
         pstMsgHdr->wSrcAddr = htons(wSrcAddr);
         pstMsgHdr->wDstAddr = htons(wDstAddr);
@@ -89,6 +107,29 @@ VOID *master_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, 
     return (VOID *)pstMsgHdr;
 }
 
+void *master_alloc_dataInstant(WORD wSrcAddr, WORD wDstAddr, void *pBuf, WORD wBufLen)
+{
+    WORD wMsgLen = sizeof(MSG_DATA_INSTANT_REQ_S) + wBufLen;
+    MSG_DATA_INSTANT_REQ_S *pstInstant = (MSG_DATA_INSTANT_REQ_S *)malloc(wMsgLen);
+    if(pstInstant)
+    {
+        pstInstant->stMsgHdr.wSig = htons(START_SIG_2);
+        pstInstant->stMsgHdr.wVer = htons(VERSION_INT);
+        pstInstant->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstInstant->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstInstant->stMsgHdr.dwSeq = htonl(g_dwMstDataSeq++);
+        pstInstant->stMsgHdr.wCmd = htons(CMD_DATA_INSTANT);
+        pstInstant->stMsgHdr.wLen = htons(wMsgLen - MSG_HDR_LEN);
+
+        pstInstant->stData.dwDataID = htonl(g_dwMstInstantID++);
+        pstInstant->stData.wDataLen = htons(wBufLen);
+        pstInstant->stData.wDataChecksum = htons(0);
+        memcpy(pstInstant->stData.abyData, pBuf, wBufLen);
+    }
+
+    return (void *)pstInstant;
+}
+
 DWORD master_sendMsg(void *pMst, WORD wDstAddr, void *pData, WORD wDataLen)
 {
     DWORD dwRet = SUCCESS;
@@ -110,21 +151,21 @@ DWORD master_sendMsg(void *pMst, WORD wDstAddr, void *pData, WORD wDataLen)
 
 DWORD master_sendToSlaves(void *pMst, void *pData, WORD wDataLen)
 {
-    DWORD dwRet = SUCCESS;
+    /*DWORD dwRet = SUCCESS;
     master *pclsMst = (master *)pMst;
     mbufer *pMbufer = pclsMst->pMbufer;
     BYTE byLogNum = pclsMst->byLogNum;
-    vector<WORD> vecSlvAddr = pclsMst->vecSlvAddr;
+    vector<SLAVE_S> vecSlvs = pclsMst->vecSlvs;
     log_debug(byLogNum, "master_sendToSlaves().");
 
-    WORD wSlvAddr = vecSlvAddr.front();
-    /* 向主机主备线程接收端口发送数据 */
+    WORD wSlvAddr = vecSlvs.front();
+     向主机主备线程接收端口发送数据 
     dwRet = pMbufer->send_message(wSlvAddr, pData, wDataLen);
     if(dwRet != SUCCESS)
     {
         log_error(byLogNum, "send_message error!");
         return dwRet;
-    }
+    }*/
         
 
     return SUCCESS;

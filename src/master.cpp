@@ -89,127 +89,16 @@ typedef struct
     master *pclsMst;
 }MASTER_PROCTHREAD_S;
 
-VOID *master_batchProcThread(void *pArg)
-{
-    MASTER_PROCTHREAD_S *pstProcStruct = (MASTER_PROCTHREAD_S *)pArg;
-    master *pclsMst = pstProcStruct->pclsMst;
-    BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_batchProcThread().");
-
-    while(1)
-    {
-        if(pclsMst->byBatchFlag == TRUE)
-        {
-            pclsMst->byBatchFlag = FALSE;
-            log_debug(byLogNum, "got dwBatchNow(%u).", pclsMst->dwBatchNow);
-            
-        }
-    }
-
-    return (VOID *)SUCCESS;
-}
-
-
-VOID *master_instantProcThread(void *pArg)
-{
-    MASTER_PROCTHREAD_S *pstProcStruct = (MASTER_PROCTHREAD_S *)pArg;
-    master *pclsMst = pstProcStruct->pclsMst;
-    BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_instantProcThread().");
-
-    map<DWORD, void*>::reverse_iterator rit;
-    NODE_DATA_INSTANT_S *pNode;
-    WORD wChecksum = 0;
-    while(1)
-    {
-        if(pclsMst->byInstantFlag == TRUE)
-        {
-            pclsMst->byInstantFlag = FALSE;
-            log_debug(byLogNum, "got dwInstantNow(%u).", pclsMst->dwInstantNow);
-
-            //从后往前遍历，进行重发与删除过旧的节点
-            for(rit = pclsMst->mapDataInstant.rbegin(); rit != pclsMst->mapDataInstant.rend(); rit++)
-            {
-                DWORD dwID = (*rit).first;
-                log_debug(byLogNum, "dwID(%u)", dwID);
-                
-                pNode = (NODE_DATA_INSTANT_S *)((*rit).second);
-                if(pNode->stState.byIsSucceed == TRUE)
-                {
-                    //说明该节点发送成功，删除节点
-                    log_debug(byLogNum, "is succeed, delete node.");
-					//pclsMst->mapDataInstant.erase(rit);
-                }
-                else if(pNode->stState.bySendTimes >= MAX_SEND_TIMES)
-                {
-                    //说明该节点发送不成功重传次数超过阈值，删除节点
-                    log_debug(byLogNum, "send times enough, delete node.");
-					//pclsMst->mapDataInstant.erase(rit);
-                }
-                else if(pNode->stState.byIsReady == TRUE)
-                {
-                    //说明该节点准备好，且发送不成功次数未超过阈值，发送节点
-                    log_debug(byLogNum, "is ready, send node.");
-
-                    pNode->stState.bySendTimes++;
-                    log_debug(byLogNum, "bySendTimes(%u)", pNode->stState.bySendTimes);
-                }
-                else if(pNode->stState.byIsReady == FALSE)
-                {
-                    //说明该节点未准备好，计算节点checksum等使其准备好，并发送节点
-                    log_debug(byLogNum, "being ready, send node.");
-                    wChecksum = checksum((const void *)(pNode->stInstantNet.abyData), (WORD)ntohs(pNode->stInstantNet.wDataLen));
-                    //wChecksum = 0;
-                    pNode->stInstantNet.wDataChecksum = htons(wChecksum);
-                    
-                    pNode->stState.byIsReady = TRUE;
-                    pNode->stState.bySendTimes++;
-                }
-            }
-        }
-    }
-
-    return (VOID *)SUCCESS;
-}
-
-VOID *master_waitedProcThread(void *pArg)
-{
-    MASTER_PROCTHREAD_S *pstProcStruct = (MASTER_PROCTHREAD_S *)pArg;
-    master *pclsMst = pstProcStruct->pclsMst;
-    BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_waitedProcThread().");
-
-    while(1)
-    {
-        if(pclsMst->byWaitedFlag == TRUE)
-        {
-            pclsMst->byWaitedFlag = FALSE;
-            log_debug(byLogNum, "got dwWaitedNow(%u).", pclsMst->dwWaitedNow);
-            
-            
-        }
-    }
-
-    return (VOID *)SUCCESS;
-}
-
-
 DWORD master::master_Init()
 {
     log_init(byLogNum, "");
     log_debug(byLogNum, "Master Task Beginning.");
     DWORD dwRet = SUCCESS;
 
-    vecSlvAddr.clear();
+    vecSlvs.clear();
     mapDataBatch.clear();
     mapDataInstant.clear();
     mapDataWaited.clear();
-    byBatchFlag = 0;
-    byInstantFlag = 0;
-    byWaitedFlag = 0;
-    dwBatchNow = 0;
-    dwInstantNow = 0;
-    dwWaitedNow = 0;
 
     pVos = new vos(byLogNum);
     dwRet = pVos->vos_Init();//实际为创建epoll
@@ -237,28 +126,6 @@ DWORD master::master_Init()
     }
 
     /* 创建该子线程主要用于checksum的计算，将io操作与cpu计算分开有利于提高效率 */
-    // 创建三个备份数据线程
-    pthread_t ProcThreadId;
-    MASTER_PROCTHREAD_S stProcStruct;
-    stProcStruct.pclsMst = this;
-    INT iRet = pthread_create(&ProcThreadId, NULL, master_batchProcThread, (void *)&stProcStruct);
-    if(iRet != SUCCESS)
-    {
-        log_error(byLogNum, "pthread batchProc create error(%d)!", iRet);
-        return FAILE;
-    }
-    iRet = pthread_create(&ProcThreadId, NULL, master_instantProcThread, (void *)&stProcStruct);
-    if(iRet != SUCCESS)
-    {
-        log_error(byLogNum, "pthread instantProc create error(%d)!", iRet);
-        return FAILE;
-    }
-    iRet = pthread_create(&ProcThreadId, NULL, master_waitedProcThread, (void *)&stProcStruct);
-    if(iRet != SUCCESS)
-    {
-        log_error(byLogNum, "pthread waitedProc create error(%d)!", iRet);
-        return FAILE;
-    }
 
     return dwRet;
 }

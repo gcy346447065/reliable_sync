@@ -11,6 +11,19 @@ using std::map;
 #include "mbufer.h"
 #include "log.h"
 
+typedef struct
+{
+    WORD wSlvAddr;
+    BYTE byBatchFlag;
+    BYTE byInstantFlag;
+    BYTE byWaitedFlag;
+    DWORD dwBatchNow;
+    DWORD dwInstantNow;
+    DWORD dwWaitedNow;
+    BYTE bySendTimes;
+    
+}SLAVE_S;
+
 class master
 {
 public:
@@ -42,17 +55,10 @@ public:
     BYTE byLogNum;
     WORD wTaskAddr;
     WORD wMstAddr;
-    vector<WORD> vecSlvAddr;
+    vector<SLAVE_S> vecSlvs;
     map<DWORD, void*> mapDataBatch;//NODE_DATA_BATCH_S*
     map<DWORD, void*> mapDataInstant;//NODE_DATA_INSTANT_S*
     map<DWORD, void*> mapDataWaited;//NODE_DATA_WAITED_S*
-    BYTE byBatchFlag;
-    DWORD dwBatchNow;
-    BYTE byInstantFlag;
-    DWORD dwInstantNow;
-    BYTE byWaitedFlag;
-    DWORD dwWaitedNow;
-    
     mbufer *pMbufer;
     
 };

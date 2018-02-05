@@ -22,15 +22,15 @@ WORD g_slv_wSlvAddr;
 
 DWORD g_dwSlvDataSeq = 1;
 
-BYTE *slave_alloc_RecvBuffer(WORD wBufLen)
+void *slave_alloc(WORD wBufLen)
 {
-    BYTE *pbyRecvBuf = (BYTE *)malloc(wBufLen);
-    if(pbyRecvBuf == NULL)
+    void *pRecvBuf = malloc(wBufLen);
+    if(pRecvBuf == NULL)
     {
         return NULL;
     }
-    memset(pbyRecvBuf, 0, wBufLen);
-    return pbyRecvBuf;
+    memset(pRecvBuf, 0, wBufLen);
+    return pRecvBuf;
 }
 
 void *slave_alloc_Login(WORD wSrcAddr, WORD wDstAddr)
@@ -51,9 +51,9 @@ void *slave_alloc_Login(WORD wSrcAddr, WORD wDstAddr)
     return (void *)pstLogin;
 }
 
-DWORD slave_free(BYTE *pbyRecvBuf)
+DWORD slave_free(void *pBuf)
 {
-    free(pbyRecvBuf);
+    free(pBuf);
     return SUCCESS;
 }
 
@@ -64,40 +64,40 @@ DWORD slave_mailboxProc(void *pSlv)
     BYTE byLogNum = pclsSlv->byLogNum;
     log_debug(byLogNum, "slave_mailboxProc().");
 
-    BYTE *pbyRecvBuf = slave_alloc_RecvBuffer(MAX_RECV_LEN);
-    if(pbyRecvBuf == NULL)
+    void *pRecvBuf = slave_alloc(MAX_RECV_LEN);
+    if(pRecvBuf == NULL)
     {
-        log_error(byLogNum, "slave_alloc_RecvBuffer error!");
-        slave_free(pbyRecvBuf);
+        log_error(byLogNum, "slave_alloc error!");
+        slave_free(pRecvBuf);
         return FAILE;
     }
 
     log_debug(byLogNum, "slave_mailboxProc()_debug_1.");
 
     WORD wBufLen = MAX_RECV_LEN;
-    dwRet = slave_recv(pSlv, pbyRecvBuf, &wBufLen);
+    dwRet = slave_recv(pSlv, pRecvBuf, &wBufLen);
     if(dwRet != SUCCESS)
     {
         log_debug(byLogNum, "slave_mailboxProc()_debug_2.");
         log_error(byLogNum, "slave_recv error!");
-        slave_free(pbyRecvBuf);
+        slave_free(pRecvBuf);
         return FAILE;
     }
 	
 	log_debug(byLogNum, "slave_mailboxProc()_debug_3.");
 
-    log_hex(byLogNum, pbyRecvBuf, wBufLen);
-    dwRet = slave_msgHandle(pSlv, pbyRecvBuf, wBufLen);
+    log_hex(byLogNum, pRecvBuf, wBufLen);
+    dwRet = slave_msgHandle(pSlv, pRecvBuf, wBufLen);
     if(dwRet != SUCCESS)
     {
         log_error(byLogNum, "slave_MsgHandle error!");
-        slave_free(pbyRecvBuf);
+        slave_free(pRecvBuf);
         return FAILE;
     }
 
     log_debug(byLogNum, "slave_mailboxProc()_debug_4.");
 
-    slave_free(pbyRecvBuf);
+    slave_free(pRecvBuf);
     return dwRet;
 }
 
@@ -171,8 +171,9 @@ DWORD slave::slave_Init()
         return FAILE;
     }
 
-    /* 向master发送一次登录包，以方便master记录wSlvAddr */
+    /* 向master发送一次登录包，以方便master记录wSlvAddr  */
     MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)slave_alloc_Login(wSlvAddr, wMstAddr);
+    log_debug(byLogNum, "wSlvAddr(%d) ready to send login msg to master.", wSlvAddr);
     if(!pstLogin)
     {
         log_error(byLogNum, "slave_allocLogin error!");

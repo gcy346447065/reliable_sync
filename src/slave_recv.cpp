@@ -15,7 +15,7 @@ extern WORD g_slv_wSlvAddr;
 extern mbufer *g_pSlvMbufer;
 extern timer *g_pSlvRegTimer;
 
-DWORD slave_recv(void *pSlv, BYTE *pbyRecvBuf, WORD *pwBufLen)
+DWORD slave_recv(void *pSlv, void *pRecvBuf, WORD *pwBufLen)
 {
     DWORD dwRet = SUCCESS;
 
@@ -24,7 +24,7 @@ DWORD slave_recv(void *pSlv, BYTE *pbyRecvBuf, WORD *pwBufLen)
     mbufer *pclsMbufer = (mbufer *)pclsSlve->pMbufer;
 
     /* 从mbufer中接收到消息体 */
-    dwRet = pclsMbufer->receive_message(pbyRecvBuf, pwBufLen, DMM_NO_WAIT);
+    dwRet = pclsMbufer->receive_message(pRecvBuf, pwBufLen, DMM_NO_WAIT);
     if(dwRet != DMM_SUCCESS)
     {
         log_error(byLogNum, "receive_message error!");
@@ -153,7 +153,29 @@ static DWORD slave_keepAlive(void *pSlv, const void *pMsg)
 
 static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
 {
-    log_debug(LOG1, "slave_dataInstant.");
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_dataInstant.");
+
+    const MSG_DATA_INSTANT_REQ_S *pstReq = (const MSG_DATA_INSTANT_REQ_S *)pMsg;
+    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_INSTANT_REQ_S) - MSG_HDR_LEN)
+    {
+        log_error(byLogNum, "msg wLen not enough!");
+        return FAILE;
+    }
+    
+    MSG_DATA_INSTANT_RSP_S *pstRsp = (MSG_DATA_INSTANT_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_INSTANT);
+    pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
+    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
+    
+    DWORD dwRet = slave_sendMsg(pSlv, pclsSlv->wMstAddr, (void *)pstRsp, sizeof(MSG_DATA_INSTANT_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "master_sendMsg error!");
+        return FAILE;
+    }
+
     return SUCCESS;
 }
 
@@ -192,20 +214,19 @@ static DWORD slave_msgHandleOne(void *pSlv, const MSG_HDR_S *pstMsgHdr)
     return FAILE;//未解析出函数说明异常
 }
 
-DWORD slave_msgHandle(void *pSlv, const BYTE *pbyMsg, WORD wMsgLen)
+DWORD slave_msgHandle(void *pSlv, const void *pMsg, WORD wMsgLen)
 {
     slave *pclsSlv = (slave *)pSlv;
+    BYTE wSlvAddr = pclsSlv->wSlvAddr;
     BYTE byLogNum = pclsSlv->byLogNum;
-	
     log_debug(byLogNum, "slave_msgHandle.");
-    const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pbyMsg;
 
     if(wMsgLen < MSG_HDR_LEN)
     {
-        log_error(byLogNum, "sync message length not enough(%u<%lu)", wMsgLen, MSG_HDR_LEN);
+        log_error(byLogNum, "message length error(%u<%lu)!", wMsgLen, MSG_HDR_LEN);
         return FAILE;
     }
-	
+  
 /* 老代码不用
     if(pstMsgHdr->wSrcAddr != wMstAddr)
     {
@@ -219,19 +240,32 @@ DWORD slave_msgHandle(void *pSlv, const BYTE *pbyMsg, WORD wMsgLen)
         return FAILE;
     }
 */
+
+    const BYTE *pbyMsg = (const BYTE *)pMsg;
     const WORD *pwSig = (const WORD *)pbyMsg;
     WORD wLeftLen = wMsgLen;
-    while(wLeftLen >= ntohs(pstMsgHdr->wLen) + MSG_HDR_LEN)
+    while(ntohs(pwSig[0]) == START_SIG_1 || ntohs(pwSig[0]) == START_SIG_2)//为了处理粘包
     {
-        if((ntohs(pwSig[0]) != START_SIG_1) && (ntohs(pwSig[0]) != START_SIG_2))
+        const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pbyMsg;
+        if(wLeftLen < sizeof(MSG_HDR_S))
         {
-            log_error(byLogNum, "signature error(%x)!", (unsigned)ntohs(pstMsgHdr->wSig));
-            return FAILE;
+            break;
+        }
+        wLeftLen = wLeftLen - sizeof(MSG_HDR_S) - ntohs(pstMsgHdr->wLen);
+        pbyMsg = pbyMsg + wMsgLen - wLeftLen;
+
+        if(ntohs(pstMsgHdr->wDstAddr) != (WORD)wSlvAddr)
+        {
+            log_error(byLogNum, "wDstAddr(%u) not equal to wSlvAddr(%u)", ntohs(pstMsgHdr->wDstAddr), wSlvAddr);
+            continue;
         }
 
-        slave_msgHandleOne(pSlv, pstMsgHdr);//如果多个数据包中有一个数据包未找到相应的解析函数时，暂未记录此异常情况
-        wLeftLen = wLeftLen - MSG_HDR_LEN - ntohs(pstMsgHdr->wLen);
-        pstMsgHdr = (const MSG_HDR_S *)(pbyMsg + wMsgLen - wLeftLen);
+        slave_msgHandleOne(pSlv, pstMsgHdr);//ntohs(pwSig[0])：START_SIG_1时为主机业务线程下发数据的消息，START_SIG_2时为备机主备线程回复的消息
+        pwSig = (const WORD *)pbyMsg;
+        if(wLeftLen <= 0)
+        {
+            break;
+        }
     }
 
     return SUCCESS;

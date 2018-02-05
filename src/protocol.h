@@ -4,8 +4,8 @@
 #include "macro.h"
 
 //将主机业务线程向主备线程下发的消息，与主备机主备线程间的消息此关键字设置得不一样
-#define START_SIG_1 (0xAA55) // task to (master or slave)
-#define START_SIG_2 (0xBB66) // slave to master
+#define START_SIG_1 (0xAA55) // task to master, task to slave
+#define START_SIG_2 (0xBB66) // slave to master, master to slave
 #define START_SIG_3 (0xCC77) //
 
 /*
@@ -176,7 +176,6 @@ typedef struct
 {
     BYTE byIsReady;
     BYTE byIsSucceed;
-    BYTE bySendTimes;
 }__attribute__((__packed__)) NODE_STATE_S;
 
 typedef struct

@@ -3,8 +3,8 @@
 
 #include "macro.h"
 
-DWORD slave_recv(void *pSlv, BYTE *pbyRecvBuf, WORD *pwBufLen);
-DWORD slave_msgHandle(void *pSlv, const BYTE *pbyPara, WORD wParaLen);
+DWORD slave_recv(void *pSlv, void *pRecvBuf, WORD *pwBufLen);
+DWORD slave_msgHandle(void *pSlv, const void *pMsg, WORD wMsgLen);
 
 #endif//_SLAVE_RECV_H_
 

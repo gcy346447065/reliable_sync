@@ -22,7 +22,10 @@ WORD checksum(const void *pData, WORD wDataLen)
     while(dwSum >> 16)
     {
         dwSum = (dwSum >> 16) + (dwSum & 0xffff);
+        log_debug(LOG2, "hello!");
     }
+    
+    log_debug(LOG2, "hi!");
 
     return (WORD)(~dwSum);
 }

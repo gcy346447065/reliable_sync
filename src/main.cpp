@@ -70,6 +70,8 @@ public:
         }
 
         /* 向master或slave发送一次登录包，以方便master或slave记录wTaskAddr */
+        
+        sleep(1);
         MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)task_allocLogin(wTaskAddr, wMstSlvAddr);
         if(!pstLogin)
         {
@@ -139,7 +141,7 @@ VOID *main_syncThread(VOID *pArg)
         //slave开机初始化
         slave *pclsSlv = new slave(LOG2, pstSyncThread->wMstAddr, pstSyncThread->wSlvAddr);
         pclsSlv->slave_Init();
-
+        
         //slave循环
         pclsSlv->slave_Loop();
 
@@ -630,6 +632,14 @@ INT main(INT argc, CHAR *argv[])
     BYTE byLogNum = LOG1;
     log_init(byLogNum, "");//现在用的是syslog输出到/var/log/local1.log文件中，如有其他打印log方式可代之
     log_debug(byLogNum, "Main Task Beginning.");
+
+    /* 测试打印调试
+    while(true)
+    {
+        sleep(1);
+        log_debug(byLogNum, "Hello.");
+    }
+    */
 
     /* 检查入参 */
     if(argc < 2)

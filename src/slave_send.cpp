@@ -134,7 +134,7 @@ VOID *slave_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, W
         pstMsgHdr->wVer  = htons(VERSION_INT);
         pstMsgHdr->wSrcAddr = htons(wSrcAddr);
         pstMsgHdr->wDstAddr = htons(wDstAddr);
-        pstMsgHdr->dwSeq = htons(dwSeq);
+        pstMsgHdr->dwSeq = htonl(dwSeq);
         pstMsgHdr->wCmd = htons(wCmd);
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
     }
