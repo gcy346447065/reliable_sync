@@ -154,6 +154,29 @@ void *master_alloc_dataInstant(WORD wSrcAddr, WORD wDstAddr, DWORD dwDataID, voi
     return (void *)pstInstant;
 }
 
+void *master_alloc_dataWaited(WORD wSrcAddr, WORD wDstAddr, DWORD dwDataID, void *pBuf, WORD wBufLen)
+{
+    WORD wMsgLen = sizeof(MSG_DATA_WAITED_REQ_S) + wBufLen;
+    MSG_DATA_WAITED_REQ_S *pstWaited = (MSG_DATA_WAITED_REQ_S *)malloc(wMsgLen);
+    if(pstWaited)
+    {
+        pstWaited->stMsgHdr.wSig = htons(START_SIG_2);
+        pstWaited->stMsgHdr.wVer = htons(VERSION_INT);
+        pstWaited->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstWaited->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstWaited->stMsgHdr.dwSeq = htonl(g_dwMstDataSeq++);
+        pstWaited->stMsgHdr.wCmd = htons(CMD_DATA_WAITED);
+        pstWaited->stMsgHdr.wLen = htons(wMsgLen - MSG_HDR_LEN);
+
+        pstWaited->stData.dwDataID = htonl(dwDataID);
+        pstWaited->stData.wDataLen = htons(wBufLen);
+        pstWaited->stData.wDataChecksum = htons(0);
+        memcpy(pstWaited->stData.abyData, pBuf, wBufLen);
+    }
+
+    return (void *)pstWaited;
+}
+
 DWORD master_sendMsg(void *pMst, WORD wDstAddr, void *pData, WORD wDataLen)
 {
     DWORD dwRet = SUCCESS;

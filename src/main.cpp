@@ -431,6 +431,8 @@ DWORD task_stdinProc(void *pArg)
                 return FAILE;
             }
             
+            log_debug(byLogNum, "wPkgCount = %d.", wPkgCount);
+            
             for(INT i = 0; i < wPkgCount; i++)
             {
                 void *pDataBuf = (void *)pstBatch->stData.stData.abyData;

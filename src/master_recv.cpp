@@ -405,45 +405,100 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
     }
     log_debug(byLogNum, "master_dataWaited().");
 
-    const MSG_DATA_WAITED_REQ_S *pstReq = (const MSG_DATA_WAITED_REQ_S *)pMsg;
-    if(!pstReq)
+    const MSG_HDR_S *pstMsgHdr = (const MSG_HDR_S *)pMsg;
+    if(!pstMsgHdr)
     {
         log_error(byLogNum, "msg handle empty!");
         return FAILE;
     }
-    if(ntohs(pstReq->stMsgHdr.wSig) != START_SIG_1)
+    
+    if(ntohs(pstMsgHdr->wSig) == START_SIG_1)
+    {
+        //收到task下发的waited包，先回复task
+        const MSG_DATA_WAITED_REQ_S *pstReq = (const MSG_DATA_WAITED_REQ_S *)pMsg;
+        if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_WAITED_REQ_S) - MSG_HDR_LEN)
+        {
+            log_error(byLogNum, "msg wLen not enough!");
+            return FAILE;
+        }
+        
+        MSG_DATA_WAITED_RSP_S *pstRsp = (MSG_DATA_WAITED_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+            ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_WAITED);
+        pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
+        pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
+    
+        DWORD dwRet = master_sendMsg(pMst, pclsMst->wTaskAddr, (void *)pstRsp, sizeof(MSG_DATA_WAITED_RSP_S));
+        if(dwRet != SUCCESS)
+        {
+            log_error(byLogNum, "master_sendMsg error!");
+            return FAILE;
+        }
+    
+        // 将waited包插入到master的waited链表里
+        NODE_DATA_WAITED_S *pstNodeWaited = (NODE_DATA_WAITED_S *)malloc(sizeof(NODE_DATA_WAITED_S));
+        memcpy(&(pstNodeWaited->stWaitedNet), &(pstReq->stData), sizeof(DATA_PKG_S));
+
+        //WORD wChecksum = checksum((const void *)(pstNodeInstant->stInstantNet.abyData), (WORD)ntohs(pstNodeInstant->stInstantNet.wDataLen));
+        //pstNodeInstant->stInstantNet.wDataChecksum = htons(wChecksum);
+        pstNodeWaited->stState.byIsReady = TRUE;
+        pstNodeWaited->stState.byIsSucceed = FALSE;
+    
+        DWORD dwWaitedID = ntohl(pstReq->stData.dwDataID);
+        pclsMst->mapDataWaited.insert(make_pair(dwWaitedID, (void *)pstNodeWaited));
+    
+        // 将waited包转发给所有slave
+        log_debug(byLogNum, "being ready, send node.");
+    
+        SLAVE_S stSlv;
+        MSG_DATA_WAITED_REQ_S *pstWaitedPkg;
+        UINT uiSlvIdx;
+        for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
+        {
+            stSlv = pclsMst->vecSlvs[uiSlvIdx];
+            pstWaitedPkg = (MSG_DATA_WAITED_REQ_S *)master_alloc_dataWaited(pclsMst->wMstAddr, stSlv.wSlvAddr, dwWaitedID,
+                                                          (void *)pstReq->stData.abyData, ntohs(pstReq->stData.wDataLen));
+            
+            master_sendMsg((void *)pclsMst, stSlv.wSlvAddr, (void *)pstWaitedPkg, sizeof(MSG_DATA_WAITED_REQ_S) + ntohs(pstReq->stData.wDataLen));
+
+            stSlv.byWaitedFlag = TRUE;
+            stSlv.dwWaitedNow = dwWaitedID;
+            stSlv.bySendTimes++;
+            log_debug(byLogNum, "SendTimes(%u)", stSlv.bySendTimes);
+    
+            free(pstWaitedPkg);
+        }
+        free(pstRsp);
+    }
+    else if(ntohs(pstMsgHdr->wSig) == START_SIG_2)
+    {
+        //收到某个slave发送回来的waited回复包
+        const MSG_DATA_WAITED_RSP_S *pstRsp = (const MSG_DATA_WAITED_RSP_S *)pMsg;
+        if(ntohs(pstRsp->stMsgHdr.wLen) < sizeof(MSG_DATA_WAITED_RSP_S) - MSG_HDR_LEN)
+        {
+            log_error(byLogNum, "msg wLen not enough!");
+            return FAILE;
+        }
+
+        //将对应slave的waited标志位复位
+        SLAVE_S stSlv;
+        UINT uiSlvIdx;
+        for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
+        {
+            stSlv = pclsMst->vecSlvs[uiSlvIdx];
+            if(ntohs(pstRsp->stMsgHdr.wSrcAddr) == stSlv.wSlvAddr)
+            {
+                stSlv.byWaitedFlag = FALSE;
+                stSlv.dwWaitedNow = 0;
+                stSlv.bySendTimes = 0;
+                log_debug(byLogNum, "Slave(%d) has received waited pkg!", stSlv.wSlvAddr);
+            }
+        }
+    }
+    else
     {
         log_error(byLogNum, "msg wSig error!");
         return FAILE;
     }
-    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_WAITED_REQ_S) - MSG_HDR_LEN)
-    {
-        log_error(byLogNum, "msg wLen not enough!");
-        return FAILE;
-    }
-
-    MSG_DATA_WAITED_RSP_S *pstRsp = (MSG_DATA_WAITED_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
-        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_WAITED);
-    pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
-    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
-
-    DWORD dwRet = master_sendMsg(pMst, pclsMst->wTaskAddr, (void *)pstRsp, sizeof(MSG_DATA_WAITED_RSP_S));
-    if(dwRet != SUCCESS)
-    {
-        log_error(byLogNum, "master_sendMsg error!");
-        return FAILE;
-    }
-
-    NODE_DATA_WAITED_S *pstNodeWaited = (NODE_DATA_WAITED_S *)malloc(sizeof(NODE_DATA_WAITED_S));
-    pstNodeWaited->stState.byIsReady = FALSE;
-    pstNodeWaited->stState.byIsSucceed = FALSE;
-    memcpy(&(pstNodeWaited->stWaitedNet), &(pstReq->stData), sizeof(DATA_PKG_S));
-
-    DWORD dwWaitedID = ntohl(pstReq->stData.dwDataID);
-    pclsMst->mapDataWaited.insert(make_pair(dwWaitedID, (void *)pstNodeWaited));
-
-    free(pstRsp);
-    return SUCCESS;
 }
 
 static DWORD master_getDataCount(void *pMst, const void *pMsg)

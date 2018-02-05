@@ -10,6 +10,8 @@
 #include "timer.h"
 #include "log.h"
 
+WORD g_wPkgCount = 0;
+
 extern WORD g_slv_wMstAddr;
 extern WORD g_slv_wSlvAddr;
 extern mbufer *g_pSlvMbufer;
@@ -164,6 +166,8 @@ static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
         return FAILE;
     }
 
+    g_wPkgCount++;
+    
     if(!(ntohl(pstReq->stData.stData.dwDataID) % 1000))
     {
         log_debug(byLogNum, "Receive batch pkg(%u), start:%u ; end:%u.", ntohl(pstReq->stData.stData.dwDataID),
@@ -173,6 +177,7 @@ static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
     {
         log_debug(byLogNum, "Receive last batch pkg(%u), start:%u ; end:%u.", ntohl(pstReq->stData.stData.dwDataID),
                 ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd));
+        log_debug(byLogNum, "g_wPkgCount = %d", g_wPkgCount);
     }
     
     MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
@@ -225,7 +230,7 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
         ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_INSTANT);
     pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
     pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
-    
+
     DWORD dwRet = slave_sendMsg(pSlv, pclsSlv->wMstAddr, (void *)pstRsp, sizeof(MSG_DATA_INSTANT_RSP_S));
     if(dwRet != SUCCESS)
     {
@@ -241,7 +246,26 @@ static DWORD slave_dataWaited(void *pSlv, const void *pMsg)
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
     log_debug(byLogNum, "slave_dataWaited.");
+
+    const MSG_DATA_WAITED_REQ_S *pstReq = (const MSG_DATA_WAITED_REQ_S *)pMsg;
+    if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_WAITED_REQ_S) - MSG_HDR_LEN)
+    {
+        log_error(byLogNum, "msg wLen not enough!");
+        return FAILE;
+    }
     
+    MSG_DATA_WAITED_RSP_S *pstRsp = (MSG_DATA_WAITED_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_WAITED);
+    pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
+    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
+
+    DWORD dwRet = slave_sendMsg(pSlv, pclsSlv->wMstAddr, (void *)pstRsp, sizeof(MSG_DATA_WAITED_RSP_S));
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "master_sendMsg error!");
+        return FAILE;
+    }
+
     return SUCCESS;
 }
 
