@@ -217,14 +217,14 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
     CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
     sprintf(pcFileName, "instant_%u_%u", dwDataID, wDataLen);
     INT iFileFd;
-    if (iFileFd = open(pcFileName, O_RDWR | O_CREAT| O_TRUNC, 0666) < 0) {
+    if ((iFileFd = open(pcFileName, O_RDWR | O_CREAT| O_TRUNC, 0666)) < 0) {
         log_error(byLogNum, "create %s error!", pcFileName);
         return FAILE;
     }
 
     INT iWriteLen = write(iFileFd, pstReq->stData.abyData, wDataLen);
     if (iWriteLen == wDataLen) {
-        log_info(byLogNum, "write instant file %s sussccd.", pcFileName);
+        log_info(byLogNum, "write instant file %s succeed.", pcFileName);
     } else {
         log_error(byLogNum, "write instant file %s error!", pcFileName);
     }
