@@ -183,6 +183,28 @@ static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
         log_debug(byLogNum, "g_wPkgCount = %d", g_wPkgCount);
     }
     
+    // 将batch报文存为文件
+    DWORD dwDataID = ntohl(pstReq->stData.stData.dwDataID);
+    WORD wDataLen = ntohs(pstReq->stData.stData.wDataLen);
+    //log_debug(byLogNum, "after ntohs: pstReq->stData.stData.dwDataID(%u), pstReq->stData.stData.wDataLen(%u)", dwDataID, wDataLen);
+
+    CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+    sprintf(pcFileName, "batch_%u_to_%u", ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd));
+    INT iFileFd;
+    if ((iFileFd = open(pcFileName, O_RDWR | O_CREAT| O_APPEND , 0666)) < 0) {
+        log_error(byLogNum, "create %s error!", pcFileName);
+        return FAILE;
+    }
+    
+    INT iWriteLen = write(iFileFd, pstReq->stData.stData.abyData, wDataLen);
+    if (iWriteLen == wDataLen) {
+        //log_info(byLogNum, "write batch file %s succeed.", pcFileName);
+    } else {
+        log_error(byLogNum, "write batch file %s error!", pcFileName);
+    }
+    close(iFileFd);
+    
+    // 向master发送回复报文
     MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
         ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_BATCH);
     pstRsp->stDataResult.dwDataID = pstReq->stData.stData.dwDataID;
@@ -210,6 +232,7 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
         return FAILE;
     }
 
+    // 将instant报文存为文件
     DWORD dwDataID = ntohl(pstReq->stData.dwDataID);
     WORD wDataLen = ntohs(pstReq->stData.wDataLen);
     log_debug(byLogNum, "after ntohs: pstReq->stData.dwDataID(%u), pstReq->stData.wDataLen(%u)", dwDataID, wDataLen);
@@ -229,6 +252,7 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
         log_error(byLogNum, "write instant file %s error!", pcFileName);
     }
     
+    // 向master发送回复报文
     MSG_DATA_INSTANT_RSP_S *pstRsp = (MSG_DATA_INSTANT_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
         ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_INSTANT);
     pstRsp->stDataResult.dwDataID = pstReq->stData.dwDataID;
