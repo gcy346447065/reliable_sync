@@ -217,7 +217,7 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
     CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
     sprintf(pcFileName, "instant_%u_%u", dwDataID, wDataLen);
     INT iFileFd;
-    if (iFileFd = open(pcFileName, O_CREAT) < 0) {
+    if (iFileFd = open(pcFileName, O_RDWR | O_CREAT) < 0) {
         log_error(byLogNum, "create %s error!", pcFileName);
         return FAILE;
     }
