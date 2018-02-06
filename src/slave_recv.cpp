@@ -1,6 +1,9 @@
 #include <stdlib.h> //for malloc
 #include <string.h> //for strcmp memset strstr
 #include <netinet/in.h> //for htons
+#include <stdio.h> // for sprintf
+#include <fcntl.h> // for open
+#include <unistd.h> // for write
 #include "macro.h"
 #include "slave.h"
 #include "slave_recv.h"

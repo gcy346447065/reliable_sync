@@ -1,8 +1,5 @@
 #include <stdlib.h> //for malloc
 #include <netinet/in.h> //for htons
-#include <stdio.h> // for sprintf
-#include <fcntl.h> // for open
-#include <unistd.h> // for write
 #include "master_send.h"
 #include "master.h"
 #include "macro.h"
