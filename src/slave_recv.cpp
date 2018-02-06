@@ -211,7 +211,7 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
     }
 
     DWORD dwDataID = ntohl(pstReq->stData.dwDataID);
-    WORD wDataLen = ntohs(pstReq->stData.dwDataID);
+    WORD wDataLen = ntohs(pstReq->stData.wDataLen);
     log_debug(byLogNum, "after ntohs: pstReq->stData.dwDataID(%u), pstReq->stData.wDataLen(%u)", dwDataID, wDataLen);
 
     CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
