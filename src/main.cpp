@@ -468,6 +468,7 @@ DWORD task_stdinProc(void *pArg)
             free(pstBatch);
             free(pcFilename);
         }
+        close(iFileFd);
     }
     else if(sscanf(pcStdinBuf, "?file%d", &iFileNum) == 1)
     {
@@ -534,6 +535,7 @@ DWORD task_stdinProc(void *pArg)
 
             free(pcFilename);
         }
+        close(iFileFd);
     }
     else if(sscanf(pcStdinBuf, "/file%d", &iFileNum) == 1)
     {
@@ -600,6 +602,7 @@ DWORD task_stdinProc(void *pArg)
 
             free(pcFilename);
         }
+        close(iFileFd);
     }
     else if(strcmp(pcStdinBuf, "get") == 0)
     {

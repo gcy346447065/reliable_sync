@@ -251,6 +251,7 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
     } else {
         log_error(byLogNum, "write instant file %s error!", pcFileName);
     }
+    close(iFileFd);
     
     // 向master发送回复报文
     MSG_DATA_INSTANT_RSP_S *pstRsp = (MSG_DATA_INSTANT_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
