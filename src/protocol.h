@@ -144,6 +144,7 @@ typedef struct
     BYTE byResult;
 }__attribute__((__packed__)) DATA_RESULT_S;
 
+
 typedef struct
 {
     MSG_HDR_S stMsgHdr;
@@ -169,30 +170,34 @@ typedef struct
     DATA_RESULT_S astDataResults[];
 }__attribute__((__packed__)) MSG_DATA_WAITED_PKGS_RSP_S;
 
+// 该报文是slave向master发的batch回复报文
+typedef struct
+{
+    WORD wNeedPkgNums;
+    DWORD dwDataIDs[];      //数据ID列表，为slave未收到的batch包集合
+}__attribute__((__packed__)) DATA_SLAVE_RECV_BATCH_RESULT_S;
+
+typedef struct
+{
+    MSG_HDR_S stMsgHdr;
+    DATA_SLAVE_RECV_BATCH_RESULT_S stSlvRecvResult;
+}__attribute__((__packed__)) MSG_DATA_SLAVE_BATCH_RSP_S;
+
 
 #define MAX_SEND_TIMES 3
 
 typedef struct
 {
-    BYTE byIsReady;
-    BYTE byIsSucceed;
-}__attribute__((__packed__)) NODE_STATE_S;
-
-typedef struct
-{
-    NODE_STATE_S stState;
     DATA_BATCH_PKG_S stBatchNet;//网络序的数据
 }__attribute__((__packed__)) NODE_DATA_BATCH_S;
 
 typedef struct
 {
-    NODE_STATE_S stState;
     DATA_PKG_S stInstantNet;//网络序的数据
 }__attribute__((__packed__)) NODE_DATA_INSTANT_S;
 
 typedef struct
 {
-    NODE_STATE_S stState;
     DATA_PKG_S stWaitedNet;//网络序的数据
 }__attribute__((__packed__)) NODE_DATA_WAITED_S;
 

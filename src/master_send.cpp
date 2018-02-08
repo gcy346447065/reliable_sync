@@ -11,7 +11,6 @@
 static DWORD g_dwSeq = 0;
 
 static DWORD g_dwMstDataSeq = 1;
-static DWORD g_dwMstInstantID = 0;
 
 VOID *master_alloc_reqMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, WORD wCmd)
 {

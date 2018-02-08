@@ -95,11 +95,18 @@ DWORD master::master_Init()
     log_debug(byLogNum, "Master Task Beginning.");
     DWORD dwRet = SUCCESS;
 
+    //初始化master的slave列表
+    bySlvNums = 0;
     vecSlvs.clear();
+
+    //初始化backup状态
     mapDataBatch.clear();
     mapDataInstant.clear();
     mapDataWaited.clear();
-
+    byBatchFlag = FALSE;
+    byInstantFlag = FALSE;
+    byWaitedFlag = FALSE;
+    
     pVos = new vos(byLogNum);
     dwRet = pVos->vos_Init();//实际为创建epoll
     if(dwRet != SUCCESS)

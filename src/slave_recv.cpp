@@ -184,7 +184,6 @@ static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
     }
     
     // 将batch报文存为文件
-    DWORD dwDataID = ntohl(pstReq->stData.stData.dwDataID);
     WORD wDataLen = ntohs(pstReq->stData.stData.wDataLen);
     //log_debug(byLogNum, "after ntohs: pstReq->stData.stData.dwDataID(%u), pstReq->stData.stData.wDataLen(%u)", dwDataID, wDataLen);
 
@@ -308,8 +307,8 @@ static MSG_PROC_MAP g_msgProcs_slv[] =
 
 static DWORD slave_msgHandleOne(void *pSlv, const MSG_HDR_S *pstMsgHdr)
 {
-    slave *pclsSlv = (slave *)pSlv;
-    BYTE byLogNum = pclsSlv->byLogNum;
+    //slave *pclsSlv = (slave *)pSlv;
+    //BYTE byLogNum = pclsSlv->byLogNum;
     //log_debug(byLogNum, "slave_msgHandleOne().");
 	
     for(UINT i = 0; i < sizeof(g_msgProcs_slv) / sizeof(g_msgProcs_slv[0]); i++)
