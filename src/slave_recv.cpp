@@ -20,7 +20,7 @@ extern WORD g_slv_wSlvAddr;
 extern mbufer *g_pSlvMbufer;
 extern timer *g_pSlvRegTimer;
 
-DWORD slave_recv(void *pSlv, void *pRecvBuf, WORD *pwBufLen)
+DWORD slave_recv(void *pSlv, void *pRecvBuf, WORD *pwBufLen) 
 {
     DWORD dwRet = SUCCESS;
 
@@ -94,7 +94,6 @@ static DWORD slave_login(void *pSlv, const void *pMsg)
         }
         free(pstRsp);
     }
-
     else if(ntohs(pstReq->stMsgHdr.wSig) == START_SIG_2)
     {
         log_debug(byLogNum, "START_SIG_2 login, master response to slave.");
@@ -104,8 +103,8 @@ static DWORD slave_login(void *pSlv, const void *pMsg)
 
     }
 
-/*定时login功能先不管
-	if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
+    /*定时login功能先不管*/
+	/*if(pstRsp->byLoginResult == LOGIN_RESULT_SUCCEED)
     {
         //收到登录成功回复包
         log_info(byLogNum, "This wSlvAddr(%d) logged success.", pstRsp->stMsgHdr.wDstAddr);
@@ -117,7 +116,7 @@ static DWORD slave_login(void *pSlv, const void *pMsg)
             return FAILE;
         }
     }
-*/
+    */
     return SUCCESS;
 }
 
@@ -174,7 +173,7 @@ DWORD slave_writeBatchPkgs(void *pSlv, MSG_DATA_BATCH_REQ_S *pstReq)
     if(access(pcPreFileName, 0))
     {
         //前一个batch包没收到，直接存储
-        if((iFileFd = open(pcFileName, O_RDWR | O_CREAT| O_TRUNC , 0666)) < 0) 
+        if((iFileFd = open(pcFileName, O_RDWR | O_CREAT | O_TRUNC, 0666)) < 0) 
         {
             log_error(byLogNum, "create %s error!", pcFileName);
             close(iFileFd);
@@ -186,7 +185,7 @@ DWORD slave_writeBatchPkgs(void *pSlv, MSG_DATA_BATCH_REQ_S *pstReq)
     else
     {
         //否则写在前一个包文件的末端
-        if((iFileFd = open(pcPreFileName, O_RDWR | O_CREAT| O_APPEND , 0666)) < 0) 
+        if((iFileFd = open(pcPreFileName, O_RDWR | O_CREAT | O_APPEND, 0666)) < 0) 
         {
             log_error(byLogNum, "write %s error!", pcPreFileName);
             close(iFileFd);
@@ -362,6 +361,7 @@ static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
         pclsSlv->stBatch.wDataNums = 0;
         pclsSlv->stBatch.bySendtimes = 0;
         pclsSlv->stBatch.vecDataIDs.clear();
+
         //开batch定时器
         {
 

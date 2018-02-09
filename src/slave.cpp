@@ -128,6 +128,23 @@ DWORD slave_registerTimerProc(void *pSlv)
     return dwRet;
 }
 
+DWORD slave_testTimerProc(void *pSlv)
+{
+    DWORD dwRet = SUCCESS;
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_testTimerProc()");
+
+    dwRet = testTimer->start(5 * 1000); // 5s
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "testTimer->start error!");
+        return FAILE;
+    }
+    
+    return dwRet;
+}
+
 DWORD slave::slave_Init()
 {
     log_init(byLogNum, "");//slave的log输出到/var/log/local2.log文件
@@ -184,6 +201,20 @@ DWORD slave::slave_Init()
     if(dwRet == FAILE)
     {
         log_error(byLogNum, "slave_sendMsg error(%u)!", dwRet);
+        return FAILE;
+    }
+
+    timer *testTimer = new timer(byLogNum);
+    dwRet = pVos->vos_RegTask("slv_timer", testTimer->dwTimerFd, slave_testTimerProc, this);
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "vos_RegTask error!");
+        return FAILE;
+    }
+    dwRet = testTimer->start(5 * 1000); // 5s
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "testTimer->start error!");
         return FAILE;
     }
 
