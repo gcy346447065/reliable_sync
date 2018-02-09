@@ -12,39 +12,6 @@ using std::map;
 #include "log.h"
 #include "protocol.h"
 
-//slave的状态
-typedef struct
-{
-    BYTE byBatchFlag;
-    BYTE bySendtimes;
-    WORD wDataNums;
-    vector<DWORD> vecDataIDs; //用于记录slave未收到的batch pkg
-    
-}SLAVE_BATCH_STATE_S;
-
-typedef struct
-{
-    BYTE byInstantFlag;
-    BYTE bySendtimes;
-    
-}SLAVE_INSTANT_STATE_S;
-
-typedef struct
-{
-    BYTE byWaitedFlag;
-    BYTE bySendtimes;
-    
-}SLAVE_WAITED_STATE_S;
-
-typedef struct
-{
-    WORD wSlvAddr;
-    SLAVE_BATCH_STATE_S stBatch;
-    SLAVE_INSTANT_STATE_S stInstant;
-    SLAVE_WAITED_STATE_S stWaited;
-    
-}SLAVE_S;
-
 class master
 {
 public:

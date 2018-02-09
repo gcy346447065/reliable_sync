@@ -1,7 +1,9 @@
 #ifndef _SLAVE_H_
 #define _SLAVE_H_
 
+#include <vector>
 #include <map>
+using std::vector;
 using std::map;
 
 #include "macro.h"
@@ -44,9 +46,9 @@ public:
     WORD wMstAddr;
     WORD wSlvAddr;
     mbufer *pMbufer;
-    map<WORD, DATA_BATCH_PKG_S> mapDataBatch;
-    map<WORD, DATA_PKG_S> mapDataInstant;
-    map<WORD, DATA_PKG_S> mapDataWaited;
+    SLAVE_BATCH_STATE_S stBatch;
+    SLAVE_INSTANT_STATE_S stInstant;
+    SLAVE_WAITED_STATE_S stWaited;
 
 };
 
