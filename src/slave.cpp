@@ -134,9 +134,16 @@ DWORD slave::slave_Init()
     log_debug(byLogNum, "Slave Task Beginning.");
     DWORD dwRet = SUCCESS;
 
-    mapDataBatch.clear();
-    mapDataInstant.clear();
-    mapDataWaited.clear();
+    stBatch.byBatchFlag = FALSE;
+    stBatch.bySendtimes = 0;
+    stBatch.wDataNums = 0;
+    stBatch.vecDataIDs.clear();
+
+    stInstant.byInstantFlag = FALSE;
+    stInstant.bySendtimes = 0;
+
+    stWaited.byWaitedFlag = FALSE;
+    stWaited.bySendtimes = 0;
 
     pVos = new vos(byLogNum);
     dwRet = pVos->vos_Init();//实际为创建epoll

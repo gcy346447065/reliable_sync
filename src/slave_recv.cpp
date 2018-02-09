@@ -4,6 +4,8 @@
 #include <stdio.h> // for sprintf
 #include <fcntl.h> // for open
 #include <unistd.h> // for write
+#include <errno.h> //for errno
+#include <sys/io.h> // for access
 #include "macro.h"
 #include "slave.h"
 #include "slave_recv.h"
@@ -12,8 +14,6 @@
 #include "mbufer.h"
 #include "timer.h"
 #include "log.h"
-
-WORD g_wPkgCount = 0;
 
 extern WORD g_slv_wMstAddr;
 extern WORD g_slv_wSlvAddr;
@@ -156,6 +156,170 @@ static DWORD slave_keepAlive(void *pSlv, const void *pMsg)
     return SUCCESS;
 }
 
+DWORD slave_writeBatchPkgs(void *pSlv, MSG_DATA_BATCH_REQ_S *pstReq)
+{
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_writeBatchPkgs().");
+
+    CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+    CHAR *pcPreFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+    memset(pcFileName, 0, MAX_STDIN_FILE_LEN);
+    memset(pcPreFileName, 0, MAX_STDIN_FILE_LEN);
+    
+    sprintf(pcFileName, "batch_%u_to_%u_%u", ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd), ntohl(pstReq->stData.stData.dwDataID));
+    sprintf(pcPreFileName, "batch_%u_to_%u_%u", ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd), ntohl(pstReq->stData.stData.dwDataID) - 1);
+
+    INT iFileFd;
+    if(access(pcPreFileName, 0))
+    {
+        //前一个batch包没收到，直接存储
+        if((iFileFd = open(pcFileName, O_RDWR | O_CREAT| O_TRUNC , 0666)) < 0) 
+        {
+            log_error(byLogNum, "create %s error!", pcFileName);
+            close(iFileFd);
+            free(pcPreFileName);
+            free(pcFileName);
+            return FAILE;
+        }
+    }
+    else
+    {
+        //否则写在前一个包文件的末端
+        if((iFileFd = open(pcPreFileName, O_RDWR | O_CREAT| O_APPEND , 0666)) < 0) 
+        {
+            log_error(byLogNum, "write %s error!", pcPreFileName);
+            close(iFileFd);
+            free(pcPreFileName);
+            free(pcFileName);
+            return FAILE;
+        }
+    }
+    
+    WORD wDataLen = ntohs(pstReq->stData.stData.wDataLen);
+    INT iWriteLen = write(iFileFd, pstReq->stData.stData.abyData, wDataLen);
+    if (iWriteLen == wDataLen) {
+        //log_debug(byLogNum, "write batch file %s succeed.", pcFileName);
+    } else {
+        log_error(byLogNum, "write batch file %s error!", pcFileName);
+        close(iFileFd);
+        free(pcPreFileName);
+        free(pcFileName);
+        return FAILE;
+    }
+    
+    close(iFileFd);
+    free(pcPreFileName);
+    free(pcFileName);
+    
+    return SUCCESS;
+}
+
+DWORD slave_countLostPkgs(void *pSlv, DWORD dwDataStart, DWORD dwDataEnd)
+{
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_countLostPkgs.");
+
+    DWORD dwRet = 0;
+    if(pclsSlv->stBatch.byBatchFlag == TRUE)
+    {
+        for(DWORD dwDataID = dwDataStart; dwDataID <= dwDataEnd; dwDataID++)
+        {
+            CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+            sprintf(pcFileName, "batch_%u_to_%u_%u", dwDataStart, dwDataEnd, dwDataID);
+            
+            if(access(pcFileName, 0))
+            {
+                //指定dwDataID的文件不存在
+                pclsSlv->stBatch.wDataNums++;
+                pclsSlv->stBatch.vecDataIDs.push_back(dwDataID);
+
+                dwRet++;
+            }
+            else
+            {
+                continue;
+            }
+        }
+    }
+    
+    return dwRet;
+}
+
+DWORD slave_mergeBatchPkg(void *pSlv, DWORD dwDataStart, DWORD dwDataEnd)
+{
+    slave *pclsSlv = (slave *)pSlv;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    log_debug(byLogNum, "slave_mergeBatchPkg.");
+    
+    CHAR *pcBatchFile = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+    sprintf(pcBatchFile, "batch_%u_to_%u", dwDataStart, dwDataEnd);
+    INT iBatchFileFd;
+    if ((iBatchFileFd = open(pcBatchFile, O_RDWR | O_CREAT| O_APPEND , 0666)) < 0) 
+    {  
+        log_error(byLogNum, "create %s error!", pcBatchFile);
+        return FAILE;
+    }
+    
+    CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
+    void *pDataBuf = (void *)malloc(MAX_TASK2MST_PKG_LEN);
+    for(DWORD dwDataID = dwDataStart; dwDataID <= dwDataEnd; dwDataID++)
+    {
+        memset(pcFileName, 0, MAX_STDIN_FILE_LEN);
+        sprintf(pcFileName, "batch_%u_to_%u_%u", dwDataStart, dwDataEnd, dwDataID);
+        
+        INT iFileFd;
+        if((iFileFd = open(pcFileName, O_RDONLY)) < 0)
+        {
+            log_error(byLogNum, "open new config file(%s) error(%s)!", pcFileName, strerror(errno));
+            free(pDataBuf);
+            free(pcFileName);
+            free(pcBatchFile);
+            return FAILE;
+        }
+
+        INT iFileLen = lseek(iFileFd, 0, SEEK_END);//定位到文件尾以得到文件大小
+        lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
+
+        memset(pDataBuf, 0, MAX_TASK2MST_PKG_LEN);
+        
+        INT iFileBufLen = read(iFileFd, pDataBuf, iFileLen);
+        if(iFileBufLen < 0)
+        {
+            log_error(byLogNum, "read iFileFd error(%d)!", iFileBufLen);
+            free(pDataBuf);
+            free(pcFileName);
+            free(pcBatchFile);
+            return FAILE;
+        }
+
+        INT iWriteLen = write(iBatchFileFd, pDataBuf, iFileLen);
+        if (iWriteLen == iFileLen) {
+            //log_debug(byLogNum, "write batch file succeed.");
+        } else {
+            log_error(byLogNum, "write batch file error!");
+        }
+        
+        if(remove(pcFileName) == 0){   
+            //log_debug(byLogNum, "Removed %s.", pcFileName);
+        } else {
+            log_error(byLogNum, "remove file failed!");
+        }
+    
+        close(iFileFd);
+        
+    }
+    
+    free(pDataBuf);
+    free(pcFileName);
+    free(pcBatchFile);
+    
+    close(iBatchFileFd);
+    
+    return SUCCESS;
+}
+
 static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
 {
     slave *pclsSlv = (slave *)pSlv;
@@ -168,8 +332,6 @@ static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
         log_error(byLogNum, "msg wLen not enough!");
         return FAILE;
     }
-
-    g_wPkgCount++;
     
     if(!(ntohl(pstReq->stData.stData.dwDataID) % 1000))
     {
@@ -180,41 +342,87 @@ static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
     {
         log_debug(byLogNum, "Receive last batch pkg(%u), start:%u ; end:%u.", ntohl(pstReq->stData.stData.dwDataID),
                 ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd));
-        log_debug(byLogNum, "g_wPkgCount = %d", g_wPkgCount);
     }
-    
-    // 将batch报文存为文件
-    WORD wDataLen = ntohs(pstReq->stData.stData.wDataLen);
-    //log_debug(byLogNum, "after ntohs: pstReq->stData.stData.dwDataID(%u), pstReq->stData.stData.wDataLen(%u)", dwDataID, wDataLen);
 
     CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
     sprintf(pcFileName, "batch_%u_to_%u", ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd));
-    INT iFileFd;
-    if ((iFileFd = open(pcFileName, O_RDWR | O_CREAT| O_APPEND , 0666)) < 0) {
-        log_error(byLogNum, "create %s error!", pcFileName);
-        return FAILE;
+    if(!access(pcFileName, 0))
+    {
+        //指定batch的文件已存在
+        log_debug(byLogNum, "slave has already batched!");
+        return SUCCESS;
     }
-    
-    INT iWriteLen = write(iFileFd, pstReq->stData.stData.abyData, wDataLen);
-    if (iWriteLen == wDataLen) {
-        //log_info(byLogNum, "write batch file %s succeed.", pcFileName);
-    } else {
-        log_error(byLogNum, "write batch file %s error!", pcFileName);
+
+    free(pcFileName);
+
+    //slave进入batch状态
+    if(pclsSlv->stBatch.byBatchFlag == FALSE)
+    {
+        pclsSlv->stBatch.byBatchFlag = FALSE;
+        pclsSlv->stBatch.wDataNums = 0;
+        pclsSlv->stBatch.bySendtimes = 0;
+        pclsSlv->stBatch.vecDataIDs.clear();
+        //开batch定时器
+        {
+
+        }
     }
-    close(iFileFd);
-    
-    // 向master发送回复报文
-    MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
-        ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_BATCH);
-    pstRsp->stDataResult.dwDataID = pstReq->stData.stData.dwDataID;
-    pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
-    
-    DWORD dwRet = slave_sendMsg(pSlv, pclsSlv->wMstAddr, (void *)pstRsp, sizeof(MSG_DATA_BATCH_RSP_S));
+
+    DWORD dwRet = slave_writeBatchPkgs(pSlv, pstReq);
     if(dwRet != SUCCESS)
     {
-        log_error(byLogNum, "master_sendMsg error!");
+        log_error(byLogNum, "slave_writeBatchPkgs failed!");
         return FAILE;
     }
+    
+    if(ntohl(pstReq->stData.stData.dwDataID) == ntohl(pstReq->stData.dwDataEnd))
+    {    
+        // slave统计未收到的batch包
+        DWORD dwNeedPkg = slave_countLostPkgs(pSlv, ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd));
+        if(dwNeedPkg == 0)
+        {
+            log_debug(byLogNum, "slave has received all batch pkg!");
+            
+            DWORD dwRet = slave_mergeBatchPkg(pSlv, ntohl(pstReq->stData.dwDataStart), ntohl(pstReq->stData.dwDataEnd));
+            if(dwRet != SUCCESS)
+            {
+                log_error(byLogNum, "slave_mergeBatchPkg() error!");
+                return FAILE;
+            }
+
+            pclsSlv->stBatch.byBatchFlag = FALSE;
+            pclsSlv->stBatch.wDataNums = 0;
+            pclsSlv->stBatch.bySendtimes = 0;
+            pclsSlv->stBatch.vecDataIDs.clear();
+            //关batch定时器
+            {
+
+            }
+        }
+        else
+        {
+            log_debug(byLogNum, "slave still has %u batch pkg to recv!", dwNeedPkg);
+        }
+        // 向master发送batch反馈报文
+        MSG_DATA_SLAVE_BATCH_RSP_S *pstRsp = (MSG_DATA_SLAVE_BATCH_RSP_S *)slave_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
+            ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_2, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_BATCH);
+        pstRsp->stSlvRecvResult.wNeedPkgNums = htons(dwNeedPkg);
+
+        for(DWORD i = 0; i < dwNeedPkg; i++)
+        {
+            pstRsp->stSlvRecvResult.dwDataIDs[i] = htonl(pclsSlv->stBatch.vecDataIDs[i]);
+        }
+        
+        DWORD dwRet = slave_sendMsg(pSlv, pclsSlv->wMstAddr, (void *)pstRsp, sizeof(MSG_DATA_SLAVE_BATCH_RSP_S) + dwNeedPkg * sizeof(DWORD));
+        if(dwRet != SUCCESS)
+        {
+            log_error(byLogNum, "master_sendMsg error!");
+            return FAILE;
+        }
+        
+        free(pstRsp);
+    }
+
     return SUCCESS;
 }
 
@@ -265,6 +473,7 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
         return FAILE;
     }
 
+    free(pstRsp);
     return SUCCESS;
 }
 
@@ -293,6 +502,7 @@ static DWORD slave_dataWaited(void *pSlv, const void *pMsg)
         return FAILE;
     }
 
+    free(pstRsp);
     return SUCCESS;
 }
 
