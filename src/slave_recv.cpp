@@ -155,7 +155,7 @@ static DWORD slave_keepAlive(void *pSlv, const void *pMsg)
     return SUCCESS;
 }
 
-DWORD slave_writeBatchPkgs(void *pSlv, MSG_DATA_BATCH_REQ_S *pstReq)
+DWORD slave_writeBatchPkgs(void *pSlv, const MSG_DATA_BATCH_REQ_S *pstReq)
 {
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;

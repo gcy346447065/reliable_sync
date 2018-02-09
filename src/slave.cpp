@@ -16,6 +16,7 @@
 
 mbufer *g_pSlvMbufer;
 timer *g_pSlvRegTimer;
+timer *g_testTimer;
 
 WORD g_slv_wMstAddr;
 WORD g_slv_wSlvAddr;
@@ -135,10 +136,10 @@ DWORD slave_testTimerProc(void *pSlv)
     BYTE byLogNum = pclsSlv->byLogNum;
     log_debug(byLogNum, "slave_testTimerProc()");
 
-    dwRet = testTimer->start(5 * 1000); // 5s
+    dwRet = g_testTimer->start(5 * 1000); // 5s
     if(dwRet != SUCCESS)
     {
-        log_error(byLogNum, "testTimer->start error!");
+        log_error(byLogNum, "g_testTimer->start error!");
         return FAILE;
     }
     
@@ -204,17 +205,23 @@ DWORD slave::slave_Init()
         return FAILE;
     }
 
-    timer *testTimer = new timer(byLogNum);
-    dwRet = pVos->vos_RegTask("slv_timer", testTimer->dwTimerFd, slave_testTimerProc, this);
+    g_testTimer = new timer(byLogNum);
+    dwRet = g_testTimer->init();
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "g_testTimer->init error!");
+        return FAILE;
+    }
+    dwRet = pVos->vos_RegTask("slv_timer", g_testTimer->dwTimerFd, slave_testTimerProc, this);
     if(dwRet != SUCCESS)
     {
         log_error(byLogNum, "vos_RegTask error!");
         return FAILE;
     }
-    dwRet = testTimer->start(5 * 1000); // 5s
+    dwRet = g_testTimer->start(5 * 1000); // 5s
     if(dwRet != SUCCESS)
     {
-        log_error(byLogNum, "testTimer->start error!");
+        log_error(byLogNum, "g_testTimer->start error!");
         return FAILE;
     }
 
