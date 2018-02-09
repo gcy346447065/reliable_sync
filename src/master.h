@@ -84,7 +84,7 @@ public:
     BYTE byBatchFlag; // 当前master是否正处于Batch状态，TRUE-是，FALSE-否
     BYTE byInstantFlag;
     BYTE byWaitedFlag;
-    map<DWORD, NODE_DATA_BATCH_S*> mapDataBatch; //master用于记录已存储的batch pkg
+    map<DWORD, NODE_DATA_BATCH_S*> mapDataBatch; // master用于记录已存储的batch pkg
     map<DWORD, NODE_DATA_INSTANT_S*> mapDataInstant;
     map<DWORD, NODE_DATA_WAITED_S*> mapDataWaited;
     

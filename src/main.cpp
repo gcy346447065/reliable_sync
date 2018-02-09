@@ -27,11 +27,11 @@ public:
     {
         if(bMstOrSlv == TRUE)
         {
-            wTaskAddr = ADDR_MstTask;//master task
+            wTaskAddr = ADDR_MstTask; // master task
         }
         else
         {
-            wTaskAddr = ADDR_SlvTask1;//slave task
+            wTaskAddr = ADDR_SlvTask1; // slave task
         }
 
         wMstSlvAddr = wAddr;
@@ -44,7 +44,7 @@ public:
 
         /* 创建vos */
         pVos = new vos(byLogNum);
-        dwRet = pVos->vos_Init();//实际为创建epoll
+        dwRet = pVos->vos_Init(); // 实际为创建epoll
         if(dwRet != SUCCESS)
         {
             log_error(byLogNum, "vos_Init error!");
@@ -70,7 +70,6 @@ public:
         }
 
         /* 向master或slave发送一次登录包，以方便master或slave记录wTaskAddr */
-        
         sleep(1);
         MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)task_allocLogin(wTaskAddr, wMstSlvAddr);
         if(!pstLogin)
@@ -99,7 +98,7 @@ public:
     VOID task_Loop()
     {
         /* 进入vos循环 */
-        pVos->vos_EpollWait(); //while(1)!!!
+        pVos->vos_EpollWait(); // while(1)!!!
     }
 
 private:
@@ -109,7 +108,7 @@ private:
 public:
     BYTE byLogNum;
     WORD wTaskAddr;
-    WORD wMstSlvAddr;//与task相连的master或者slave线程的地址
+    WORD wMstSlvAddr; // 与task相连的master或者slave线程的地址
     mbufer *pMbufer;
 };
 
@@ -631,11 +630,11 @@ INT main(INT argc, CHAR *argv[])
 {
     /* 开启log */
     BYTE byLogNum = LOG1;
-    log_init(byLogNum, "");//现在用的是syslog输出到/var/log/local1.log文件中，如有其他打印log方式可代之
+    log_init(byLogNum, ""); // 现在用的是syslog输出到/var/log/local1.log文件中，如有其他打印log方式可代之
     log_debug(byLogNum, "Main Task Beginning.");
 
-    /* 测试打印调试
-    while(true)
+    /* 测试打印调试 */
+    /* while(true)
     {
         sleep(1);
         log_debug(byLogNum, "Hello.");
