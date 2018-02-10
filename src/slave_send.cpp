@@ -108,7 +108,7 @@ VOID *slave_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, W
             break;
 
         case CMD_DATA_BATCH:
-            wMsgLen = sizeof(MSG_DATA_BATCH_RSP_S);
+            wMsgLen = sizeof(MSG_DATA_SLAVE_BATCH_RSP_S);   //batch的回复包需要单独考虑，在外面赋值
             break;
 
         case CMD_DATA_INSTANT:
@@ -140,6 +140,29 @@ VOID *slave_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, W
     }
 
     return (VOID *)pstMsgHdr;
+}
+
+VOID *slave_alloc_batchRspMsg(WORD wSrcAddr, WORD wDstAddr, DWORD dwSeq, DWORD dwDataNum, DWORD dwDataStart, DWORD dwDataEnd)
+{
+    WORD wMsgLen = sizeof(MSG_DATA_SLAVE_BATCH_RSP_S) + (dwDataNum * sizeof(DWORD));
+
+    MSG_DATA_SLAVE_BATCH_RSP_S *pstRsp = (MSG_DATA_SLAVE_BATCH_RSP_S *)malloc(wMsgLen);
+    if(pstRsp)
+    {
+        pstRsp->stMsgHdr.wSig  = htons(START_SIG_2);
+        pstRsp->stMsgHdr.wVer  = htons(VERSION_INT);
+        pstRsp->stMsgHdr.wSrcAddr = htons(wSrcAddr);
+        pstRsp->stMsgHdr.wDstAddr = htons(wDstAddr);
+        pstRsp->stMsgHdr.dwSeq = htonl(dwSeq);
+        pstRsp->stMsgHdr.wCmd = htons(CMD_DATA_BATCH);
+        pstRsp->stMsgHdr.wLen  = htons(wMsgLen - MSG_HDR_LEN);
+    }
+
+    pstRsp->stSlvRecvResult.dwDataStart = htonl(dwDataStart);
+    pstRsp->stSlvRecvResult.dwDataEnd = htonl(dwDataEnd);
+    pstRsp->stSlvRecvResult.dwNeedPkgNums = htonl(dwDataNum);
+
+    return (VOID *)pstRsp;
 }
 
 DWORD slave_sendMsg(void *pSlv, WORD wDstAddr, void *pData, WORD wDataLen)

@@ -47,8 +47,13 @@ typedef struct
 {
     BYTE byBatchFlag;
     BYTE bySendtimes;
-    WORD wDataNums;
-    vector<DWORD> vecDataIDs; //用于记录slave未收到的batch pkg
+    
+    DWORD dwDataNums;
+    vector<DWORD> vecDataIDs;   //用于记录slave未收到的batch pkg
+    
+    DWORD dwDataStart;
+    DWORD dwDataEnd;
+    BYTE* pbyBitmap;  //slave在batch的时候统计收到的batch pkg
     
 }SLAVE_BATCH_STATE_S;
 
@@ -210,7 +215,9 @@ typedef struct
 // 该报文是slave向master发的batch回复报文
 typedef struct
 {
-    WORD wNeedPkgNums;
+    DWORD dwDataStart;
+    DWORD dwDataEnd;
+    DWORD dwNeedPkgNums;
     DWORD dwDataIDs[];      //数据ID列表，为slave未收到的batch包集合
 }__attribute__((__packed__)) DATA_SLAVE_RECV_BATCH_RESULT_S;
 

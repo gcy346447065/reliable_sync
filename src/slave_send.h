@@ -6,6 +6,7 @@
 DWORD slave_send(BYTE *pbyMsg, WORD wMsgLen);
 VOID *slave_alloc_reqMsg(WORD wCmd);
 VOID *slave_alloc_rspMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, DWORD dwSeq, WORD wCmd);
+VOID *slave_alloc_batchRspMsg(WORD wSrcAddr, WORD wDstAddr, DWORD dwSeq, DWORD dwDataNum, DWORD dwDataStart, DWORD dwDataEnd);
 
 DWORD slave_sendMsg(void *pSlv, WORD wDstAddr, void *pData, WORD wDataLen);
 

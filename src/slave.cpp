@@ -154,7 +154,7 @@ DWORD slave::slave_Init()
 
     stBatch.byBatchFlag = FALSE;
     stBatch.bySendtimes = 0;
-    stBatch.wDataNums = 0;
+    stBatch.dwDataNums = 0;
     stBatch.vecDataIDs.clear();
 
     stInstant.byInstantFlag = FALSE;
