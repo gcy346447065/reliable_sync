@@ -30,6 +30,17 @@ public:
         }
 
         this->byLogNum = byNum;
+        this->stBatch.byBatchFlag = FALSE;
+        this->stBatch.bySendtimes = 0;
+        this->stBatch.dwDataNums = 0;
+        this->stBatch.dwDataStart = 0;
+        this->stBatch.dwDataEnd = 0;
+
+        this->stInstant.byInstantFlag = FALSE;
+        this->stInstant.bySendtimes = 0;
+
+        this->stWaited.byWaitedFlag = FALSE;
+        this->stWaited.bySendtimes = 0;
     }
 
     DWORD slave_Init();

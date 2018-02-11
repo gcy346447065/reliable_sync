@@ -228,6 +228,8 @@ static DWORD master_batchRes2Tsk(void *pMst, const MSG_DATA_BATCH_REQ_S *pstReq)
         {
             stSlv.stBatch.byBatchFlag = TRUE;
             stSlv.stBatch.bySendtimes++;
+            stSlv.stBatch.dwDataStart = dwDataStart;
+            stSlv.stBatch.dwDataEnd = dwDataEnd;
         }
         if(dwDataID % 500 == 0)    //模拟丢包
         {
@@ -282,16 +284,32 @@ static DWORD master_batchRes2Slv(void *pMst, const MSG_DATA_SLAVE_BATCH_RSP_S *p
                 pstSlv->stBatch.bySendtimes = 0;
                 pstSlv->stBatch.dwDataNums = 0;
                 pstSlv->stBatch.vecDataIDs.clear();
-                
             }
             else if(dwPkgNums != pstSlv->stBatch.dwDataNums)
             {
                 //这种情况属于master重传后slave依然有丢包现象，但不是所有包都丢了
+                log_debug(byLogNum, "Slave(%u) still need %u batch pkgs!", ntohs(pstRsp->stMsgHdr.wSrcAddr), dwPkgNums);
                 pstSlv->stBatch.bySendtimes = 1;
+                pstSlv->stBatch.dwDataNums = dwPkgNums;
+                pstSlv->stBatch.vecDataIDs.clear();
+                for(DWORD i = 0; i < dwPkgNums; i++)
+                {
+                    pstSlv->stBatch.vecDataIDs.push_back(ntohl(pstRsp->stSlvRecvResult.dwDataIDs[i]));
+                }
             }
             else
             {
-                log_debug(byLogNum, "Slave(%u) need %u batch pkgs!", ntohs(pstRsp->stMsgHdr.wSrcAddr), dwPkgNums);
+                //这种情况属于slave完全丢失重传的pkgs
+                log_debug(byLogNum, "Slave(%u) failed to recv retransmit pkgs again!", ntohs(pstRsp->stMsgHdr.wSrcAddr));
+                pstSlv->stBatch.bySendtimes++;
+                if(pstSlv->stBatch.bySendtimes > MSG_MAX_SENDTIMES)
+                {
+                    pstSlv->stBatch.byBatchFlag = FALSE;
+                    pstSlv->stBatch.dwDataNums = 0;
+                    pstSlv->stBatch.vecDataIDs.clear();
+                    
+                    log_debug(byLogNum, "Slave(%u) batch failed!", ntohs(pstRsp->stMsgHdr.wSrcAddr));
+                }
             }
             break;
         }

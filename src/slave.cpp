@@ -152,16 +152,8 @@ DWORD slave::slave_Init()
     log_debug(byLogNum, "Slave Task Beginning.");
     DWORD dwRet = SUCCESS;
 
-    stBatch.byBatchFlag = FALSE;
-    stBatch.bySendtimes = 0;
-    stBatch.dwDataNums = 0;
+    stBatch.pbyBitmap = NULL;
     stBatch.vecDataIDs.clear();
-
-    stInstant.byInstantFlag = FALSE;
-    stInstant.bySendtimes = 0;
-
-    stWaited.byWaitedFlag = FALSE;
-    stWaited.bySendtimes = 0;
 
     pVos = new vos(byLogNum);
     dwRet = pVos->vos_Init();//实际为创建epoll

@@ -95,6 +95,7 @@ typedef struct
 }__attribute__((__packed__)) MSG_HDR_S;
 
 #define MSG_HDR_LEN sizeof(MSG_HDR_S)
+#define MSG_MAX_SENDTIMES 3 //最大重传次数
 
 /*
  * message login structure

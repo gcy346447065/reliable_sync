@@ -282,6 +282,12 @@ void *task_allocLogin(WORD wSrcAddr, WORD wDstAddr)
 //此函数申请的内存会在同一次批量备份时复用多次
 void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
 {
+    if(g_dwTskBatchID + wPkgCount - 1 < g_dwTskBatchID)
+    {
+        //ID翻转
+        g_dwTskBatchID = 0;
+    }
+
     MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)malloc(sizeof(MSG_DATA_BATCH_REQ_S) + MAX_TASK2MST_PKG_LEN);
     if(pstBatch)
     {
@@ -295,6 +301,7 @@ void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
 
         pstBatch->stData.dwDataStart = htonl(g_dwTskBatchID);
         pstBatch->stData.dwDataEnd = htonl(g_dwTskBatchID + wPkgCount - 1);
+
         pstBatch->stData.stData.dwDataID = htonl(0);//后面在循环中写入
         pstBatch->stData.stData.wDataLen = htons(0);//后面在循环中写入
         pstBatch->stData.stData.wDataChecksum = htons(0);//在主机下发时不填
