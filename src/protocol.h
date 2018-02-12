@@ -61,6 +61,7 @@ typedef struct
 {
     BYTE byInstantFlag;
     BYTE bySendtimes;
+    DWORD dwDataID;
     
 }SLAVE_INSTANT_STATE_S;
 
@@ -68,12 +69,14 @@ typedef struct
 {
     BYTE byWaitedFlag;
     BYTE bySendtimes;
+    DWORD dwDataID;
     
 }SLAVE_WAITED_STATE_S;
 
 typedef struct
 {
     WORD wSlvAddr;
+    WORD wKeepAliveCnt;
     SLAVE_BATCH_STATE_S stBatch;
     SLAVE_INSTANT_STATE_S stInstant;
     SLAVE_WAITED_STATE_S stWaited;

@@ -41,7 +41,7 @@ typedef struct
 
 
 //包的最小值61853288/65535=943
-#define MAX_TASK2MST_PKG_LEN (1 * 1000)
+#define MAX_TASK2MST_PKG_LEN (1400) //规定单包大小不能超过1500
 #define MAX_PKG_LEN 1000
 //给入的单个instant配置文件最大长度，若超过则需要走batch
 #define MAX_FILE_LEN 1500
@@ -53,6 +53,10 @@ typedef struct
 //MAX_RECV_LEN一定要比MAX_PKG_LEN大，考虑到MTU为1500，这里可设计为1536
 #define MAX_TASK2MST_RECV_LEN (MAX_TASK2MST_PKG_LEN + 64) 
 #define MAX_RECV_LEN 1536 
+
+//Slave发送batch回复包的最大包数，及最大重传次数
+#define MAX_SLAVE_RES_BATCH_PKGS 300    //(MAX_TASK2MST_PKG_LEN - (sizeof(MSG_DATA_SLAVE_BATCH_RSP_S) - sizeof(MSG_HDR_S))) / sizeof(DWORD) = 347
+#define MAX_RETRANS_TIMES 3
 
 #define MAX_STDIN_FILE_LEN 128
 #define MAX_EPOLL_NUM 64

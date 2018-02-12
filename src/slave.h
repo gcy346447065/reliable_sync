@@ -35,12 +35,6 @@ public:
         this->stBatch.dwDataNums = 0;
         this->stBatch.dwDataStart = 0;
         this->stBatch.dwDataEnd = 0;
-
-        this->stInstant.byInstantFlag = FALSE;
-        this->stInstant.bySendtimes = 0;
-
-        this->stWaited.byWaitedFlag = FALSE;
-        this->stWaited.bySendtimes = 0;
     }
 
     DWORD slave_Init();
@@ -58,8 +52,6 @@ public:
     WORD wSlvAddr;
     mbufer *pMbufer;
     SLAVE_BATCH_STATE_S stBatch;
-    SLAVE_INSTANT_STATE_S stInstant;
-    SLAVE_WAITED_STATE_S stWaited;
 
 };
 
