@@ -660,9 +660,16 @@ INT main(INT argc, CHAR *argv[])
     if(strcmp(argv[1], "master") == SUCCESS)
     {
         bMstOrSlv = TRUE;
-        if(sscanf(argv[2], "%d", &iMstAddr) != 1)
-        {
-            log_error(byLogNum, "master addr error!");
+
+        //argc == 2, iMstAddr = ADDR_1_114
+        if (argc == 3) {
+            if (sscanf(argv[2], "%d", &iMstAddr) != 1) {
+                log_error(byLogNum, "master addr error!");
+                log_free();
+                return FAILE;
+            }
+        } else if (argc > 3) {
+            log_error(byLogNum, "main argc error!");
             log_free();
             return FAILE;
         }
@@ -670,15 +677,24 @@ INT main(INT argc, CHAR *argv[])
     else if(strcmp(argv[1], "slave") == SUCCESS)
     {
         bMstOrSlv = FALSE;
-        if(sscanf(argv[2], "%d", &iMstAddr) != 1)
-        {
-            log_error(byLogNum, "master addr error!");
-            log_free();
-            return FAILE;
-        }
-        if(sscanf(argv[3], "%d", &iSlvAddr) != 1)
-        {
-            log_error(byLogNum, "slave addr error!");
+
+        //argc == 2, iMstAddr = ADDR_1_114, iSlvAddr = ADDR_6_119
+        //argc == 3, iSlvAddr = ADDR_6_119
+        if (argc == 4) {
+            if(sscanf(argv[2], "%d", &iMstAddr) != 1)
+            {
+                log_error(byLogNum, "master addr error!");
+                log_free();
+                return FAILE;
+            }
+            if(sscanf(argv[3], "%d", &iSlvAddr) != 1)
+            {
+                log_error(byLogNum, "slave addr error!");
+                log_free();
+                return FAILE;
+            }
+        } else if (argc > 4) {
+            log_error(byLogNum, "main argc error!");
             log_free();
             return FAILE;
         }

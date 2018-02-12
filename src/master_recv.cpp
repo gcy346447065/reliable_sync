@@ -533,6 +533,7 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
         pstRsp->stDataResult.byResult = DATA_RESULT_SUCCEED;
     
         DWORD dwRet = master_sendMsg(pMst, pclsMst->wTaskAddr, (void *)pstRsp, sizeof(MSG_DATA_WAITED_RSP_S));
+        free(pstRsp);
         if(dwRet != SUCCESS)
         {
             log_error(byLogNum, "master_sendMsg error!");
@@ -549,23 +550,23 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
         DWORD dwWaitedID = ntohl(pstReq->stData.dwDataID);
         pclsMst->mapDataWaited.insert(make_pair(dwWaitedID, pstNodeWaited));
     
-        // 将waited包转发给所有slave
-        log_debug(byLogNum, "being ready, send node.");
+        // 将waited包定时定量转发给所有slave
+        log_debug(byLogNum, "waited ready, timed or quantitied to send node.");
     
-        SLAVE_S stSlv;
-        MSG_DATA_WAITED_REQ_S *pstWaitedPkg;
-        UINT uiSlvIdx;
-        for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
-        {
-            stSlv = pclsMst->vecSlvs[uiSlvIdx];
-            pstWaitedPkg = (MSG_DATA_WAITED_REQ_S *)master_alloc_dataWaited(pclsMst->wMstAddr, stSlv.wSlvAddr, dwWaitedID,
-                                                          (void *)pstReq->stData.abyData, ntohs(pstReq->stData.wDataLen));
+        // SLAVE_S stSlv;
+        // MSG_DATA_WAITED_REQ_S *pstWaitedPkg;
+        // UINT uiSlvIdx;
+        // for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
+        // {
+        //     stSlv = pclsMst->vecSlvs[uiSlvIdx];
+        //     pstWaitedPkg = (MSG_DATA_WAITED_REQ_S *)master_alloc_dataWaited(pclsMst->wMstAddr, stSlv.wSlvAddr, dwWaitedID,
+        //                                                     (void *)pstReq->stData.abyData, ntohs(pstReq->stData.wDataLen));
             
-            master_sendMsg((void *)pclsMst, stSlv.wSlvAddr, (void *)pstWaitedPkg, sizeof(MSG_DATA_WAITED_REQ_S) + ntohs(pstReq->stData.wDataLen));
+        //     master_sendMsg((void *)pclsMst, stSlv.wSlvAddr, (void *)pstWaitedPkg, sizeof(MSG_DATA_WAITED_REQ_S) + ntohs(pstReq->stData.wDataLen));
 
-            free(pstWaitedPkg);
-        }
-        free(pstRsp);
+        //     free(pstWaitedPkg);
+        // }
+        
     }
     else if(ntohs(pstMsgHdr->wSig) == START_SIG_2)
     {
