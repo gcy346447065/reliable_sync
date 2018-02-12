@@ -8,6 +8,7 @@
 #include <sys/socket.h> //for recv
 #include <pthread.h> //for pthread
 #include <netinet/in.h> //for htons
+#include <iostream> //for cout
 #include "macro.h"
 #include "log.h"
 #include "vos.h"
@@ -15,6 +16,8 @@
 #include "master.h"
 #include "slave.h"
 #include "protocol.h"
+
+using namespace std;
 
 DWORD task_stdinProc(void *pArg);
 void *task_allocLogin(WORD wSrcAddr, WORD wDstAddr);
@@ -248,7 +251,8 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
         dwBatchCount = ntohl(pstRsp->dwBatchCount);
         dwInstantCount = ntohl(pstRsp->dwInstantCount);
         dwWaitedCount = ntohl(pstRsp->dwWaitedCount);
-        
+
+        cout << "get data count: Batch-" << dwBatchCount << ", Instant-" << dwInstantCount << ", Waited-" << dwWaitedCount << endl;
         log_debug(byLogNum, "get data count: Batch(%u), Instant(%u), Waited(%u).", dwBatchCount, dwInstantCount, dwWaitedCount);
     }
 
@@ -416,6 +420,7 @@ DWORD task_stdinProc(void *pArg)
         INT iFileFd;
         if((iFileFd = open(pcFilename, O_RDONLY)) < 0)
         {
+            cout << "open new config file error" << endl;
             log_error(byLogNum, "open new config file error(%s)!", strerror(errno));
             free(pcStdinBuf);
             free(pcFilename);
@@ -469,8 +474,10 @@ DWORD task_stdinProc(void *pArg)
                     free(pstBatch);
                     return FAILE;
                 }
+                
             }
 
+            cout << "batch: " << pcFilename << endl;
             free(pstBatch);
             free(pcFilename);
         }
@@ -487,6 +494,7 @@ DWORD task_stdinProc(void *pArg)
         INT iFileFd;
         if((iFileFd = open(pcFilename, O_RDONLY)) < 0)
         {
+            cout << "open new config file error" << endl;
             log_error(byLogNum, "open new config file error(%s)!", strerror(errno));
             free(pcStdinBuf);
             free(pcFilename);
@@ -498,8 +506,9 @@ DWORD task_stdinProc(void *pArg)
             lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
             log_debug(byLogNum, "instant iFileLen(%d).", iFileLen);
             
-            if(iFileLen > MAX_TASK2MST_PKG_LEN)//instant文件大小保证小于MAX_PKG_LEN，以保证能一次性发送
+            if(iFileLen > MAX_FILE_LEN) //instant文件大小保证小于MAX_FILE_LEN，否则不发送
             {
+                cout << "file length should limited to " << MAX_FILE_LEN << endl;
                 log_error(byLogNum, "iFileLen(%d) is too large!", iFileLen);
                 free(pcStdinBuf);
                 free(pcFilename);
@@ -539,6 +548,7 @@ DWORD task_stdinProc(void *pArg)
                 return FAILE;
             }
 
+            cout << "instant: " << pcFilename << endl;
             free(pcFilename);
         }
         close(iFileFd);
@@ -554,6 +564,7 @@ DWORD task_stdinProc(void *pArg)
         INT iFileFd;
         if((iFileFd = open(pcFilename, O_RDONLY)) < 0)
         {
+            cout << "open new config file error" << endl;
             log_error(byLogNum, "open new config file error(%s)!", strerror(errno));
             free(pcStdinBuf);
             free(pcFilename);
@@ -565,8 +576,9 @@ DWORD task_stdinProc(void *pArg)
             lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
             log_debug(byLogNum, "waited iFileLen(%d).", iFileLen);
             
-            if(iFileLen > MAX_TASK2MST_PKG_LEN)//waited文件大小与instant一致
+            if(iFileLen > MAX_FILE_LEN)//waited文件大小与instant一致
             {
+                cout << "file length should limited to " << MAX_FILE_LEN << endl;
                 log_error(byLogNum, "iFileLen(%d).", iFileLen);
                 free(pcStdinBuf);
                 free(pcFilename);
@@ -606,6 +618,7 @@ DWORD task_stdinProc(void *pArg)
                 return FAILE;
             }
 
+            cout << "waited: " << pcFilename << endl;
             free(pcFilename);
         }
         close(iFileFd);
@@ -651,6 +664,7 @@ INT main(INT argc, CHAR *argv[])
     /* 检查入参 */
     if(argc < 2)
     {
+        cout << "ERROR: main argc error!" << endl;
         log_error(byLogNum, "main argc error!");
         log_free();
         return FAILE;
@@ -661,14 +675,23 @@ INT main(INT argc, CHAR *argv[])
     {
         bMstOrSlv = TRUE;
 
-        //argc == 2, iMstAddr = ADDR_1_114
-        if (argc == 3) {
+        if (argc == 2) {
+            cout << "DEFAULT: master 1" << endl;
+        }else if (argc == 3) {
             if (sscanf(argv[2], "%d", &iMstAddr) != 1) {
+                cout << "ERROR: master addr error!" << endl;
                 log_error(byLogNum, "master addr error!");
                 log_free();
                 return FAILE;
             }
+            if (iMstAddr < 1 || iMstAddr > 10) {
+                cout << "ERROR: master/slave 1-10 1-10" << endl;
+                log_free();
+                return FAILE;
+            }
+            cout << "USER: master " << iMstAddr << endl;
         } else if (argc > 3) {
+            cout << "ERROR: main argc error!" << endl;
             log_error(byLogNum, "main argc error!");
             log_free();
             return FAILE;
@@ -678,22 +701,50 @@ INT main(INT argc, CHAR *argv[])
     {
         bMstOrSlv = FALSE;
 
-        //argc == 2, iMstAddr = ADDR_1_114, iSlvAddr = ADDR_6_119
-        //argc == 3, iSlvAddr = ADDR_6_119
-        if (argc == 4) {
+        if (argc == 2) {
+            cout << "DEFAULT: slave 1 6" << endl;
+        }else if (argc == 3) {
             if(sscanf(argv[2], "%d", &iMstAddr) != 1)
             {
+                cout << "ERROR: master addr error!" << endl;
                 log_error(byLogNum, "master addr error!");
+                log_free();
+                return FAILE;
+            }
+            if (iMstAddr < 1 || iMstAddr > 10) {
+                cout << "ERROR: master/slave 1-10 1-10" << endl;
+                log_free();
+                return FAILE;
+            }
+            cout << "USER: slave " << iMstAddr << " 6" << endl;
+        }else if (argc == 4) {
+            if(sscanf(argv[2], "%d", &iMstAddr) != 1)
+            {
+                cout << "ERROR: master addr error!" << endl;
+                log_error(byLogNum, "master addr error!");
+                log_free();
+                return FAILE;
+            }
+            if (iMstAddr < 1 || iMstAddr > 10) {
+                cout << "ERROR: master/slave 1-10 1-10" << endl;
                 log_free();
                 return FAILE;
             }
             if(sscanf(argv[3], "%d", &iSlvAddr) != 1)
             {
+                cout << "ERROR: slave addr error!" << endl;
                 log_error(byLogNum, "slave addr error!");
                 log_free();
                 return FAILE;
             }
+            if (iSlvAddr < 1 || iSlvAddr > 10) {
+                cout << "ERROR: master/slave 1-10 1-10" << endl;
+                log_free();
+                return FAILE;
+            }
+            cout << "USER: slave " << iMstAddr << " " << iSlvAddr << endl;
         } else if (argc > 4) {
+            cout << "ERROR: main argc error!" << endl;
             log_error(byLogNum, "main argc error!");
             log_free();
             return FAILE;
@@ -701,6 +752,7 @@ INT main(INT argc, CHAR *argv[])
     }
     else
     {
+        cout << "ERROR: main argv error!" << endl;
         log_error(byLogNum, "main argv error!");
         log_free();
         return FAILE;

@@ -43,6 +43,8 @@ typedef struct
 //包的最小值61853288/65535=943
 #define MAX_TASK2MST_PKG_LEN (1 * 1000)
 #define MAX_PKG_LEN 1000
+//给入的单个instant配置文件最大长度，若超过则需要走batch
+#define MAX_FILE_LEN 1500
 
 //us
 //#define MAX_TASK2MST_RECV_TIMEOUT (10 * 1000 * 1000)
