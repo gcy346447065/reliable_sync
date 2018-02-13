@@ -9,9 +9,12 @@
 #include "master_send.h"
 #include "protocol.h"
 #include "mbufer.h"
+#include "timer.h"
 #include "log.h"
 
 //extern DWORD dwMasterHEHE;
+
+extern timer *g_pMstBatchTimer;
 
 DWORD master_recv(void *pMst, void *pRecvBuf, WORD *pwBufLen)
 {
@@ -202,6 +205,18 @@ static DWORD master_batchTskReq(void *pMst, const MSG_DATA_BATCH_REQ_S *pstReq)
     DWORD dwDataEnd = ntohl(pstReq->stData.dwDataEnd);
     DWORD dwDataID = ntohl(pstReq->stData.stData.dwDataID);
     WORD wDataLen = ntohs(pstReq->stData.stData.wDataLen);
+    
+    if(dwDataID == dwDataStart)
+    {
+        log_debug(byLogNum, "master start batch timer!");
+        
+        DWORD dwRet = g_pMstBatchTimer->start(NEWCFG_MST_BATCH_TIMER_VALUE);
+        if(dwRet != SUCCESS)
+        {
+            log_error(byLogNum, "g_pMstBatchTimer->start error!");
+            return FAILE;
+        }
+    }
 
     // 构造batch回复报文
     MSG_DATA_BATCH_RSP_S *pstRsp = (MSG_DATA_BATCH_RSP_S *)master_alloc_rspMsg(wMstAddr, 
@@ -237,8 +252,6 @@ static DWORD master_batchTskReq(void *pMst, const MSG_DATA_BATCH_REQ_S *pstReq)
     {
         pstSlv = (SLAVE_S *)&pclsMst->vecSlvs.at(uiSlvIdx);
         
-        //pclsMst->vecSlvs[uiSlvIdx].wSlvAddr;
-        
         //设置slave的接收batch标志位
         if(dwDataID == dwDataStart)
         {
@@ -248,8 +261,12 @@ static DWORD master_batchTskReq(void *pMst, const MSG_DATA_BATCH_REQ_S *pstReq)
             
             log_debug(byLogNum, "byBatchFlag: %u, %u to %u!", pstSlv->stBatch.byBatchFlag, pstSlv->stBatch.dwDataStart, pstSlv->stBatch.dwDataEnd);
         }
-            
-        if((dwDataID % 1000 == 0) && (dwDataID != dwDataEnd))    //模拟丢包
+        if(pstSlv->stBatch.byBatchFlag != TRUE)
+        {
+            continue;
+        }
+        
+        if(dwDataID % 100 == 0)    //模拟丢包 && (dwDataID != dwDataEnd)
         {
             //log_debug(byLogNum, "batch pkgs(%u) failed to send", dwDataID);
             return SUCCESS;
@@ -276,14 +293,14 @@ static DWORD master_batchSlvRsp(void *pMst, const MSG_DATA_SLAVE_BATCH_RSP_S *ps
     master *pclsMst = (master *)pMst;
     BYTE wMstAddr = pclsMst->wMstAddr;
     BYTE byLogNum = pclsMst->byLogNum;
-    log_debug(byLogNum, "master_batchRes2Slv().");
+    //log_debug(byLogNum, "master_batchRes2Slv().");
     
     WORD wSlvAddr = ntohs(pstRsp->stMsgHdr.wSrcAddr);
     DWORD dwDataStart = htonl(pstRsp->stSlvRecvResult.dwDataStart);
     DWORD dwDataEnd = htonl(pstRsp->stSlvRecvResult.dwDataEnd);
     DWORD dwPkgNums = ntohl(pstRsp->stSlvRecvResult.dwNeedPkgNums);
     
-    log_debug(byLogNum, "wSlvAddr = %u, dwDataStart = %u, dwDataEnd = %u, dwPkgNums = %u.", wSlvAddr, dwDataStart, dwDataEnd, dwPkgNums);
+    //log_debug(byLogNum, "wSlvAddr = %u, dwDataStart = %u, dwDataEnd = %u, dwPkgNums = %u.", wSlvAddr, dwDataStart, dwDataEnd, dwPkgNums);
     
     SLAVE_S *pstSlv;
     unsigned int uiSlvIdx;
@@ -300,7 +317,6 @@ static DWORD master_batchSlvRsp(void *pMst, const MSG_DATA_SLAVE_BATCH_RSP_S *ps
             {
                 //该slave已batch完毕
                 log_debug(byLogNum, "Slave(%d) has finished batch bakcup!", ntohs(pstRsp->stMsgHdr.wSrcAddr));
-                
                 pstSlv->stBatch.byBatchFlag = FALSE;
                 pstSlv->stBatch.bySendtimes = 0;
                 pstSlv->stBatch.dwDataNums = 0;
@@ -318,25 +334,13 @@ static DWORD master_batchSlvRsp(void *pMst, const MSG_DATA_SLAVE_BATCH_RSP_S *ps
             else
             {
                 //该slave缺少报文;
-                //log_debug(byLogNum, "Slave(%u) still need %u batch pkgs!", ntohs(pstRsp->stMsgHdr.wSrcAddr), dwPkgNums);
-                if(pstSlv->stBatch.bySendtimes > MAX_SLAVE_RES_BATCH_PKGS)
-                {
-                    log_debug(byLogNum, "Slave(%u)'s retransmit max!", ntohs(pstRsp->stMsgHdr.wSrcAddr));
-                    pstSlv->stBatch.byBatchFlag = FALSE;
-                    pstSlv->stBatch.bySendtimes = 0;
-                    pstSlv->stBatch.dwDataNums = 0;
-                    pstSlv->stBatch.vecDataIDs.clear();
-                }
-                else
-                {
-                    pstSlv->stBatch.bySendtimes++;
-                    pstSlv->stBatch.dwDataNums += dwPkgNums;
+                log_debug(byLogNum, "Slave(%u) still need %u batch pkgs!", ntohs(pstRsp->stMsgHdr.wSrcAddr), dwPkgNums);
+                pstSlv->stBatch.dwDataNums += dwPkgNums;
 
-                    for(DWORD i = 0; i < dwPkgNums; i++)
-                    {
-                        //log_debug(byLogNum, "i = %u, dwPkgNums = %u", i, dwPkgNums);
-                        pstSlv->stBatch.vecDataIDs.push_back(ntohl(pstRsp->stSlvRecvResult.dwDataIDs[i]));
-                    }
+                for(DWORD i = 0; i < dwPkgNums; i++)
+                {
+                    //log_debug(byLogNum, "i = %u, dwPkgNums = %u", i, dwPkgNums);
+                    pstSlv->stBatch.vecDataIDs.push_back(ntohl(pstRsp->stSlvRecvResult.dwDataIDs[i]));
                 }
             }
             
@@ -347,9 +351,7 @@ static DWORD master_batchSlvRsp(void *pMst, const MSG_DATA_SLAVE_BATCH_RSP_S *ps
     DWORD dwDataID;
     for(DWORD i = 0; i < dwPkgNums; i++)
     {
-        //log_debug(byLogNum, "i = %u, dwPkgNums = %u", i, dwPkgNums);
         dwDataID = ntohl(pstRsp->stSlvRecvResult.dwDataIDs[i]);
-        //log_debug(byLogNum, "Slave(%d) need pkg(%u, %u to %u)!", ntohs(pstRsp->stMsgHdr.wSrcAddr), dwDataID, dwDataStart, dwDataEnd);
         
         NODE_DATA_BATCH_S *pstNodeBatch = pclsMst->mapDataBatch[dwDataID];
         if(!pstNodeBatch)
@@ -408,7 +410,7 @@ static DWORD master_dataBatch(void *pMst, const void *pMsg)
     }
     else if(ntohs(pstMsgHdr->wSig) == START_SIG_2)  //收到某slave发来的batch反馈包
     {
-        log_debug(byLogNum, "master receives slave's res batch_msg!");
+        //log_debug(byLogNum, "master receives slave's res batch_msg!");
         
         const MSG_DATA_SLAVE_BATCH_RSP_S *pstRsp = (const MSG_DATA_SLAVE_BATCH_RSP_S *)pMsg;
         if(ntohs(pstRsp->stMsgHdr.wLen) < sizeof(MSG_DATA_SLAVE_BATCH_RSP_S) - MSG_HDR_LEN)

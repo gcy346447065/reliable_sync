@@ -54,7 +54,7 @@ typedef struct
 #define MAX_TASK2MST_RECV_LEN (MAX_TASK2MST_PKG_LEN + 64) 
 #define MAX_RECV_LEN 1536 
 
-//Slave发送batch回复包的最大包数，及最大重传次数
+//slave发送batch回复包的最大包数，及最大重传次数
 #define MAX_SLAVE_RES_BATCH_PKGS 300    //(MAX_TASK2MST_PKG_LEN - (sizeof(MSG_DATA_SLAVE_BATCH_RSP_S) - sizeof(MSG_HDR_S))) / sizeof(DWORD) = 347
 #define MAX_RETRANS_TIMES 3
 
@@ -115,11 +115,16 @@ typedef struct
 
 
 
-#define REGISTER_TIMER_VALUE        (1000*30+1) //30s
-#define KEEPALIVE_TIMER_VALUE       (1000*60*3+1) //3min-1min
-#define CHECKALIVE_TIMER_VALUE      (1000*60*10+1)
-#define NEWCFG_INSTANT_TIMER_VALUE  (1000*60*5+1)
-#define NEWCFG_WAITED_TIMER_VALUE   (1000*60*5+1)
+#define REGISTER_TIMER_VALUE            (1000*30+1) //30s
+#define KEEPALIVE_TIMER_VALUE           (1000*60*3+1) //3min-1min
+#define CHECKALIVE_TIMER_VALUE          (1000*60*10+1)
+
+#define NEWCFG_BATCH_TIMER_VALUE        (1000*7+1)  //7s  slave's time
+#define NEWCFG_MST_BATCH_TIMER_VALUE    (1000*10+1) //10s master's time
+#define NEWCFG_BATCH_FAST_TIMER_VALUE   (1000*3+1) //3s
+
+#define NEWCFG_INSTANT_TIMER_VALUE      (1000*60*5+1)
+#define NEWCFG_WAITED_TIMER_VALUE       (1000*60*5+1)
 
 #endif //_MACRO_H_
 

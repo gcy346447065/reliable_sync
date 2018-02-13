@@ -19,6 +19,7 @@ extern WORD g_slv_wMstAddr;
 extern WORD g_slv_wSlvAddr;
 extern mbufer *g_pSlvMbufer;
 extern timer *g_pSlvRegTimer;
+extern timer *g_pSlvBatchTimer;
 
 DWORD g_dwSlvLastDataNums;
 
@@ -185,8 +186,11 @@ DWORD slave_batchSetState(void *pSlv, BYTE byStartFlag, DWORD dwDataStart, DWORD
         memset(pclsSlv->stBatch.pbyBitmap, 0, (dwDataEnd - dwDataStart) * sizeof(BYTE) / 8 + 1);
         
         //开batch定时器
+        DWORD dwRet = g_pSlvBatchTimer->start(NEWCFG_BATCH_TIMER_VALUE);
+        if(dwRet != SUCCESS)
         {
-
+            log_error(byLogNum, "g_pSlvBatchTimer->start error!");
+            return FAILE;
         }
     }
     else
@@ -208,9 +212,13 @@ DWORD slave_batchSetState(void *pSlv, BYTE byStartFlag, DWORD dwDataStart, DWORD
         }
         
         //关batch定时器
+        DWORD dwRet = g_pSlvBatchTimer->stop();
+        if(dwRet != SUCCESS)
         {
-
+            log_error(byLogNum, "g_pSlvBatchTimer->stop error!");
+            return FAILE;
         }
+
     }
 
     return SUCCESS;
@@ -302,7 +310,7 @@ DWORD slave_batchCountLost(void *pSlv)
     return pclsSlv->stBatch.dwDataNums;
 }
 
-static DWORD slave_batchRes2Mst(void *pSlv)
+DWORD slave_batchRes2Mst(void *pSlv)
 {
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
@@ -372,7 +380,7 @@ static DWORD slave_batchRes2Mst(void *pSlv)
     return SUCCESS;
 }
 
-static DWORD slave_dataBatch(void *pSlv, const void *pMsg)
+DWORD slave_dataBatch(void *pSlv, const void *pMsg)
 {
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;

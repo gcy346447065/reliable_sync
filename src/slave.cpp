@@ -16,7 +16,7 @@
 
 mbufer *g_pSlvMbufer;
 timer *g_pSlvRegTimer;
-timer *g_testTimer;
+timer *g_pSlvBatchTimer;
 
 WORD g_slv_wMstAddr;
 WORD g_slv_wSlvAddr;
@@ -129,21 +129,32 @@ DWORD slave_registerTimerProc(void *pSlv)
     return dwRet;
 }
 
-DWORD slave_testTimerProc(void *pSlv)
+DWORD slave_batchTimerProc(void *pSlv)
 {
     DWORD dwRet = SUCCESS;
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave_testTimerProc()");
+    
+    log_debug(byLogNum, "slave batch time up!");
 
-    dwRet = g_testTimer->start(5 * 1000); // 5s
+    dwRet = g_pSlvBatchTimer->start(NEWCFG_BATCH_FAST_TIMER_VALUE);
     if(dwRet != SUCCESS)
     {
-        log_error(byLogNum, "g_testTimer->start error!");
+        log_error(byLogNum, "g_pSlvBatchTimer->start error!");
         return FAILE;
     }
+
+    if(pclsSlv->stBatch.byBatchFlag == TRUE)
+    {
+        DWORD dwRet = slave_batchRes2Mst(pSlv);
+        if(dwRet != SUCCESS)
+        {
+            log_error(byLogNum, "slave failed to response batch to master!");
+            return FAILE;
+        }
+    }
     
-    return dwRet;
+    return SUCCESS;
 }
 
 DWORD slave::slave_Init()
@@ -197,26 +208,21 @@ DWORD slave::slave_Init()
         return FAILE;
     }
 
-    g_testTimer = new timer(byLogNum);
-    dwRet = g_testTimer->init();
+    //slave的定时器
+    g_pSlvBatchTimer = new timer(byLogNum);
+    dwRet = g_pSlvBatchTimer->init();
     if(dwRet != SUCCESS)
     {
-        log_error(byLogNum, "g_testTimer->init error!");
+        log_error(byLogNum, "g_pSlvBatchTimer->init error!");
         return FAILE;
     }
-    dwRet = pVos->vos_RegTask("slv_timer", g_testTimer->dwTimerFd, slave_testTimerProc, this);
+    dwRet = pVos->vos_RegTask("slv_timer", g_pSlvBatchTimer->dwTimerFd, slave_batchTimerProc, this);
     if(dwRet != SUCCESS)
     {
         log_error(byLogNum, "vos_RegTask error!");
         return FAILE;
-    }/*
-    dwRet = g_testTimer->start(5 * 1000); // 5s
-    if(dwRet != SUCCESS)
-    {
-        log_error(byLogNum, "g_testTimer->start error!");
-        return FAILE;
-    }*/
-
+    }
+    
     return dwRet;
 }
 
