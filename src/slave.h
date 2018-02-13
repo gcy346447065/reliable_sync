@@ -11,6 +11,7 @@ using std::map;
 #include "vos.h"
 #include "mbufer.h"
 #include "log.h"
+#include "timer.h"
 
 class slave
 {
@@ -52,6 +53,8 @@ public:
     WORD wSlvAddr;
     mbufer *pMbufer;
     SLAVE_BATCH_STATE_S stBatch;
+
+    timer *pKeepaliveTimer;
 
 };
 

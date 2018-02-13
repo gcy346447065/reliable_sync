@@ -209,13 +209,13 @@ DWORD slave::slave_Init()
     {
         log_error(byLogNum, "vos_RegTask error!");
         return FAILE;
-    }
+    }/*
     dwRet = g_testTimer->start(5 * 1000); // 5s
     if(dwRet != SUCCESS)
     {
         log_error(byLogNum, "g_testTimer->start error!");
         return FAILE;
-    }
+    }*/
 
     return dwRet;
 }

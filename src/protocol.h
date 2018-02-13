@@ -47,7 +47,7 @@ typedef struct
 {
     BYTE byBatchFlag;
     BYTE bySendtimes;
-    
+
     DWORD dwDataNums;
     vector<DWORD> vecDataIDs;   //用于记录slave未收到的batch pkg
     
