@@ -11,6 +11,7 @@ using std::map;
 #include "mbufer.h"
 #include "log.h"
 #include "protocol.h"
+#include "timer.h"
 
 class master
 {
@@ -54,6 +55,9 @@ public:
     map<DWORD, NODE_DATA_BATCH_S*> mapDataBatch; // master用于记录已存储的batch pkg
     map<DWORD, NODE_DATA_INSTANT_S*> mapDataInstant;
     map<DWORD, NODE_DATA_WAITED_S*> mapDataWaited;
+
+    timer *pWaitedTimer; // 用于判断是否满足waited定时阈值
+    DWORD dwWaitedSize; // 用于计算是否满足waited定量阈值
     
 };
 

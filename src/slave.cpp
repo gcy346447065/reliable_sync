@@ -222,7 +222,7 @@ DWORD slave::slave_Init()
         log_error(byLogNum, "vos_RegTask error!");
         return FAILE;
     }
-    
+
     return dwRet;
 }
 

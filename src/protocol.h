@@ -236,17 +236,19 @@ typedef struct
 
 typedef struct
 {
-    DATA_BATCH_PKG_S stBatchNet;//网络序的数据
+    DATA_BATCH_PKG_S stBatchNet; //主机序的数据
 }__attribute__((__packed__)) NODE_DATA_BATCH_S;
 
 typedef struct
 {
-    DATA_PKG_S stInstantNet;//网络序的数据
+    DATA_PKG_S stInstantNet; //主机序的数据
 }__attribute__((__packed__)) NODE_DATA_INSTANT_S;
 
 typedef struct
 {
-    DATA_PKG_S stWaitedNet;//网络序的数据
+    WORD wSendTimes;
+    WORD wSucceedTimes;
+    DATA_PKG_S stWaitedNet; //主机序的数据,最后有不定数组，添加项一定要放上方
 }__attribute__((__packed__)) NODE_DATA_WAITED_S;
 
 

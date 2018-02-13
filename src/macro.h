@@ -54,8 +54,9 @@ typedef struct
 #define MAX_TASK2MST_RECV_LEN (MAX_TASK2MST_PKG_LEN + 64) 
 #define MAX_RECV_LEN 1536 
 
-//slave发送batch回复包的最大包数，及最大重传次数
-#define MAX_SLAVE_RES_BATCH_PKGS 300    //(MAX_TASK2MST_PKG_LEN - (sizeof(MSG_DATA_SLAVE_BATCH_RSP_S) - sizeof(MSG_HDR_S))) / sizeof(DWORD) = 347
+//Slave发送batch回复包的最大包数，及最大重传次数
+#define MAX_SLAVE_RES_BATCH_PKGS ((MAX_TASK2MST_PKG_LEN - (sizeof(MSG_DATA_SLAVE_BATCH_RSP_S) - sizeof(MSG_HDR_S))) / sizeof(DWORD))
+
 #define MAX_RETRANS_TIMES 3
 
 #define MAX_STDIN_FILE_LEN 128
@@ -125,6 +126,12 @@ typedef struct
 
 #define NEWCFG_INSTANT_TIMER_VALUE      (1000*60*5+1)
 #define NEWCFG_WAITED_TIMER_VALUE       (1000*60*5+1)
+
+#define WAITED_TIMER_VALUE      (1000  * 60) // 1min，对应waited定时阈值 
+//#define WAITED_SIZE_VALUE       (1000 * 10) // 10K，对应waited定量阈值
+//#define WAITED_TIMER_VALUE      (1000  * 5) // 5s 
+#define WAITED_SIZE_VALUE       (1000 * 10 * 0.01) // 100B
+
 
 #endif //_MACRO_H_
 

@@ -298,7 +298,7 @@ static DWORD master_batchSlvRsp(void *pMst, const MSG_DATA_SLAVE_BATCH_RSP_S *ps
     WORD wSlvAddr = ntohs(pstRsp->stMsgHdr.wSrcAddr);
     DWORD dwDataStart = htonl(pstRsp->stSlvRecvResult.dwDataStart);
     DWORD dwDataEnd = htonl(pstRsp->stSlvRecvResult.dwDataEnd);
-    DWORD dwPkgNums = ntohl(pstRsp->stSlvRecvResult.dwNeedPkgNums);
+    DWORD dwPkgNums = ntohl(pstRsp->stSlvRecvResult.dwNeedPkgNums); //slave反馈给master自己还需要多少包
     
     //log_debug(byLogNum, "wSlvAddr = %u, dwDataStart = %u, dwDataEnd = %u, dwPkgNums = %u.", wSlvAddr, dwDataStart, dwDataEnd, dwPkgNums);
     
@@ -492,7 +492,7 @@ static DWORD master_dataInstant(void *pMst, const void *pMsg)
         pclsMst->mapDataInstant.insert(make_pair(dwDataID, pstNodeInstant));
         
         // 将instant包转发给所有slave
-        log_debug(byLogNum, "being ready, send node.");
+        log_debug(byLogNum, "being ready, send instant.");
     
         SLAVE_S *pstSlv;
         MSG_DATA_INSTANT_REQ_S *pstInstantPkg;
@@ -578,7 +578,7 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
         }
         
         DWORD dwDataID = ntohl(pstReq->stData.dwDataID);
-        DWORD dwDataLen = ntohs(pstReq->stData.wDataLen);
+        WORD wDataLen = ntohs(pstReq->stData.wDataLen);
         MSG_DATA_WAITED_RSP_S *pstRsp = (MSG_DATA_WAITED_RSP_S *)master_alloc_rspMsg(ntohs(pstReq->stMsgHdr.wDstAddr), 
             ntohs(pstReq->stMsgHdr.wSrcAddr), START_SIG_1, ntohl(pstReq->stMsgHdr.dwSeq), CMD_DATA_WAITED);
         pstRsp->stDataResult.dwDataID = htonl(dwDataID);
@@ -593,41 +593,64 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
     
     
         // 将waited包插入到master的waited映射表里
-        NODE_DATA_WAITED_S *pstNodeWaited = (NODE_DATA_WAITED_S *)malloc(sizeof(NODE_DATA_WAITED_S) + ntohs(pstReq->stData.wDataLen));
+        NODE_DATA_WAITED_S *pstNodeWaited = (NODE_DATA_WAITED_S *)malloc(sizeof(NODE_DATA_WAITED_S) + wDataLen);
+        pstNodeWaited->wSendTimes = 0;
+        pstNodeWaited->wSucceedTimes = 0;
         pstNodeWaited->stWaitedNet.dwDataID = dwDataID;
-        //pstNodeWaited->stWaitedNet.wDataChecksum = ntohs(pstReq->stData.wDataChecksum);
-        pstNodeWaited->stWaitedNet.wDataLen = dwDataLen;
-        memcpy(&(pstNodeWaited->stWaitedNet.abyData), &(pstReq->stData.abyData), dwDataLen);
+        pstNodeWaited->stWaitedNet.wDataChecksum = ntohs(pstReq->stData.wDataChecksum);
+        pstNodeWaited->stWaitedNet.wDataLen = wDataLen;
+        memcpy(&(pstNodeWaited->stWaitedNet.abyData), &(pstReq->stData.abyData), wDataLen);
         
         //WORD wChecksum = checksum((const void *)(pstNodeWaited->stWaitedNet.abyData), (WORD)ntohs(pstNodeWaited->stWaitedNet.wDataLen));
         //pstNodeWaited->stWaitedNet.wDataChecksum = htons(wChecksum);
         pclsMst->mapDataWaited.insert(make_pair(dwDataID, pstNodeWaited));
         
+        pclsMst->dwWaitedSize += wDataLen;
+        
         // 将waited包转发给所有slave
-        log_debug(byLogNum, "being ready, send node.");
-    
-        SLAVE_S *pstSlv;
-        MSG_DATA_WAITED_REQ_S *pstWaitedPkg;
-        UINT uiSlvIdx;
-        for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
-        {
-            pstSlv = (SLAVE_S *)&pclsMst->vecSlvs.at(uiSlvIdx);
-            pstSlv->stWaited.byWaitedFlag = TRUE;
-            pstSlv->stWaited.bySendtimes = 1;
-            pstSlv->stWaited.dwDataID = dwDataID;
-            
-            pstWaitedPkg = (MSG_DATA_WAITED_REQ_S *)master_alloc_dataWaited(pclsMst->wMstAddr, pstSlv->wSlvAddr, dwDataID,
-                                                          (void *)pstReq->stData.abyData, dwDataLen);
-            
-            master_sendMsg((void *)pclsMst, pstSlv->wSlvAddr, (void *)pstWaitedPkg, sizeof(MSG_DATA_WAITED_REQ_S) + ntohs(pstReq->stData.wDataLen));
-    
-            free(pstWaitedPkg);
+
+        log_debug(byLogNum, "being ready, timely or largely send waited.");
+
+        log_debug(byLogNum, "pclsMst->dwWaitedSize:%u", pclsMst->dwWaitedSize);
+        // 如果满足定量阈值则发送所有节点，否则等待后续定时定量条件
+        if(pclsMst->dwWaitedSize >= WAITED_SIZE_VALUE) {
+            log_debug(byLogNum, "up to waited size value");
+            SLAVE_S stSlv;
+            UINT uiSlvIdx;
+            MSG_DATA_WAITED_REQ_S *pstWaitedPkg;
+            for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
+            {
+                stSlv = pclsMst->vecSlvs[uiSlvIdx];
+         
+                for(map<DWORD, NODE_DATA_WAITED_S*>::iterator it = pclsMst->mapDataWaited.begin(); it != pclsMst->mapDataWaited.end(); it++) {
+                    DWORD dwWaitedID = it->first;
+                    NODE_DATA_WAITED_S* pstWaited = it->second; //从map中取出节点数据
+                    if (pstWaited->wSendTimes >= MAX_SEND_TIMES) {
+                        // 节点重发次数过多，删除节点
+                        free(pstWaited);
+                        pclsMst->mapDataWaited.erase(it);
+                        continue;
+                    }
+                    void *pData = (void *)pstWaited->stWaitedNet.abyData;
+                    WORD wDataLen = pstWaited->stWaitedNet.wDataLen;
+
+                    pstWaitedPkg = (MSG_DATA_WAITED_REQ_S *)master_alloc_dataWaited(pclsMst->wMstAddr, stSlv.wSlvAddr, dwWaitedID, pData, wDataLen);
+
+                    log_hex(byLogNum, (void *)pstWaitedPkg, 30);
+                    log_debug(byLogNum, "master_dataWaited master_sendMsg");
+                    master_sendMsg((void *)pclsMst, stSlv.wSlvAddr, (void *)pstWaitedPkg, sizeof(MSG_DATA_WAITED_REQ_S) + wDataLen);
+                    pstWaited->wSendTimes++;
+                    free(pstWaitedPkg);
+                }
+            }
+
         }
+        
         free(pstRsp);
     }
     else if(ntohs(pstMsgHdr->wSig) == START_SIG_2)
     {
-        //收到某个slave发送回来的instant回复包
+        //收到某个slave发送回来的waited回复包
         const MSG_DATA_WAITED_RSP_S *pstRsp = (const MSG_DATA_WAITED_RSP_S *)pMsg;
         if(ntohs(pstRsp->stMsgHdr.wLen) < sizeof(MSG_DATA_WAITED_RSP_S) - MSG_HDR_LEN)
         {
@@ -635,20 +658,36 @@ static DWORD master_dataWaited(void *pMst, const void *pMsg)
             return FAILE;
         }
 
-        SLAVE_S *pstSlv;
-        UINT uiSlvIdx;
-        for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
-        {
-            pstSlv = (SLAVE_S *)&pclsMst->vecSlvs.at(uiSlvIdx);
-            if(ntohs(pstRsp->stMsgHdr.wSrcAddr) == pstSlv->wSlvAddr)
+
+        DWORD dwDataID = ntohl(pstRsp->stDataResult.dwDataID);
+        BYTE byResult = pstRsp->stDataResult.byResult;
+        
+        // 返回成功结果再去找是哪个slave并标记相应node，直至所有slave完成后删除节点
+        if (byResult == DATA_RESULT_SUCCEED) { 
+            SLAVE_S stSlv;
+            UINT uiSlvIdx;
+            for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
             {
-                log_debug(byLogNum, "Slave(%d) has received waited pkg!", pstSlv->wSlvAddr);
-                
-                pstSlv->stWaited.byWaitedFlag = FALSE;
-                pstSlv->stWaited.bySendtimes = 0;
-                pstSlv->stWaited.dwDataID = 0;
+                stSlv = pclsMst->vecSlvs[uiSlvIdx];
+                if(ntohs(pstRsp->stMsgHdr.wSrcAddr) == stSlv.wSlvAddr)
+                {
+                    log_debug(byLogNum, "Slave(%d) has received waited(%d) pkg!", stSlv.wSlvAddr, dwDataID);
+
+                    map<DWORD, NODE_DATA_WAITED_S*>::iterator it = pclsMst->mapDataWaited.find(dwDataID);
+                    NODE_DATA_WAITED_S* pstWaited = it->second;
+                    pstWaited->wSucceedTimes++;
+                    if (pstWaited->wSucceedTimes >= pclsMst->vecSlvs.size()) {
+                        // 节点成功，删除节点
+                        free(pstWaited);
+                        pclsMst->mapDataWaited.erase(it);
+                        break;
+                    }
+                }
+
             }
         }
+
+        
     }
     else
     {

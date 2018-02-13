@@ -515,9 +515,9 @@ DWORD task_stdinProc(void *pArg)
                 return FAILE;
             }
 
-            BYTE *pbyFileBuf = (BYTE *)malloc(MAX_TASK2MST_PKG_LEN);
-            memset(pbyFileBuf, 0, MAX_TASK2MST_PKG_LEN);
-            INT iFileBufLen = read(iFileFd, pbyFileBuf, MAX_TASK2MST_PKG_LEN);
+            BYTE *pbyFileBuf = (BYTE *)malloc(MAX_FILE_LEN);
+            memset(pbyFileBuf, 0, MAX_FILE_LEN);
+            INT iFileBufLen = read(iFileFd, pbyFileBuf, MAX_FILE_LEN);
             if(iFileBufLen < 0)
             {
                 log_error(byLogNum, "read iFileFd error(%d)!", iFileBufLen);
@@ -585,9 +585,9 @@ DWORD task_stdinProc(void *pArg)
                 return FAILE;
             }
 
-            BYTE *pbyFileBuf = (BYTE *)malloc(MAX_TASK2MST_PKG_LEN);
-            memset(pbyFileBuf, 0, MAX_TASK2MST_PKG_LEN);
-            INT iFileBufLen = read(iFileFd, pbyFileBuf, MAX_TASK2MST_PKG_LEN);
+            BYTE *pbyFileBuf = (BYTE *)malloc(MAX_FILE_LEN);
+            memset(pbyFileBuf, 0, MAX_FILE_LEN);
+            INT iFileBufLen = read(iFileFd, pbyFileBuf, MAX_FILE_LEN);
             if(iFileBufLen < 0)
             {
                 log_error(byLogNum, "read iFileFd error(%d)!", iFileBufLen);

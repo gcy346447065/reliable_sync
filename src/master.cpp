@@ -77,12 +77,62 @@ DWORD master_mailboxProc(void *pArg)//pArg其实是master *pclsMst
     return dwRet;
 }
 
-DWORD master_keepaliveTimerProc(void *pArg)
+DWORD master_keepaliveTimerProc(void *pMst)
 {
     DWORD dwRet = SUCCESS;
-    master *pclsMst = (master *)pArg;
+    master *pclsMst = (master *)pMst;
     BYTE byLogNum = pclsMst->byLogNum;
     log_debug(byLogNum, "master_keepaliveTimerProc().");
+    
+    return dwRet;
+}
+
+DWORD master_waitedTimerProc(void *pMst)
+{
+    DWORD dwRet = SUCCESS;
+    master *pclsMst = (master *)pMst;
+    BYTE byLogNum = pclsMst->byLogNum;
+
+    log_debug(byLogNum, "master_waitedTimerProc()");
+
+    SLAVE_S stSlv;
+    UINT uiSlvIdx;
+    MSG_DATA_WAITED_REQ_S *pstWaitedPkg;
+    for(uiSlvIdx = 0; uiSlvIdx < pclsMst->vecSlvs.size(); uiSlvIdx++)
+    {
+        stSlv = pclsMst->vecSlvs[uiSlvIdx];
+ 
+        for(map<DWORD, NODE_DATA_WAITED_S*>::iterator it = pclsMst->mapDataWaited.begin(); it != pclsMst->mapDataWaited.end(); it++) {
+            DWORD dwWaitedID = it->first;
+            NODE_DATA_WAITED_S* pstWaited = it->second; //从map中取出节点数据
+
+            if (pstWaited->wSendTimes >= MAX_SEND_TIMES) {
+                // 节点重发次数过多，删除节点
+                free(pstWaited);
+                pclsMst->mapDataWaited.erase(it);
+                continue;
+            }
+                    
+            void *pData = (void *)pstWaited->stWaitedNet.abyData;
+            WORD wDataLen = pstWaited->stWaitedNet.wDataLen;
+
+            pstWaitedPkg = (MSG_DATA_WAITED_REQ_S *)master_alloc_dataWaited(pclsMst->wMstAddr, stSlv.wSlvAddr, dwWaitedID, pData, wDataLen);
+
+            log_hex(byLogNum, (void *)pstWaitedPkg, 30);
+            log_debug(byLogNum, "master_waitedTimerProc master_sendMsg");
+            master_sendMsg((void *)pclsMst, stSlv.wSlvAddr, (void *)pstWaitedPkg, sizeof(MSG_DATA_WAITED_REQ_S) + wDataLen);
+
+            pstWaited->wSendTimes++;
+            free(pstWaitedPkg);
+        }
+    }
+
+    dwRet = pclsMst->pWaitedTimer->start(WAITED_TIMER_VALUE);
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "pWaitedTimer->start error!");
+        return FAILE;
+    }
     
     return dwRet;
 }
@@ -218,7 +268,27 @@ DWORD master::master_Init()
         return FAILE;
     }
 
-    /* 创建该子线程主要用于checksum的计算，将io操作与cpu计算分开有利于提高效率 */
+    pWaitedTimer = new timer(byLogNum);
+    dwRet = pWaitedTimer->init();
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "pWaitedTimer->init error!");
+        return FAILE;
+    }
+    dwRet = pVos->vos_RegTask("mst_waited_timer", pWaitedTimer->dwTimerFd, master_waitedTimerProc, this);
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "vos_RegTask error!");
+        return FAILE;
+    }
+    dwRet = pWaitedTimer->start(WAITED_TIMER_VALUE); // 1min -> 6s
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "pWaitedTimer->start error!");
+        return FAILE;
+    }
+
+    /* 创建子线程主要用于checksum的计算，将io操作与cpu计算分开有利于提高效率 */
 
     //master的定时器
     g_pMstBatchTimer = new timer(byLogNum);
