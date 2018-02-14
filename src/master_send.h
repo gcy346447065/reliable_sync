@@ -12,7 +12,6 @@ void *master_alloc_dataInstant(WORD wSrcAddr, WORD wDstAddr, DWORD dwDataID, voi
 void *master_alloc_dataWaited(WORD wSrcAddr, WORD wDstAddr, DWORD dwDataID, void *pBuf, WORD wBufLen);
 
 DWORD master_sendMsg(void *pMst, WORD wDstAddr, void *pData, WORD wDataLen);
-DWORD master_sendToSlaves(void *pMst, void *pData, WORD wDataLen);
 
 
 #endif//_MASTER_SEND_H_

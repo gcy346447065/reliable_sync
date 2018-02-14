@@ -40,9 +40,10 @@ typedef struct
 #define VOS_OK                    0
 
 
-//包的最小值61853288/65535=943
-#define MAX_TASK2MST_PKG_LEN (1400) //规定单包大小不能超过1500
+//包的最小值61853288/65535^2,最大值不能超过1500
+#define MAX_TASK2MST_PKG_LEN 1400
 #define MAX_PKG_LEN 1000
+
 //给入的单个instant配置文件最大长度，若超过则需要走batch
 #define MAX_FILE_LEN 1500
 
@@ -58,6 +59,7 @@ typedef struct
 #define MAX_SLAVE_RES_BATCH_PKGS ((MAX_TASK2MST_PKG_LEN - (sizeof(MSG_DATA_SLAVE_BATCH_RSP_S) - sizeof(MSG_HDR_S))) / sizeof(DWORD))
 
 #define MAX_RETRANS_TIMES 3
+#define MAX_KEEPALIVE_TIMES 3
 
 #define MAX_STDIN_FILE_LEN 128
 #define MAX_EPOLL_NUM 64
@@ -117,7 +119,7 @@ typedef struct
 
 
 #define REGISTER_TIMER_VALUE            (1000*30+1) //30s
-#define KEEPALIVE_TIMER_VALUE           (1000*60*3+1) //3min-1min
+#define KEEPALIVE_TIMER_VALUE           (1000*60*1+1) //3min-1min
 #define CHECKALIVE_TIMER_VALUE          (1000*60*10+1)
 
 #define NEWCFG_BATCH_TIMER_VALUE        (1000*7+1)  //7s  slave's time

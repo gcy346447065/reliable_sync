@@ -14,15 +14,6 @@
 #include "slave_recv.h"
 #include "protocol.h"
 
-mbufer *g_pSlvMbufer;
-timer *g_pSlvRegTimer;
-timer *g_pSlvBatchTimer;
-
-WORD g_slv_wMstAddr;
-WORD g_slv_wSlvAddr;
-
-DWORD g_dwSlvDataSeq = 1;
-
 void *slave_alloc(WORD wBufLen)
 {
     void *pRecvBuf = malloc(wBufLen);
@@ -32,24 +23,6 @@ void *slave_alloc(WORD wBufLen)
     }
     memset(pRecvBuf, 0, wBufLen);
     return pRecvBuf;
-}
-
-void *slave_alloc_Login(WORD wSrcAddr, WORD wDstAddr)
-{
-    //log_debug(LOG1, "wPkgCount(%d).", wPkgCount);
-    MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)malloc(sizeof(MSG_LOGIN_REQ_S));
-    if(pstLogin)
-    {
-        pstLogin->stMsgHdr.wSig = htons(START_SIG_2);
-        pstLogin->stMsgHdr.wVer = htons(VERSION_INT);
-        pstLogin->stMsgHdr.wSrcAddr = htons(wSrcAddr);
-        pstLogin->stMsgHdr.wDstAddr = htons(wDstAddr);
-        pstLogin->stMsgHdr.dwSeq = htonl(g_dwSlvDataSeq++);
-        pstLogin->stMsgHdr.wCmd = htons(CMD_LOGIN);
-        pstLogin->stMsgHdr.wLen = htons(0);
-    }
-
-    return (void *)pstLogin;
 }
 
 DWORD slave_free(void *pBuf)
@@ -95,38 +68,27 @@ DWORD slave_mailboxProc(void *pSlv)
     return dwRet;
 }
 
-DWORD slave_registerTimerProc(void *pSlv)
+DWORD slave_keepaliveTimerProc(void *pSlv)
 {
     DWORD dwRet = SUCCESS;
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave_registerTimerProc()");
+    
+    log_debug(byLogNum, "slave keep alive time up!");
+    
+    //向master发送自己的KeepAlive心跳报文
+    MSG_KEEP_ALIVE_REQ_S *pstKeepAlivePkg = (MSG_KEEP_ALIVE_REQ_S *)slave_alloc_reqMsg(pclsSlv->wSlvAddr, pclsSlv->wMstAddr, START_SIG_2, CMD_KEEP_ALIVE);
 
-    /* 拼接主备模块消息体 */
-    MSG_LOGIN_REQ_S *pstReq = (MSG_LOGIN_REQ_S *)slave_alloc_reqMsg(CMD_LOGIN);
-    if(!pstReq)
-    {
-        log_error(byLogNum, "alloc_slave_reqMsg error!");
-        return FAILE;
-    }
+    slave_sendMsg((void *)pclsSlv, pclsSlv->wMstAddr, (void *)pstKeepAlivePkg, sizeof(MSG_KEEP_ALIVE_REQ_S));
 
-    dwRet = slave_send((BYTE *)pstReq, sizeof(MSG_LOGIN_REQ_S));
+    dwRet = pclsSlv->pKeepAliveTimer->start(KEEPALIVE_TIMER_VALUE);
     if(dwRet != SUCCESS)
     {
-        log_error(byLogNum, "slave_send error!");
-        return FAILE;
-    }
-
-    free(pstReq);
-
-    dwRet = g_pSlvRegTimer->start(REGISTER_TIMER_VALUE);
-    if(dwRet != SUCCESS)
-    {
-        log_error(byLogNum, "g_pSlvRegTimer->start error!");
+        log_error(byLogNum, "pclsSlv->pKeepAliveTimer start error!");
         return FAILE;
     }
     
-    return dwRet;
+    return SUCCESS;
 }
 
 DWORD slave_batchTimerProc(void *pSlv)
@@ -137,13 +99,6 @@ DWORD slave_batchTimerProc(void *pSlv)
     
     log_debug(byLogNum, "slave batch time up!");
 
-    dwRet = g_pSlvBatchTimer->start(NEWCFG_BATCH_FAST_TIMER_VALUE);
-    if(dwRet != SUCCESS)
-    {
-        log_error(byLogNum, "g_pSlvBatchTimer->start error!");
-        return FAILE;
-    }
-
     if(pclsSlv->stBatch.byBatchFlag == TRUE)
     {
         DWORD dwRet = slave_batchRes2Mst(pSlv);
@@ -152,6 +107,57 @@ DWORD slave_batchTimerProc(void *pSlv)
             log_error(byLogNum, "slave failed to response batch to master!");
             return FAILE;
         }
+    }
+    
+    dwRet = pclsSlv->pBatchTimer->start(NEWCFG_BATCH_FAST_TIMER_VALUE);
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "pclsSlv->pBatchTimer start error!");
+        return FAILE;
+    }
+
+    return SUCCESS;
+}
+
+DWORD slave_initTimer(void *pArg)
+{
+    DWORD dwRet = SUCCESS;
+    slave *pclsSlv = (slave *)pArg;
+    BYTE byLogNum = pclsSlv->byLogNum;
+
+    //KeepAlive定时器
+    pclsSlv->pKeepAliveTimer = new timer(byLogNum);
+    dwRet = pclsSlv->pKeepAliveTimer->init();
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "pclsSlv->pKeepAliveTimer init error!");
+        return FAILE;
+    }
+    
+    //Batch定时器
+    pclsSlv->pBatchTimer = new timer(byLogNum);
+    dwRet = pclsSlv->pBatchTimer->init();
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "pclsSlv->pBatchTimer init error!");
+        return FAILE;
+    }
+    
+
+    return SUCCESS;
+}
+
+DWORD slave_startTimer(void *pArg)
+{
+    DWORD dwRet = SUCCESS;
+    slave *pclsSlv = (slave *)pArg;
+    BYTE byLogNum = pclsSlv->byLogNum;
+    
+    dwRet = pclsSlv->pKeepAliveTimer->start(KEEPALIVE_TIMER_VALUE); // 1min -> 6s
+    if(dwRet != SUCCESS)
+    {
+        log_error(byLogNum, "pclsSlv->pKeepAliveTimer start error!");
+        return FAILE;
     }
     
     return SUCCESS;
@@ -193,7 +199,7 @@ DWORD slave::slave_Init()
     }
 
     /* 向master发送一次登录包，以方便master记录wSlvAddr  */
-    MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)slave_alloc_Login(wSlvAddr, wMstAddr);
+    MSG_LOGIN_REQ_S *pstLogin = (MSG_LOGIN_REQ_S *)slave_alloc_reqMsg(wSlvAddr, wMstAddr, START_SIG_2, CMD_LOGIN);
     log_debug(byLogNum, "wSlvAddr(%d) ready to send login msg to master.", wSlvAddr);
     if(!pstLogin)
     {
@@ -209,19 +215,18 @@ DWORD slave::slave_Init()
     }
 
     //slave的定时器
-    g_pSlvBatchTimer = new timer(byLogNum);
-    dwRet = g_pSlvBatchTimer->init();
-    if(dwRet != SUCCESS)
+    dwRet |= slave_initTimer(this);
+
+    dwRet |= pVos->vos_RegTask("slv_ka_timer", pKeepAliveTimer->dwTimerFd, slave_keepaliveTimerProc, this);
+    dwRet |= pVos->vos_RegTask("slv_batch_timer", pBatchTimer->dwTimerFd, slave_batchTimerProc, this);
+    
+    dwRet |= slave_startTimer(this);
+    if(dwRet == FAILE)
     {
-        log_error(byLogNum, "g_pSlvBatchTimer->init error!");
+        log_error(byLogNum, "Slave set timer error(%u)!", dwRet);
         return FAILE;
     }
-    dwRet = pVos->vos_RegTask("slv_timer", g_pSlvBatchTimer->dwTimerFd, slave_batchTimerProc, this);
-    if(dwRet != SUCCESS)
-    {
-        log_error(byLogNum, "vos_RegTask error!");
-        return FAILE;
-    }
+
 
     return dwRet;
 }

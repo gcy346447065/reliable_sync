@@ -13,13 +13,10 @@
 #include "protocol.h"
 #include "mbufer.h"
 #include "timer.h"
+#include "checksum.h"
 #include "log.h"
 
-extern WORD g_slv_wMstAddr;
-extern WORD g_slv_wSlvAddr;
-extern mbufer *g_pSlvMbufer;
-extern timer *g_pSlvRegTimer;
-extern timer *g_pSlvBatchTimer;
+extern WORD g_wByteBitCnt;
 
 DWORD g_dwSlvLastDataNums;
 
@@ -128,8 +125,6 @@ static DWORD slave_keepAlive(void *pSlv, const void *pMsg)
 {
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
-    //log_debug(byLogNum, "slave keep alive.");
-    log_debug(byLogNum, "slave_keepAlive.");
 
     const MSG_KEEP_ALIVE_REQ_S *pstReq = (const MSG_KEEP_ALIVE_REQ_S *)pMsg;
     if(!pstReq)
@@ -142,7 +137,10 @@ static DWORD slave_keepAlive(void *pSlv, const void *pMsg)
         log_error(byLogNum, "msg length not enough!");
         return FAILE;
     }
+    
+    log_debug(byLogNum, "slave receive master(%u)'s keep alive msg.", ntohs(pstReq->stMsgHdr.wSrcAddr));
 
+/*
     WORD wDstAddr = ntohs(pstReq->stMsgHdr.wSrcAddr);
     MSG_KEEP_ALIVE_RSP_S *pstRsp = (MSG_KEEP_ALIVE_RSP_S *)slave_alloc_rspMsg(pclsSlv->wSlvAddr, wDstAddr, 
                                                                               ntohs(pstReq->stMsgHdr.wSig), ntohl(pstReq->stMsgHdr.dwSeq), CMD_KEEP_ALIVE);
@@ -159,7 +157,7 @@ static DWORD slave_keepAlive(void *pSlv, const void *pMsg)
         return FAILE;
     }
     free(pstRsp);
-
+*/
     return SUCCESS;
 }
 
@@ -182,14 +180,14 @@ DWORD slave_batchSetState(void *pSlv, BYTE byStartFlag, DWORD dwDataStart, DWORD
         
         pclsSlv->stBatch.dwDataStart = dwDataStart;
         pclsSlv->stBatch.dwDataEnd = dwDataEnd;
-        pclsSlv->stBatch.pbyBitmap = (BYTE *)malloc((dwDataEnd - dwDataStart) * sizeof(BYTE) / 8 + 1);
-        memset(pclsSlv->stBatch.pbyBitmap, 0, (dwDataEnd - dwDataStart) * sizeof(BYTE) / 8 + 1);
+        pclsSlv->stBatch.pbyBitmap = (BYTE *)malloc(((dwDataEnd - dwDataStart) / g_wByteBitCnt + 1) * sizeof(BYTE));
+        memset(pclsSlv->stBatch.pbyBitmap, 0, (((dwDataEnd - dwDataStart) / g_wByteBitCnt + 1) * sizeof(BYTE)));
         
         //开batch定时器
-        DWORD dwRet = g_pSlvBatchTimer->start(NEWCFG_BATCH_TIMER_VALUE);
+        DWORD dwRet = pclsSlv->pBatchTimer->start(NEWCFG_BATCH_TIMER_VALUE);
         if(dwRet != SUCCESS)
         {
-            log_error(byLogNum, "g_pSlvBatchTimer->start error!");
+            log_error(byLogNum, "pclsSlv->pBatchTimer start error!");
             return FAILE;
         }
     }
@@ -212,10 +210,10 @@ DWORD slave_batchSetState(void *pSlv, BYTE byStartFlag, DWORD dwDataStart, DWORD
         }
         
         //关batch定时器
-        DWORD dwRet = g_pSlvBatchTimer->stop();
+        DWORD dwRet = pclsSlv->pBatchTimer->stop();
         if(dwRet != SUCCESS)
         {
-            log_error(byLogNum, "g_pSlvBatchTimer->stop error!");
+            log_error(byLogNum, "pclsSlv->pBatchTimer stop error!");
             return FAILE;
         }
 
@@ -238,14 +236,25 @@ DWORD slave_batchWriteFile(void *pSlv, const MSG_DATA_BATCH_REQ_S *pstReq)
         log_debug(byLogNum, "dwDataID(%u) > dwDataEnd(%u).", dwDataID, dwDataEnd);
         return FAILE;
     }
+
+    WORD wDatachecksum = checksum((const void *)pstReq->stData.stData.abyData, ntohs(pstReq->stData.stData.wDataLen));
+    if(wDatachecksum != ntohs(pstReq->stData.stData.wDataChecksum))
+    {
+        log_debug(byLogNum, "checksum error!");
+        return FAILE;
+    }
     
-    //slave记录已收到的batch包
-    BYTE byOffset = 0x80; //0x80 = 1000 0000
-    for(INT i = dwDataID; (i - dwDataStart) % 8 != 0; i--)
+    //slave记录已收到的batch包，其中g_wByteBitCnt是1 BYTE的位数
+    BYTE byOffset = 0x01;
+    for(INT i = 0; i < g_wByteBitCnt - 1; i++)
+    {
+        byOffset <<= 1;
+    }
+    for(INT i = dwDataID; (i - dwDataStart) % g_wByteBitCnt != 0; i--)
     {
         byOffset >>= 1;
     }
-    pclsSlv->stBatch.pbyBitmap[(dwDataID - dwDataStart) / 8] |= byOffset;
+    pclsSlv->stBatch.pbyBitmap[(dwDataID - dwDataStart) / g_wByteBitCnt] |= byOffset;
 
     //batch包写入文件
     CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
@@ -275,29 +284,37 @@ DWORD slave_batchWriteFile(void *pSlv, const MSG_DATA_BATCH_REQ_S *pstReq)
 DWORD slave_batchCountLost(void *pSlv)
 {
     slave *pclsSlv = (slave *)pSlv;
-    BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave count lost batch pkgs.");
+    //BYTE byLogNum = pclsSlv->byLogNum;
+    //log_debug(byLogNum, "slave count lost batch pkgs.");
 
     DWORD dwDataStart = pclsSlv->stBatch.dwDataStart;
     DWORD dwDataEnd = pclsSlv->stBatch.dwDataEnd;
 
     pclsSlv->stBatch.dwDataNums = 0;
     pclsSlv->stBatch.vecDataIDs.clear();
-    for(DWORD i = 0; i < (dwDataEnd - dwDataStart) / 8 + 1; i++)
+
+    BYTE byByteSet = 0x01;
+    BYTE byMax = 0x01;
+    for(INT i = 0; i < g_wByteBitCnt - 1; i++)
     {
-        if(pclsSlv->stBatch.pbyBitmap[i] != 0xff)
+        byByteSet <<= 1;
+        byMax |= byByteSet;
+    }
+    for(DWORD i = 0; i < (dwDataEnd - dwDataStart) / g_wByteBitCnt + 1; i++)
+    {
+        if(pclsSlv->stBatch.pbyBitmap[i] != byMax)
         {
-            BYTE byOffset = 0x80; //0x80 = 1000 0000
-            for(DWORD j = 0; j < 8; j++)
+            BYTE byOffset = byByteSet;
+            for(DWORD j = 0; j < g_wByteBitCnt; j++)
             {
-                if(i * 8 + j + dwDataStart > dwDataEnd)
+                if(i * g_wByteBitCnt + j + dwDataStart > dwDataEnd)
                 {
                     break;
                 }
                 else if(!(pclsSlv->stBatch.pbyBitmap[i] & byOffset))
                 {
                     pclsSlv->stBatch.dwDataNums++;
-                    pclsSlv->stBatch.vecDataIDs.push_back(i * 8 + j + dwDataStart);
+                    pclsSlv->stBatch.vecDataIDs.push_back(i * g_wByteBitCnt + j + dwDataStart);
                 }
 
                 byOffset >>= 1;
@@ -314,7 +331,7 @@ DWORD slave_batchRes2Mst(void *pSlv)
 {
     slave *pclsSlv = (slave *)pSlv;
     BYTE byLogNum = pclsSlv->byLogNum;
-    log_debug(byLogNum, "slave response batch result to master.");
+    //log_debug(byLogNum, "slave response batch result to master.");
 
     // slave统计未收到的batch包
     DWORD dwNeedPkg = slave_batchCountLost(pSlv);
@@ -351,7 +368,7 @@ DWORD slave_batchRes2Mst(void *pSlv)
             wLoopFlag = FALSE;
         }
                     
-        MSG_DATA_SLAVE_BATCH_RSP_S *pstRsp = (MSG_DATA_SLAVE_BATCH_RSP_S *)slave_alloc_batchRspMsg(pclsSlv->wSlvAddr, pclsSlv->wMstAddr, 0, 
+        MSG_DATA_SLAVE_BATCH_RSP_S *pstRsp = (MSG_DATA_SLAVE_BATCH_RSP_S *)slave_alloc_dataBatchRsp(pclsSlv->wSlvAddr, pclsSlv->wMstAddr, 0, 
                                                                                                 dwWriteNums, pclsSlv->stBatch.dwDataStart, pclsSlv->stBatch.dwDataEnd);
     
         for(DWORD i = 0; i < dwWriteNums; i++)
@@ -401,7 +418,7 @@ DWORD slave_dataBatch(void *pSlv, const void *pMsg)
         if((dwDataStart == pclsSlv->stBatch.dwDataStart) && (dwDataEnd == pclsSlv->stBatch.dwDataEnd) && dwDataEnd)
         {
             //防止slave已经batch完又收到多余的batch包而重新进入batch状态
-            log_debug(byLogNum, "slave has already batched!(%u to %u)", dwDataStart, dwDataEnd);
+            //log_debug(byLogNum, "slave has already batched!(%u to %u)", dwDataStart, dwDataEnd);
             return SUCCESS;
         }
         else
@@ -467,6 +484,13 @@ static DWORD slave_dataInstant(void *pSlv, const void *pMsg)
         return FAILE;
     }
 
+    WORD wDatachecksum = checksum((const void *)pstReq->stData.abyData, ntohs(pstReq->stData.wDataLen));
+    if(wDatachecksum != ntohs(pstReq->stData.wDataChecksum))
+    {
+        log_debug(byLogNum, "checksum error!");
+        return FAILE;
+    }
+
     // 将instant报文存为文件
     DWORD dwDataID = ntohl(pstReq->stData.dwDataID);
     WORD wDataLen = ntohs(pstReq->stData.wDataLen);
@@ -515,6 +539,13 @@ static DWORD slave_dataWaited(void *pSlv, const void *pMsg)
     if(ntohs(pstReq->stMsgHdr.wLen) < sizeof(MSG_DATA_WAITED_REQ_S) - MSG_HDR_LEN)
     {
         log_error(byLogNum, "msg wLen not enough!");
+        return FAILE;
+    }
+
+    WORD wDatachecksum = checksum((const void *)pstReq->stData.abyData, ntohs(pstReq->stData.wDataLen));
+    if(wDatachecksum != ntohs(pstReq->stData.wDataChecksum))
+    {
+        log_debug(byLogNum, "checksum error! checksum = %u.", wDatachecksum);
         return FAILE;
     }
 

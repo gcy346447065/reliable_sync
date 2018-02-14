@@ -3,12 +3,12 @@
 #include <stdlib.h> //for malloc
 #include <string.h> //for strcmp memset strstr
 #include <fcntl.h> //for open
-#include <sys/epoll.h> //for epoll
 #include <errno.h> //for errno
-#include <sys/socket.h> //for recv
 #include <pthread.h> //for pthread
 #include <netinet/in.h> //for htons
 #include <iostream> //for cout
+#include <sys/epoll.h> //for epoll
+#include <sys/socket.h> //for recv
 #include "macro.h"
 #include "log.h"
 #include "vos.h"
@@ -122,6 +122,25 @@ typedef struct
     WORD wMstAddr;
     WORD wSlvAddr;
 }SYNC_THREAD_S;
+
+static DWORD g_dwTskDataSeq = 1;
+static DWORD g_dwTskBatchID = 0;
+static DWORD g_dwTskInstantID = 0;
+static DWORD g_dwTskWaitedID = 0;
+WORD g_wByteBitCnt = 0;
+
+DWORD task_countTypeBits(void) 
+{
+    //用于计算本机中一个BYTE类型所占用的位数
+    BYTE bType = 1;
+    while(bType != 0)
+    {
+        bType <<= 1;
+        g_wByteBitCnt++;
+    }
+    
+    return SUCCESS;
+}
 
 VOID *main_syncThread(VOID *pArg)
 {
@@ -260,11 +279,6 @@ DWORD task_sendReliableSync(void *pArg, void *pData, WORD wDataLen, DWORD dwTime
     return dwRet;
 }
 
-static DWORD g_dwTskDataSeq = 1;
-static DWORD g_dwTskBatchID = 0;
-static DWORD g_dwTskInstantID = 0;
-static DWORD g_dwTskWaitedID = 0;
-
 void *task_allocLogin(WORD wSrcAddr, WORD wDstAddr)
 {
     //log_debug(LOG1, "wPkgCount(%d).", wPkgCount);
@@ -284,9 +298,9 @@ void *task_allocLogin(WORD wSrcAddr, WORD wDstAddr)
 }
 
 //此函数申请的内存会在同一次批量备份时复用多次
-void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
+void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, DWORD dwPkgCount)
 {
-    if(g_dwTskBatchID + wPkgCount - 1 < g_dwTskBatchID)
+    if(g_dwTskBatchID + dwPkgCount - 1 < g_dwTskBatchID)
     {
         //ID翻转
         g_dwTskBatchID = 0;
@@ -304,7 +318,7 @@ void *task_allocDataBatch(WORD wSrcAddr, WORD wDstAddr, WORD wPkgCount)
         pstBatch->stMsgHdr.wLen = htons(0);//后面在循环中写入
 
         pstBatch->stData.dwDataStart = htonl(g_dwTskBatchID);
-        pstBatch->stData.dwDataEnd = htonl(g_dwTskBatchID + wPkgCount - 1);
+        pstBatch->stData.dwDataEnd = htonl(g_dwTskBatchID + dwPkgCount - 1);
 
         pstBatch->stData.stData.dwDataID = htonl(0);//后面在循环中写入
         pstBatch->stData.stData.wDataLen = htons(0);//后面在循环中写入
@@ -413,6 +427,8 @@ DWORD task_stdinProc(void *pArg)
     {
         //log_debug(byLogNum, "batchFile(%d,%s)", iFileNum, acTmpBuf);
         //批量备份，最大60M
+        cout << "Batch backuping, please wait..." << endl;
+        
         CHAR *pcFilename = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
         memset(pcFilename, 0, MAX_STDIN_FILE_LEN);
         sprintf(pcFilename, "%d%cfile", iFileNum, acTmpBuf[0]);
@@ -432,8 +448,8 @@ DWORD task_stdinProc(void *pArg)
             lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
             log_debug(byLogNum, "batch iFileLen(%d).", iFileLen);
 
-            WORD wPkgCount = (iFileLen + MAX_TASK2MST_PKG_LEN - 1) / MAX_TASK2MST_PKG_LEN;
-            MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)task_allocDataBatch(wTaskAddr, wMstSlvAddr, wPkgCount);
+            DWORD dwPkgCount = (iFileLen + MAX_TASK2MST_PKG_LEN - 1) / MAX_TASK2MST_PKG_LEN;
+            MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)task_allocDataBatch(wTaskAddr, wMstSlvAddr, dwPkgCount);
             if(!pstBatch)
             {
                 log_error(byLogNum, "task_allocDataBatch error!");
@@ -442,9 +458,9 @@ DWORD task_stdinProc(void *pArg)
                 return FAILE;
             }
             
-            log_debug(byLogNum, "wPkgCount = %d.", wPkgCount);
+            log_debug(byLogNum, "dwPkgCount = %u.", dwPkgCount);
             
-            for(INT i = 0; i < wPkgCount; i++)
+            for(DWORD i = 0; i < dwPkgCount; i++)
             {
                 void *pDataBuf = (void *)pstBatch->stData.stData.abyData;
                 memset(pDataBuf, 0, MAX_TASK2MST_PKG_LEN);
@@ -653,14 +669,6 @@ INT main(INT argc, CHAR *argv[])
     log_init(byLogNum, ""); // 现在用的是syslog输出到/var/log/local1.log文件中，如有其他打印log方式可代之
     log_debug(byLogNum, "Main Task Beginning.");
 
-    /* 测试打印调试 */
-    /* while(true)
-    {
-        sleep(1);
-        log_debug(byLogNum, "Hello.");
-    }
-    */
-
     /* 检查入参 */
     if(argc < 2)
     {
@@ -669,6 +677,7 @@ INT main(INT argc, CHAR *argv[])
         log_free();
         return FAILE;
     }
+
     BOOL bMstOrSlv = TRUE;
     INT iMstAddr = ADDR_1_114, iSlvAddr = ADDR_6_119;
     if(strcmp(argv[1], "master") == SUCCESS)
@@ -757,9 +766,11 @@ INT main(INT argc, CHAR *argv[])
         log_free();
         return FAILE;
     }
-    //log_debug(byLogNum, "bMstOrSlv(%d), iMstAddr(%d), iSlvAddr(%d).", bMstOrSlv, iMstAddr, iSlvAddr);
+    
+    task_countTypeBits();
     log_debug(byLogNum, "short(%lu), int(%lu), long(%lu), long long(%lu).", sizeof(short), sizeof(int), sizeof(long), sizeof(long long));
     log_debug(byLogNum, "WORD(%lu), DWORD(%lu), QWORD(%lu).", sizeof(WORD), sizeof(DWORD), sizeof(QWORD));
+    log_debug(byLogNum, "A BYTE has %u bits.", g_wByteBitCnt);
 
     /* 创建新线程作为主备线程，主线程作为业务线程 */
     pthread_t syncThreadId;

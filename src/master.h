@@ -56,6 +56,8 @@ public:
     map<DWORD, NODE_DATA_INSTANT_S*> mapDataInstant;
     map<DWORD, NODE_DATA_WAITED_S*> mapDataWaited;
 
+    timer *pKeepAliveTimer;
+    timer *pBatchTimer;
     timer *pWaitedTimer; // 用于判断是否满足waited定时阈值
     DWORD dwWaitedSize; // 用于计算是否满足waited定量阈值
     

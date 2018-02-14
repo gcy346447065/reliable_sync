@@ -54,7 +54,8 @@ public:
     mbufer *pMbufer;
     SLAVE_BATCH_STATE_S stBatch;
 
-    timer *pKeepaliveTimer;
+    timer *pKeepAliveTimer;
+    timer *pBatchTimer;
 
 };
 

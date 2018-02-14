@@ -1,5 +1,7 @@
 #include <stdlib.h> //for malloc
 #include <netinet/in.h> //for htons
+#include <cstdlib> //for rand
+#include <ctime> //for rand
 #include "master_send.h"
 #include "master.h"
 #include "macro.h"
@@ -7,8 +9,7 @@
 #include "protocol.h"
 #include "mbufer.h"
 #include "log.h"
-
-static DWORD g_dwSeq = 0;
+using namespace std;
 
 static DWORD g_dwMstDataSeq = 1;
 
@@ -48,7 +49,7 @@ VOID *master_alloc_reqMsg(WORD wSrcAddr, WORD wDstAddr, WORD wSig, WORD wCmd)
         pstMsgHdr->wVer  = htons(VERSION_INT);
         pstMsgHdr->wSrcAddr = htons(wSrcAddr);
         pstMsgHdr->wDstAddr = htons(wDstAddr);
-        pstMsgHdr->dwSeq = htonl(g_dwSeq++);
+        pstMsgHdr->dwSeq = htonl(g_dwMstDataSeq++);
         pstMsgHdr->wCmd = htons(wCmd);
         pstMsgHdr->wLen  = htons(wMsgLen - MSG_HDR_LEN);
     }
@@ -183,6 +184,14 @@ DWORD master_sendMsg(void *pMst, WORD wDstAddr, void *pData, WORD wDataLen)
     mbufer *pMbufer = pclsMst->pMbufer;
     BYTE byLogNum = pclsMst->byLogNum;
     //log_debug(byLogNum, "master_sendMsg().");
+    
+    /*取得[0,b)的随机整数：
+    WORD wRandNum = rand()%(100 - 0) + 0;
+    if(wRandNum < MSG_LOSE_RATE)
+    {
+        MSG_HDR_S *pstMsgHdr = (MSG_HDR_S *)pData;
+        pstMsgHdr->wSig = START_SIG_4;
+    }*/
 
     /* 向指定地址发送数据 */
     dwRet = pMbufer->send_message(wDstAddr, pData, wDataLen);
@@ -194,27 +203,4 @@ DWORD master_sendMsg(void *pMst, WORD wDstAddr, void *pData, WORD wDataLen)
         
     return SUCCESS;
 }
-
-DWORD master_sendToSlaves(void *pMst, void *pData, WORD wDataLen)
-{
-    /*DWORD dwRet = SUCCESS;
-    master *pclsMst = (master *)pMst;
-    mbufer *pMbufer = pclsMst->pMbufer;
-    BYTE byLogNum = pclsMst->byLogNum;
-    vector<SLAVE_S> vecSlvs = pclsMst->vecSlvs;
-    log_debug(byLogNum, "master_sendToSlaves().");
-
-    WORD wSlvAddr = vecSlvs.front();
-     向主机主备线程接收端口发送数据 
-    dwRet = pMbufer->send_message(wSlvAddr, pData, wDataLen);
-    if(dwRet != SUCCESS)
-    {
-        log_error(byLogNum, "send_message error!");
-        return dwRet;
-    }*/
-        
-
-    return SUCCESS;
-}
-
 

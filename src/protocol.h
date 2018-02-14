@@ -7,6 +7,7 @@
 #define START_SIG_1 (0xAA55) // task to master, task to slave
 #define START_SIG_2 (0xBB66) // slave to master, master to slave
 #define START_SIG_3 (0xCC77) //
+#define START_SIG_4 (0xDD88) // fake msg
 
 /*
  * Version Changelog
@@ -97,6 +98,7 @@ typedef struct
     WORD wLen;      //消息包长度length
 }__attribute__((__packed__)) MSG_HDR_S;
 
+#define MSG_LOSE_RATE 5 //模拟错包率，单位%
 #define MSG_HDR_LEN sizeof(MSG_HDR_S)
 #define MSG_MAX_SENDTIMES 3 //最大重传次数
 
