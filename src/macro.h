@@ -60,8 +60,8 @@ typedef struct
 
 #define MAX_RETRANS_TIMES 3
 #define MAX_KEEPALIVE_TIMES 3
-
-#define MAX_STDIN_FILE_LEN 128
+ 
+#define MAX_STDIN_FILE_LEN 128 //这里文件名也会作为数据传送，其值不能大于 MAX_TASK2MST_PKG_LEN
 #define MAX_EPOLL_NUM 64
 
 //0和11是task的默认地址

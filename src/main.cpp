@@ -448,7 +448,7 @@ DWORD task_stdinProc(void *pArg)
             lseek(iFileFd, 0, SEEK_SET);//重新定位到文件头
             log_debug(byLogNum, "batch iFileLen(%d).", iFileLen);
 
-            DWORD dwPkgCount = (iFileLen + MAX_TASK2MST_PKG_LEN - 1) / MAX_TASK2MST_PKG_LEN;
+            DWORD dwPkgCount = (iFileLen + MAX_TASK2MST_PKG_LEN - 1) / MAX_TASK2MST_PKG_LEN + 1;
             MSG_DATA_BATCH_REQ_S *pstBatch = (MSG_DATA_BATCH_REQ_S *)task_allocDataBatch(wTaskAddr, wMstSlvAddr, dwPkgCount);
             if(!pstBatch)
             {
@@ -460,25 +460,37 @@ DWORD task_stdinProc(void *pArg)
             
             log_debug(byLogNum, "dwPkgCount = %u.", dwPkgCount);
             
-            for(DWORD i = 0; i < dwPkgCount; i++)
+            for(DWORD i = 0; i < dwPkgCount; i++) //i=0时为IDStart，传送batch文件名
             {
                 void *pDataBuf = (void *)pstBatch->stData.stData.abyData;
                 memset(pDataBuf, 0, MAX_TASK2MST_PKG_LEN);
-                INT iFileBufLen = read(iFileFd, pDataBuf, MAX_TASK2MST_PKG_LEN);
-                if(iFileBufLen < 0)
+
+                WORD wDataLen = 0;
+                if(i == 0)
                 {
-                    log_error(byLogNum, "read iFileFd error(%d)!", iFileBufLen);
-                    free(pcStdinBuf);
-                    free(pcFilename);
-                    free(pstBatch);
-                    return FAILE;
+                    wDataLen = (WORD)strlen(pcFilename);
+                    memcpy((void *)pDataBuf, (void *)pcFilename, wDataLen);
+                    
+                    log_debug(byLogNum, "batch file(%s).", pcFilename);
+                }
+                else
+                {
+                    INT iFileBufLen = read(iFileFd, pDataBuf, MAX_TASK2MST_PKG_LEN);
+                    if(iFileBufLen < 0)
+                    {
+                        log_error(byLogNum, "read iFileFd error(%d)!", iFileBufLen);
+                        free(pcStdinBuf);
+                        free(pcFilename);
+                        free(pstBatch);
+                        return FAILE;
+                    }
+                    wDataLen = (WORD)iFileBufLen;
                 }
                 
-                WORD wFileBufLen = (WORD)iFileBufLen;
-                WORD wBatchLen = sizeof(MSG_DATA_BATCH_REQ_S) + wFileBufLen;
+                WORD wBatchLen = sizeof(MSG_DATA_BATCH_REQ_S) + wDataLen;
                 pstBatch->stMsgHdr.wLen = htons(wBatchLen - MSG_HDR_LEN);//在循环中每次重新写值
                 pstBatch->stData.stData.dwDataID = htonl(g_dwTskBatchID++);
-                pstBatch->stData.stData.wDataLen = htons(wFileBufLen);
+                pstBatch->stData.stData.wDataLen = htons(wDataLen);
 
                 //log_hex_8(byLogNum, pstBatch, 32);
                 iRet = task_sendReliableSync(pArg, pstBatch, wBatchLen, MAX_TASK2MST_RECV_TIMEOUT);//单位us

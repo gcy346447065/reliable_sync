@@ -228,19 +228,19 @@ DWORD slave_batchWriteFile(void *pSlv, const MSG_DATA_BATCH_REQ_S *pstReq)
     BYTE byLogNum = pclsSlv->byLogNum;
     //log_debug(byLogNum, "slave write batch file.");
     
+    WORD wDatachecksum = checksum((const void *)pstReq->stData.stData.abyData, ntohs(pstReq->stData.stData.wDataLen));
+    if(wDatachecksum != ntohs(pstReq->stData.stData.wDataChecksum))
+    {
+        log_debug(byLogNum, "checksum error!");
+        return FAILE;
+    }
+    
     DWORD dwDataID = ntohl(pstReq->stData.stData.dwDataID);
     DWORD dwDataStart = pclsSlv->stBatch.dwDataStart;
     DWORD dwDataEnd = pclsSlv->stBatch.dwDataEnd;
     if(dwDataID > dwDataEnd)
     {
         log_debug(byLogNum, "dwDataID(%u) > dwDataEnd(%u).", dwDataID, dwDataEnd);
-        return FAILE;
-    }
-
-    WORD wDatachecksum = checksum((const void *)pstReq->stData.stData.abyData, ntohs(pstReq->stData.stData.wDataLen));
-    if(wDatachecksum != ntohs(pstReq->stData.stData.wDataChecksum))
-    {
-        log_debug(byLogNum, "checksum error!");
         return FAILE;
     }
     
@@ -256,6 +256,13 @@ DWORD slave_batchWriteFile(void *pSlv, const MSG_DATA_BATCH_REQ_S *pstReq)
     }
     pclsSlv->stBatch.pbyBitmap[(dwDataID - dwDataStart) / g_wByteBitCnt] |= byOffset;
 
+
+    if(dwDataID == dwDataStart)
+    {
+        log_debug(byLogNum, "Batch file's name is %s.", pstReq->stData.stData.abyData);
+        return SUCCESS;
+    }
+
     //batch包写入文件
     CHAR *pcFileName = (CHAR *)malloc(MAX_STDIN_FILE_LEN);
     INT iFileFd;
@@ -266,7 +273,7 @@ DWORD slave_batchWriteFile(void *pSlv, const MSG_DATA_BATCH_REQ_S *pstReq)
         return FAILE;
     }
     
-    INT iFilePos = dwDataID - dwDataStart;
+    INT iFilePos = dwDataID - dwDataStart - 1;
     lseek(iFileFd, iFilePos * MAX_TASK2MST_PKG_LEN, SEEK_SET);
     WORD wDataLen = ntohs(pstReq->stData.stData.wDataLen);
     INT iWriteLen = write(iFileFd, pstReq->stData.stData.abyData, wDataLen);

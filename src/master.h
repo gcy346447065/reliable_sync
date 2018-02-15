@@ -48,7 +48,7 @@ public:
     
     BYTE bySlvNums;
     vector<SLAVE_S> vecSlvs;
-    
+
     BYTE byBatchFlag; // 当前master是否正处于Batch状态，TRUE-是，FALSE-否
     BYTE byInstantFlag;
     BYTE byWaitedFlag;

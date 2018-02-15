@@ -149,7 +149,7 @@ typedef struct
 
 typedef struct
 {
-    DWORD dwDataStart;   //起始ID，Batch数据才会用到
+    DWORD dwDataStart;   //起始ID，Batch数据才会用到， ID=Start的batch包传送batch文件名
     DWORD dwDataEnd;     //终止ID，Batch数据才会用到
     DATA_PKG_S stData;
 }__attribute__((__packed__)) DATA_BATCH_PKG_S;

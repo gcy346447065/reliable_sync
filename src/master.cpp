@@ -6,6 +6,7 @@
 #include <pthread.h> //for pthread
 #include <netinet/in.h> //for htons
 #include <iostream> //for cout
+#include <fcntl.h> //for open
 #include "master.h"
 #include "master_send.h"
 #include "macro.h"
@@ -206,6 +207,7 @@ DWORD master_batchTimerProc(void *pMst)
             
             for(DWORD i = 0; i < pstSlv->stBatch.dwDataNums; i++)
             {
+                //根据DataID直接去找batch文件
                 DWORD dwDataID = pstSlv->stBatch.vecDataIDs.at(i);
                 NODE_DATA_BATCH_S *pstNodeBatch = pclsMst->mapDataBatch[dwDataID];
                 if(!pstNodeBatch)
@@ -214,11 +216,46 @@ DWORD master_batchTimerProc(void *pMst)
                     continue;
                 }
                 
-                MSG_DATA_BATCH_REQ_S *pstBatchPkg = (MSG_DATA_BATCH_REQ_S *)master_alloc_dataBatch(pclsMst->wMstAddr, pstSlv->wSlvAddr, pstNodeBatch->stBatchNet.dwDataStart, pstNodeBatch->stBatchNet.dwDataEnd,
-                                                                  dwDataID, (void *)pstNodeBatch->stBatchNet.stData.abyData, pstNodeBatch->stBatchNet.stData.wDataLen);
+                DWORD dwDataStart = pstNodeBatch->stBatchNet.dwDataStart;
+                DWORD dwDataEnd = pstNodeBatch->stBatchNet.dwDataEnd;
+                WORD wDateLen =pstNodeBatch->stBatchNet.stData.wDataLen;
+                BYTE *pDataBuf = (BYTE *)malloc(wDateLen);
+                memset(pDataBuf, 0, wDateLen);
+                if(dwDataStart == dwDataID)
+                {
+                    memcpy((void *)pDataBuf, (void *)pstNodeBatch->stBatchNet.stData.abyData, wDateLen);
+                }
+                else
+                {                
+                    NODE_DATA_BATCH_S *pstNodeBatchStart = pclsMst->mapDataBatch[dwDataStart];
+                    INT iFileFd;
+                    if((iFileFd = open((const char*)pstNodeBatchStart->stBatchNet.stData.abyData, O_RDONLY)) < 0)
+                    {
+                        cout << "open new config file error" << endl;
+                        log_error(byLogNum, "open new config file error(%s)!", strerror(errno));
+                        return FAILE;
+                    }
+                    
+                    lseek(iFileFd, (dwDataID - dwDataStart - 1) * MAX_TASK2MST_PKG_LEN, SEEK_SET);//定位到文件指定位置
+                    
+                    INT iFileBufLen = read(iFileFd, pDataBuf, MAX_TASK2MST_PKG_LEN);
+                    if(iFileBufLen < 0)
+                    {
+                        log_error(byLogNum, "read iFileFd error(%d)!", iFileBufLen);
+                        close(iFileFd);
+                        free(pDataBuf);
+                        return FAILE;
+                    }
+                    close(iFileFd);
+                }
+                
+                MSG_DATA_BATCH_REQ_S *pstBatchPkg = (MSG_DATA_BATCH_REQ_S *)master_alloc_dataBatch(pclsMst->wMstAddr, pstSlv->wSlvAddr, dwDataStart, dwDataEnd, dwDataID, (void *)pDataBuf, wDateLen);
 
-                master_sendMsg((void *)pclsMst, pstSlv->wSlvAddr, (void *)pstBatchPkg, sizeof(MSG_DATA_BATCH_REQ_S) + pstNodeBatch->stBatchNet.stData.wDataLen);
+                WORD wChecksum = checksum((const void *)pDataBuf, wDateLen);
+                pstBatchPkg->stData.stData.wDataChecksum = htons(wChecksum);
+                master_sendMsg((void *)pclsMst, pstSlv->wSlvAddr, (void *)pstBatchPkg, sizeof(MSG_DATA_BATCH_REQ_S) + wDateLen);
 
+                free(pDataBuf);
                 free(pstBatchPkg);
             }
         }
